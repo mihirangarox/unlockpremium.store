@@ -7,12 +7,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/posts': 'http://localhost:3001',
+      '/testimonials': 'http://localhost:3001',
       '/upload-image': 'http://localhost:3001',
     },
   },
   preview: {
     proxy: {
       '/posts': 'http://localhost:3001',
+      '/testimonials': 'http://localhost:3001',
       '/upload-image': 'http://localhost:3001',
     },
   },

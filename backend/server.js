@@ -238,6 +238,88 @@ app.delete('/posts/:id', authenticate, async (req, res) => {
 });
 // --- END: Blog Post Routes ---
 
+// --- START: Testimonials Routes ---
+const testimonialsCollection = db.collection('testimonials');
+
+app.get('/testimonials', async (req, res) => {
+    try {
+        const snapshot = await testimonialsCollection.orderBy('createdAt', 'desc').get();
+        const testimonials = [];
+        snapshot.forEach(doc => {
+            testimonials.push({ id: doc.id, ...doc.data() });
+        });
+        res.json(testimonials);
+    } catch (error) {
+        console.error("Error getting testimonials:", error);
+        res.status(500).send("Error getting testimonials");
+    }
+});
+
+app.post('/testimonials', authenticate, async (req, res) => {
+    try {
+        const { content, user, rating, region } = req.body;
+        if (!content || !user) {
+            return res.status(400).send("Content and user are required.");
+        }
+
+        const newTestimonial = {
+            content,
+            user,
+            rating: rating || 5,
+            region: region || '',
+            createdAt: new Date().toISOString()
+        };
+
+        const docRef = await testimonialsCollection.add(newTestimonial);
+        res.status(201).json({ id: docRef.id, ...newTestimonial });
+    } catch (error) {
+        console.error("Error creating testimonial:", error);
+        res.status(500).send("Error creating testimonial");
+    }
+});
+
+app.put('/testimonials/:id', authenticate, async (req, res) => {
+    try {
+        const { content, user, rating, region } = req.body;
+        if (!content || !user) {
+            return res.status(400).send("Content and user are required.");
+        }
+
+        const testimonialRef = testimonialsCollection.doc(req.params.id);
+        const doc = await testimonialRef.get();
+
+        if (!doc.exists) {
+            return res.status(404).send('Testimonial not found');
+        }
+
+        const updatedTestimonial = {
+            content,
+            user,
+            rating: rating || doc.data().rating,
+            region: region || doc.data().region,
+            updatedAt: new Date().toISOString()
+        };
+
+        await testimonialRef.update(updatedTestimonial);
+        res.status(200).json({ id: req.params.id, ...updatedTestimonial });
+    } catch (error) {
+        console.error("Error updating testimonial:", error);
+        res.status(500).send("Error updating testimonial");
+    }
+});
+
+app.delete('/testimonials/:id', authenticate, async (req, res) => {
+    try {
+        const testimonialRef = testimonialsCollection.doc(req.params.id);
+        await testimonialRef.delete();
+        res.status(200).send({ message: 'Testimonial deleted successfully' });
+    } catch (error) {
+        console.error("Error deleting testimonial:", error);
+        res.status(500).send("Error deleting testimonial");
+    }
+});
+// --- END: Testimonials Routes ---
+
 app.post('/login', async (req, res) => {
     const { idToken } = req.body;
     try {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAuth } from 'firebase/auth';
+import RichTextEditor from './RichTextEditor';
 
 interface CreatePostProps {
   post?: Post | null;
@@ -26,7 +27,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ post, onPostCreated, onPostUpda
   const [imageUrl, setImageUrl] = useState<string | undefined>(post?.imageUrl);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const auth = getAuth();
   const isEditMode = !!post;
 
@@ -53,11 +54,11 @@ const CreatePost: React.FC<CreatePostProps> = ({ post, onPostCreated, onPostUpda
     setError(null);
     const user = auth.currentUser;
     if (!user) {
-        setError('You must be logged in to upload images.');
-        setIsUploading(false);
-        return null;
+      setError('You must be logged in to upload images.');
+      setIsUploading(false);
+      return null;
     }
-    
+
     const token = await user.getIdToken();
     const formData = new FormData();
     formData.append('image', image);
@@ -89,29 +90,34 @@ const CreatePost: React.FC<CreatePostProps> = ({ post, onPostCreated, onPostUpda
     e.preventDefault();
     setError(null);
 
+    if (!content || content === '<p></p>') {
+      setError('Content is required');
+      return;
+    }
+
     let finalImageUrl = imageUrl;
 
     if (image) {
-        const uploadedUrl = await uploadImage();
-        if (uploadedUrl) {
-            finalImageUrl = uploadedUrl;
-        } else {
-            return; 
-        }
+      const uploadedUrl = await uploadImage();
+      if (uploadedUrl) {
+        finalImageUrl = uploadedUrl;
+      } else {
+        return;
+      }
     }
 
     const user = auth.currentUser;
     if (!user) {
-        setError("You must be logged in to create/update posts.");
-        return;
+      setError("You must be logged in to create/update posts.");
+      return;
     }
     const token = await user.getIdToken();
 
-    const postData = { 
-        title, 
-        summary, 
-        content, 
-        imageUrl: finalImageUrl
+    const postData = {
+      title,
+      summary,
+      content,
+      imageUrl: finalImageUrl
     };
 
     try {
@@ -146,7 +152,7 @@ const CreatePost: React.FC<CreatePostProps> = ({ post, onPostCreated, onPostUpda
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <h2 className="text-2xl font-bold text-white">{isEditMode ? 'Edit Post' : 'Create New Post'}</h2>
-      
+
       {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md">{error}</div>}
 
       <div>
@@ -175,26 +181,22 @@ const CreatePost: React.FC<CreatePostProps> = ({ post, onPostCreated, onPostUpda
 
       <div>
         <label htmlFor="content" className="block text-sm font-medium text-gray-300 mb-2">Content</label>
-        <textarea
-          id="content"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          required
-          rows={10}
-          className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        <RichTextEditor
+          content={content}
+          onChange={setContent}
         />
       </div>
 
       <div>
         <label htmlFor="image" className="block text-sm font-medium text-gray-300 mb-2">Featured Image</label>
         <div className="mt-2 flex items-center gap-4">
-            {imageUrl && <img src={imageUrl} alt="Current" className="w-32 h-20 object-cover rounded-md"/>}
-            <input
-                type="file"
-                id="image"
-                onChange={handleImageChange}
-                className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700"
-            />
+          {imageUrl && <img src={imageUrl} alt="Current" className="w-32 h-20 object-cover rounded-md" />}
+          <input
+            type="file"
+            id="image"
+            onChange={handleImageChange}
+            className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700"
+          />
         </div>
       </div>
 
