@@ -1,0 +1,13 @@
+# https://unlockpremium.shop robots.txt
+
+User-agent: *
+Allow: /
+
+# Disallow internal and administrative paths
+Disallow: /admin/
+Disallow: /private/
+Disallow: /config/
+Disallow: /api/
+
+# Reference to the sitemap
+Sitemap: https://unlockpremium.shop/sitemap.xml
