@@ -22,9 +22,9 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
               Professional LinkedIn tools delivered instantly. We provide verified activation links for Career, Business, and Sales Navigator plans at 70% off retail prices.
             </p>
             <div className="flex gap-4">
-              <a 
-                href="https://wa.me/447534317838" 
-                target="_blank" 
+              <a
+                href="https://wa.me/447534317838"
+                target="_blank"
                 rel="noopener noreferrer"
                 title="Chat on WhatsApp – Fastest response"
                 className="w-10 h-10 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-500 hover:text-[#25D366] hover:border-[#25D366]/50 transition-all group"
@@ -35,8 +35,8 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
                 </svg>
               </a>
 
-              <a 
-                href="mailto:support@unlockpremium.shop" 
+              <a
+                href="mailto:support@unlockpremium.shop"
                 title="Official support email"
                 className="w-10 h-10 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-500 hover:text-indigo-400 hover:border-indigo-400/50 transition-all group"
               >
@@ -48,7 +48,7 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
               </a>
             </div>
           </div>
-          
+
           <div>
             <h5 className="font-bold text-white mb-6 text-sm uppercase tracking-widest">Navigation</h5>
             <ul className="space-y-4 text-sm text-neutral-500">
@@ -58,7 +58,7 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
               <li><button onClick={() => onSetView('testimonials')} className="hover:text-indigo-400 transition-colors text-left">Testimonials</button></li>
             </ul>
           </div>
-          
+
           <div>
             <h5 className="font-bold text-white mb-6 text-sm uppercase tracking-widest">Support</h5>
             <ul className="space-y-4 text-sm text-neutral-500">
@@ -67,7 +67,7 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
               <li><button onClick={() => onSetView('faqs')} className="hover:text-indigo-400 transition-colors text-left">FAQs</button></li>
             </ul>
           </div>
-          
+
           <div>
             <h5 className="font-bold text-white mb-6 text-sm uppercase tracking-widest">Legal</h5>
             <ul className="space-y-4 text-sm text-neutral-500">
@@ -76,9 +76,9 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
             </ul>
           </div>
         </div>
-        
+
         <div className="flex flex-col md:flex-row items-center justify-between py-8 border-t border-white/5 gap-4">
-          <p className="text-neutral-500 text-[13px]">© 2024 UnlockPremium. All rights reserved.</p>
+          <p className="text-neutral-500 text-[13px]">© 2026 UnlockPremium. All rights reserved.</p>
           <div className="flex gap-4 text-[13px] text-neutral-500 text-left">
             <span>Digital service</span>
             <span className="text-white/10">•</span>

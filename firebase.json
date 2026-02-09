@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "source": "functions"
+  },
   "hosting": {
     "public": "dist",
     "ignore": [
@@ -7,6 +10,26 @@
       "**/node_modules/**"
     ],
     "rewrites": [
+      {
+        "source": "/posts",
+        "function": "api"
+      },
+      {
+        "source": "/posts/**",
+        "function": "api"
+      },
+      {
+        "source": "/testimonials",
+        "function": "api"
+      },
+      {
+        "source": "/testimonials/**",
+        "function": "api"
+      },
+      {
+        "source": "/upload-image",
+        "function": "api"
+      },
       {
         "source": "**",
         "destination": "/index.html"
