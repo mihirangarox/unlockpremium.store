@@ -73,6 +73,7 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
             <ul className="space-y-4 text-sm text-neutral-500">
               <li><button onClick={() => onSetView('legal')} className="hover:text-indigo-400 transition-colors text-left">Legal & Privacy Notice</button></li>
               <li><button onClick={() => onSetView('refund')} className="hover:text-indigo-400 transition-colors text-left">Refund & Activation Policy</button></li>
+              <li><button onClick={() => onSetView('admin')} className="hover:text-indigo-400 transition-colors text-left">Admin Login</button></li>
             </ul>
           </div>
         </div>

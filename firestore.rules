@@ -1,0 +1,18 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default-deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Allow public read access to posts
+    match /posts/{postId} {
+      allow read: if true;
+      // Allow write access only to authenticated users who are the authors of the post
+      allow create, update, delete: if request.auth != null && request.resource.data.authorUid == request.auth.uid;
+    }
+  }
+}
