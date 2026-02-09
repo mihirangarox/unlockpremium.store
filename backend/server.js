@@ -6,15 +6,15 @@ const multer = require('multer');
 
 // --- START: Firebase Initialization ---
 try {
-  const serviceAccount = require('./serviceAccountKey.json'); 
+    const serviceAccount = require('./serviceAccountKey.json');
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: "unlockpremium-372c9.appspot.com"
-  });
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        storageBucket: "unlockpremium-372c9.firebasestorage.app"
+    });
 } catch (error) {
-  console.error("Firebase Admin SDK initialization failed.", error);
-  console.error("Please make sure you have a valid serviceAccountKey.json file in the backend directory.");
+    console.error("Firebase Admin SDK initialization failed.", error);
+    console.error("Please make sure you have a valid serviceAccountKey.json file in the backend directory.");
 }
 
 const db = admin.firestore();
@@ -30,19 +30,19 @@ app.use(cors());
 app.use(express.json());
 
 const authenticate = async (req, res, next) => {
-  const { authorization } = req.headers;
-  if (!authorization || !authorization.startsWith('Bearer ')) {
-    return res.status(401).send('Unauthorized. Missing or incorrect Authorization header.');
-  }
-  const idToken = authorization.split('Bearer ')[1];
-  try {
-    const decodedToken = await auth.verifyIdToken(idToken);
-    req.user = decodedToken;
-    next();
-  } catch (error) {
-    console.error('Error verifying ID token:', error);
-    res.status(401).send('Unauthorized. Invalid token.');
-  }
+    const { authorization } = req.headers;
+    if (!authorization || !authorization.startsWith('Bearer ')) {
+        return res.status(401).send('Unauthorized. Missing or incorrect Authorization header.');
+    }
+    const idToken = authorization.split('Bearer ')[1];
+    try {
+        const decodedToken = await auth.verifyIdToken(idToken);
+        req.user = decodedToken;
+        next();
+    } catch (error) {
+        console.error('Error verifying ID token:', error);
+        res.status(401).send('Unauthorized. Invalid token.');
+    }
 };
 
 const upload = multer({
@@ -67,8 +67,8 @@ app.post('/upload-image', authenticate, upload.single('image'), async (req, res)
     });
 
     blobStream.on('error', (err) => {
-        console.error(err);
-        res.status(500).send({ message: 'Could not upload the file.' });
+        console.error('BlobStream Error:', err);
+        res.status(500).send({ message: 'Could not upload the file.', error: err.message });
     });
 
     blobStream.on('finish', async () => {
@@ -78,7 +78,7 @@ app.post('/upload-image', authenticate, upload.single('image'), async (req, res)
 
             // Get the public URL
             const publicUrl = `https://storage.googleapis.com/${bucket.name}/${blob.name}`;
-    
+
             res.status(200).send({ imageUrl: publicUrl });
         } catch (err) {
             console.error('Error making file public:', err);
@@ -94,36 +94,36 @@ app.post('/upload-image', authenticate, upload.single('image'), async (req, res)
 const postsCollection = db.collection('posts');
 
 app.get('/posts', async (req, res) => {
-  try {
-    const snapshot = await postsCollection.orderBy('createdAt', 'desc').get();
-    const posts = [];
-    snapshot.forEach(doc => {
-      posts.push({ id: doc.id, ...doc.data() });
-    });
-    res.json(posts);
-  } catch (error) {
-    console.error("Error getting posts:", error);
-    res.status(500).send("Error getting posts");
-  }
+    try {
+        const snapshot = await postsCollection.orderBy('createdAt', 'desc').get();
+        const posts = [];
+        snapshot.forEach(doc => {
+            posts.push({ id: doc.id, ...doc.data() });
+        });
+        res.json(posts);
+    } catch (error) {
+        console.error("Error getting posts:", error);
+        res.status(500).send("Error getting posts");
+    }
 });
 
 app.get('/posts/:id', async (req, res) => {
-  try {
-    const doc = await postsCollection.doc(req.params.id).get();
-    if (!doc.exists) {
-      return res.status(404).send('Post not found');
+    try {
+        const doc = await postsCollection.doc(req.params.id).get();
+        if (!doc.exists) {
+            return res.status(404).send('Post not found');
+        }
+        res.json({ id: doc.id, ...doc.data() });
+    } catch (error) {
+        console.error("Error getting post:", error);
+        res.status(500).send("Error getting post");
     }
-    res.json({ id: doc.id, ...doc.data() });
-  } catch (error) {
-    console.error("Error getting post:", error);
-    res.status(500).send("Error getting post");
-  }
 });
 
 app.post('/posts', authenticate, async (req, res) => {
     try {
         const { title, summary, content, imageUrl } = req.body;
-        if (!title || !summary || !content) { 
+        if (!title || !summary || !content) {
             return res.status(400).send("Title, summary, and content are required.");
         }
 
@@ -177,7 +177,7 @@ app.put('/posts/:id', authenticate, async (req, res) => {
         if (imageUrl) {
             try {
                 newImagePath = decodeURIComponent(new URL(imageUrl).pathname.split('/').slice(2).join('/'));
-            } catch(e) { console.error('Invalid image URL:', imageUrl, e); }
+            } catch (e) { console.error('Invalid image URL:', imageUrl, e); }
         }
 
         if (oldImagePath && oldImagePath !== newImagePath) {
@@ -193,7 +193,7 @@ app.put('/posts/:id', authenticate, async (req, res) => {
             title,
             summary,
             content,
-            imageUrl: imageUrl, 
+            imageUrl: imageUrl,
             imagePath: newImagePath,
             updatedAt: new Date().toISOString()
         };
@@ -250,5 +250,5 @@ app.post('/login', async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+    console.log(`Server is running on http://localhost:${port}`);
 });
