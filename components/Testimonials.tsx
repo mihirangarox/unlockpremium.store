@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { TESTIMONIALS } from '../constants';
-import { ViewState } from '../App';
+import { ViewState } from '../src/App';
 
 interface TestimonialsProps {
   onSetView: (view: ViewState) => void;
@@ -28,7 +28,14 @@ const Testimonials: React.FC<TestimonialsProps> = ({ onSetView }) => {
               </div>
               <p className="text-white italic text-lg leading-relaxed mb-8">"{t.content}"</p>
               <div className="flex items-center gap-4">
-                <img src={t.avatar} alt={t.name} className="w-12 h-12 rounded-full ring-2 ring-indigo-500/20" />
+                <img
+                  src={t.avatar}
+                  alt={t.name}
+                  className="w-12 h-12 rounded-full ring-2 ring-indigo-500/20"
+                  width="48"
+                  height="48"
+                  loading="lazy"
+                />
                 <div>
                   <h4 className="font-bold text-white leading-none mb-1">{t.name}</h4>
                   <p className="text-neutral-500 text-xs">{t.role}</p>

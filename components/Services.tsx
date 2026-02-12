@@ -1,8 +1,8 @@
 import React from 'react';
 import { SERVICES } from '../constants';
 import Button from './Button';
-import { ViewState } from '../App';
-import { motion } from 'framer-motion';
+import { ViewState } from '../src/App';
+import { m } from 'framer-motion';
 
 interface ServicesProps {
   onSetView: (view: ViewState) => void;
@@ -31,7 +31,7 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
     <section id="services" className="relative">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
-          <motion.h2
+          <m.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -39,8 +39,8 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
             className="text-4xl md:text-5xl font-bold mb-4 tracking-tight"
           >
             Select your <span className="text-indigo-500">Premium Plan</span>
-          </motion.h2>
-          <motion.p
+          </m.h2>
+          <m.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -48,10 +48,10 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
             className="text-neutral-500 text-lg max-w-2xl mx-auto"
           >
             Elite professional tools for individuals and businesses. Verified activation, global availability.
-          </motion.p>
+          </m.p>
         </div>
 
-        <motion.div
+        <m.div
           variants={container}
           initial="hidden"
           whileInView="show"
@@ -59,7 +59,7 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto"
         >
           {displayServices.map((service) => (
-            <motion.div
+            <m.div
               key={service.id}
               variants={item}
               whileHover={{ y: -10, transition: { duration: 0.3 } }}
@@ -77,6 +77,7 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
               </div>
 
               <h3 className="text-2xl font-bold mb-2 text-white">{service.name}</h3>
+
               <p className="text-neutral-400 text-sm mb-6 flex-1">{service.description}</p>
 
               <div className="space-y-3 mb-8">
@@ -91,26 +92,47 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
               </div>
 
               <div className="flex items-center justify-between mt-auto pt-6 border-t border-white/5">
-                <div>
-                  <span className="text-neutral-500 text-xs block mb-1 uppercase tracking-widest font-bold">Limited Offer</span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-black text-indigo-400 uppercase tracking-tight">Claim 70% Off</span>
+                {service.id === 'li-sales' ? (
+                  <div className="w-full">
+                    <div className="mb-4">
+                      <p className="text-sm font-bold text-white">Retail (estimate): From $40/month</p>
+                      <p className="text-xs text-neutral-400 mt-1">Final price confirmed before activation</p>
+                    </div>
+                    <a
+                      href={service.whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full"
+                    >
+                      <Button variant="outline" size="sm" className="w-full group-hover:bg-white group-hover:text-black transition-all">
+                        Get Started
+                      </Button>
+                    </a>
                   </div>
-                </div>
-                <a
-                  href={service.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <Button variant="outline" size="sm" className="group-hover:bg-white group-hover:text-black transition-all">
-                    Get Started
-                  </Button>
-                </a>
+                ) : (
+                  <>
+                    <div>
+                      <span className="text-neutral-500 text-xs block mb-1 uppercase tracking-widest font-bold">Limited Offer</span>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-black text-indigo-400 uppercase tracking-tight">Claim 70% Off</span>
+                      </div>
+                    </div>
+                    <a
+                      href={service.whatsappUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block"
+                    >
+                      <Button variant="outline" size="sm" className="group-hover:bg-white group-hover:text-black transition-all">
+                        Get Started
+                      </Button>
+                    </a>
+                  </>
+                )}
               </div>
-            </motion.div>
+            </m.div>
           ))}
-        </motion.div>
+        </m.div>
       </div>
     </section>
   );

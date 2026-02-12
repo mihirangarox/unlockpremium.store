@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ViewState } from '../App';
+import { ViewState } from '../src/App';
 import Button from './Button';
 
 interface HowItWorksPageProps {
@@ -20,20 +20,20 @@ const HowItWorksPage: React.FC<HowItWorksPageProps> = ({ onSetView }) => {
       <div className="space-y-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
-            { 
-              step: '01', 
-              title: 'Select Your Plan', 
-              desc: 'Browse our range of LinkedIn Premium options—Career, Business, or Sales Navigator—and choose the one that fits your professional trajectory.' 
+            {
+              step: '01',
+              title: 'Select Your Plan',
+              desc: 'Browse our range of LinkedIn Premium options—Career, Business, or Sales Navigator—and choose the one that fits your professional trajectory.'
             },
-            { 
-              step: '02', 
-              title: 'Connect for Activation', 
-              desc: 'Reach out via our secure WhatsApp channel. In many cases, activations are handled manually by our specialists to ensure official referral legitimacy.' 
+            {
+              step: '02',
+              title: 'Connect for Activation',
+              desc: 'Reach out via our secure WhatsApp channel. In many cases, activations are handled manually by our specialists to ensure official referral legitimacy.'
             },
-            { 
-              step: '03', 
-              title: 'One-Click Upgrade', 
-              desc: 'Receive your official LinkedIn referral activation link. Simply click it while logged into your account to unlock all premium benefits immediately.' 
+            {
+              step: '03',
+              title: 'One-Click Upgrade',
+              desc: 'Receive your official LinkedIn referral activation link. Simply click it while logged into your account to unlock all premium benefits immediately.'
             },
           ].map((item, i) => (
             <div key={i} className="glass p-8 rounded-[32px] border-white/10 flex flex-col items-center text-center group hover:border-indigo-500/30 transition-all">

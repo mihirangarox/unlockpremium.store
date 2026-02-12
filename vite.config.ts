@@ -18,4 +18,15 @@ export default defineConfig({
       '/upload-image': 'http://localhost:3001',
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'firebase': ['firebase/app', 'firebase/auth'],
+          'ui-vendor': ['lucide-react']
+        }
+      }
+    }
+  }
 });

@@ -1,8 +1,8 @@
 
 import React from 'react';
-import { ViewState } from '../App';
+import { ViewState } from '../src/App';
 import Button from './Button';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 
 interface TrustSectionProps {
   onSetView: (view: ViewState) => void;
@@ -13,7 +13,7 @@ const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
     <section id="trust" className="py-24 bg-neutral-950 border-y border-white/5">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
-          <motion.h2
+          <m.h2
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -21,8 +21,8 @@ const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
             className="text-4xl md:text-5xl font-bold mb-4 tracking-tight"
           >
             Verified Professional <span className="text-indigo-500">Trust</span>
-          </motion.h2>
-          <motion.p
+          </m.h2>
+          <m.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -30,7 +30,7 @@ const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
             className="text-neutral-500 text-lg max-w-2xl mx-auto"
           >
             We prioritize legitimacy, security, and customer success above all else.
-          </motion.p>
+          </m.p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -56,7 +56,7 @@ const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
               icon: '💎'
             }
           ].map((item, i) => (
-            <motion.div
+            <m.div
               key={i}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -68,7 +68,7 @@ const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
               <div className="text-3xl mb-4 transform group-hover:scale-110 transition-transform duration-300 origin-left">{item.icon}</div>
               <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
               <p className="text-neutral-500 text-sm leading-relaxed">{item.desc}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 

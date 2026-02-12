@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ViewState } from '../App';
+import { ViewState } from '../src/App';
 import Services from './Services';
 import Button from './Button';
 

@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/* Additional custom styles moved from index.html */
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #050505;
+  color: #ffffff;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gradient-text {
+  background: linear-gradient(to right, #6366f1, #a855f7, #ec4899);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-border {
+  border: 1px solid transparent;
+  background: linear-gradient(#050505, #050505) padding-box,
+    linear-gradient(to right, #6366f1, #a855f7) border-box;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}

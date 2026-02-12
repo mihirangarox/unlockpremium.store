@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ViewState } from '../App';
+import { ViewState } from '../src/App';
 import Button from './Button';
 import { motion, AnimatePresence } from 'framer-motion';
 

@@ -32,11 +32,11 @@ const GuidesPage: React.FC<GuidesPageProps> = ({ onSetView }) => {
   }, []);
 
   const handlePostClick = (postId: string) => {
-      onSetView('guideDetail', postId);
+    onSetView('guideDetail', postId);
   };
 
   if (loading) {
-      return <div className="min-h-screen flex items-center justify-center"><p className="text-white">Loading guides...</p></div>
+    return <div className="min-h-screen flex items-center justify-center"><p className="text-white">Loading guides...</p></div>
   }
 
   return (
@@ -52,23 +52,28 @@ const GuidesPage: React.FC<GuidesPageProps> = ({ onSetView }) => {
       </div>
 
       {posts.length === 0 && !loading && (
-          <div className="text-center text-neutral-500">
-              <p>No guides have been published yet.</p>
-              <p>Come back soon!</p>
-            </div>
+        <div className="text-center text-neutral-500">
+          <p>No guides have been published yet.</p>
+          <p>Come back soon!</p>
+        </div>
       )}
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {posts.map((post) => (
-          <div 
-            key={post.id} 
+          <div
+            key={post.id}
             onClick={() => handlePostClick(post.id)}
             className="glass rounded-[24px] overflow-hidden border border-white/10 group cursor-pointer hover:border-indigo-500/30 hover:-translate-y-1 transition-all duration-300 flex flex-col"
           >
             {post.imageUrl && (
-                <div className="w-full h-48 overflow-hidden">
-                    <img src={post.imageUrl} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
-                </div>
+              <div className="w-full h-48 overflow-hidden">
+                <img
+                  src={post.imageUrl}
+                  alt={post.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  loading="lazy"
+                />
+              </div>
             )}
             <div className="p-6 flex flex-col flex-1">
               <h3 className="text-xl font-bold text-white mb-3 group-hover:text-indigo-300 transition-colors">
@@ -87,10 +92,10 @@ const GuidesPage: React.FC<GuidesPageProps> = ({ onSetView }) => {
           </div>
         ))}
       </div>
-      
+
       <div className="mt-20 text-center">
-         <p className="text-neutral-500 text-sm mb-6">Want to request a specific guide?</p>
-         <Button variant="ghost" onClick={() => onSetView('contact')}>Contact Editors</Button>
+        <p className="text-neutral-500 text-sm mb-6">Want to request a specific guide?</p>
+        <Button variant="ghost" onClick={() => onSetView('contact')}>Contact Editors</Button>
       </div>
     </div>
   );

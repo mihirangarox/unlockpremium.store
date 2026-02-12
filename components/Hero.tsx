@@ -1,8 +1,8 @@
 
 import React from 'react';
 import Button from './Button';
-import { ViewState } from '../App';
-import { motion } from 'framer-motion';
+import { ViewState } from '../src/App';
+import { m } from 'framer-motion';
 
 interface HeroProps {
   onSetView: (view: ViewState) => void;
@@ -14,22 +14,22 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
       <section id="home" className="relative pt-32 pb-24 lg:pt-48 lg:pb-32 overflow-hidden flex flex-col items-center justify-center">
         {/* Background Grid & Accents */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none"></div>
-        <motion.div
+        <m.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 0.5, scale: 1 }}
           transition={{ duration: 1.5, ease: "easeOut" }}
           className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-indigo-500/20 blur-[120px] rounded-full -z-10"
-        ></motion.div>
-        <motion.div
+        ></m.div>
+        <m.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 0.3, scale: 1 }}
           transition={{ duration: 1.5, ease: "easeOut", delay: 0.2 }}
           className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-purple-500/10 blur-[100px] rounded-full -z-10"
-        ></motion.div>
+        ></m.div>
 
         <div className="max-w-5xl mx-auto px-6 text-center relative z-10">
           {/* Subtle Badge */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
@@ -37,31 +37,31 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
           >
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
             Premium Activation Service
-          </motion.div>
+          </m.div>
 
           {/* Main Headline */}
-          <motion.h1
+          <m.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
             className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight mb-8 leading-[1.05]"
           >
             Unlock the Full <br className="hidden md:block" />
             Power of <span className="gradient-text">LinkedIn</span>
-          </motion.h1>
+          </m.h1>
 
           {/* Subheadline */}
-          <motion.p
+          <m.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
             className="max-w-[680px] mx-auto text-neutral-400 text-lg md:text-xl mb-10 leading-relaxed"
           >
             Essential tools for lead generation and career growth — activated safely using official referral links at <span className="text-white font-semibold">70% OFF</span> retail prices.
-          </motion.p>
+          </m.p>
 
           {/* Above the Fold Trust Pills */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.5 }}
@@ -76,10 +76,10 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
             <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs font-semibold text-indigo-200">
               <span className="text-indigo-400 text-sm">✓</span> Global Warranty
             </div>
-          </motion.div>
+          </m.div>
 
           {/* Call to Actions */}
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.6 }}
@@ -91,7 +91,7 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
             <Button size="lg" variant="outline" className="min-w-[200px] backdrop-blur-sm" onClick={() => onSetView('how-it-works')}>
               How It Works
             </Button>
-          </motion.div>
+          </m.div>
         </div>
       </section>
 
@@ -105,7 +105,7 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
               { label: 'Activation Warranty', val: '🛡️ Protected', desc: 'Full term' },
               { label: 'Community Rating', val: '⭐️ 4.9/5', desc: 'Trusted Service' },
             ].map((stat, i) => (
-              <motion.div
+              <m.div
                 key={i}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -122,7 +122,7 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
                 <span className="text-neutral-500 text-xs">
                   {stat.desc}
                 </span>
-              </motion.div>
+              </m.div>
             ))}
           </div>
         </div>

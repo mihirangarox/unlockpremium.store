@@ -2,39 +2,43 @@
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { auth } from './firebase'; // Make sure this path is correct
+import { LazyMotion } from 'framer-motion';
+import ReactGA from 'react-ga4';
 
-// Component Imports
+// Static Imports (Critical path)
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import Hero from '../components/Hero';
-import Services from '../components/Services';
-import TrustSection from '../components/TrustSection';
-import LegalPage from '../components/LegalPage';
-import RefundPage from '../components/RefundPage';
-import ContactPage from '../components/ContactPage';
-import WarrantyPage from '../components/WarrantyPage';
-import FaqPage from '../components/FaqPage';
-import HowItWorksPage from '../components/HowItWorksPage';
-import PlansPage from '../components/PlansPage';
-import GuidesPage from '../components/GuidesPage';
-import GuideDetailPage from '../components/GuideDetailPage';
-import TestimonialsPage from '../components/TestimonialsPage';
-import AdminLoginPage from '../components/AdminLoginPage';
-import AdminDashboard from '../components/AdminDashboard';
+
+// Lazy Imports (Routes)
+const Services = React.lazy(() => import('../components/Services'));
+const TrustSection = React.lazy(() => import('../components/TrustSection'));
+const LegalPage = React.lazy(() => import('../components/LegalPage'));
+const RefundPage = React.lazy(() => import('../components/RefundPage'));
+const ContactPage = React.lazy(() => import('../components/ContactPage'));
+const WarrantyPage = React.lazy(() => import('../components/WarrantyPage'));
+const FaqPage = React.lazy(() => import('../components/FaqPage'));
+const HowItWorksPage = React.lazy(() => import('../components/HowItWorksPage'));
+const PlansPage = React.lazy(() => import('../components/PlansPage'));
+const GuidesPage = React.lazy(() => import('../components/GuidesPage'));
+const GuideDetailPage = React.lazy(() => import('../components/GuideDetailPage'));
+const TestimonialsPage = React.lazy(() => import('../components/TestimonialsPage'));
+const AdminLoginPage = React.lazy(() => import('../components/AdminLoginPage'));
+const AdminDashboard = React.lazy(() => import('../components/AdminDashboard'));
 
 // Define the possible views for the application
-export type ViewState = 
-  | 'home' 
-  | 'legal' 
-  | 'refund' 
-  | 'contact' 
-  | 'warranty' 
-  | 'faqs' 
-  | 'how-it-works' 
-  | 'plans' 
-  | 'guides' 
+export type ViewState =
+  | 'home'
+  | 'legal'
+  | 'refund'
+  | 'contact'
+  | 'warranty'
+  | 'faqs'
+  | 'how-it-works'
+  | 'plans'
+  | 'guides'
   | 'guideDetail'
-  | 'testimonials' 
+  | 'testimonials'
   | 'admin';
 
 const App: React.FC = () => {
@@ -52,6 +56,16 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Initialize Google Analytics
+  useEffect(() => {
+    ReactGA.initialize("G-186HM7Y7F7");
+  }, []);
+
+  // Track page views when view changes
+  useEffect(() => {
+    ReactGA.send({ hitType: "pageview", page: `/${view}`, title: view });
+  }, [view]);
+
   const handleSetView = (newView: ViewState, postId?: string) => {
     setView(newView);
     if (newView === 'guideDetail' && postId) {
@@ -62,26 +76,20 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     signOut(auth).then(() => {
-      setView('home'); 
+      setView('home');
     }).catch((error) => {
       console.error('Logout Error:', error);
     });
   };
 
-  if (loadingAuth) {
-    return (
-      <div className="min-h-screen bg-[#050505] flex items-center justify-center">
-        <p className="text-white">Loading...</p>
-      </div>
-    );
-  }
+
 
   const renderContent = () => {
     if (currentUser && view === 'admin') {
-        return <AdminDashboard onLogout={handleLogout} />;
+      return <AdminDashboard onLogout={handleLogout} />;
     }
     if (view === 'admin') {
-        return <AdminLoginPage />;
+      return <AdminLoginPage />;
     }
 
     switch (view) {
@@ -96,7 +104,7 @@ const App: React.FC = () => {
       case 'how-it-works': return <HowItWorksPage onSetView={handleSetView} />;
       case 'plans': return <PlansPage onSetView={handleSetView} />;
       case 'guides': return <GuidesPage onSetView={handleSetView} />;
-      case 'guideDetail': return currentPostId ? <GuideDetailPage postId={currentPostId} onSetView={handleSetView} />: <GuidesPage onSetView={handleSetView} />;
+      case 'guideDetail': return currentPostId ? <GuideDetailPage postId={currentPostId} onSetView={handleSetView} /> : <GuidesPage onSetView={handleSetView} />;
       case 'testimonials': return <TestimonialsPage onSetView={handleSetView} />;
       case 'legal': return <LegalPage />;
       case 'refund': return <RefundPage />;
@@ -110,9 +118,19 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen selection:bg-indigo-500 selection:text-white bg-[#050505]">
-      {view !== 'admin' || !currentUser ? <Header onSetView={handleSetView} /> : null}
-      <main>{renderContent()}</main>
-      {view !== 'admin' || !currentUser ? <Footer onSetView={handleSetView} /> : null}
+      <LazyMotion features={() => import('framer-motion').then(res => res.domAnimation)}>
+        {view !== 'admin' || !currentUser ? <Header onSetView={handleSetView} /> : null}
+        <main>
+          <React.Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          }>
+            {renderContent()}
+          </React.Suspense>
+        </main>
+        {view !== 'admin' || !currentUser ? <Footer onSetView={handleSetView} /> : null}
+      </LazyMotion>
       <style>{`
         html { scroll-behavior: smooth; }
       `}</style>
