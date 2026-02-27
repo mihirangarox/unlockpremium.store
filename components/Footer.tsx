@@ -1,13 +1,39 @@
-
 import React from 'react';
 import { ViewState } from '../src/App';
 import { m } from 'framer-motion';
+import { getAppAnalytics } from '../src/firebase';
+import { logEvent } from "firebase/analytics";
 
 interface FooterProps {
   onSetView: (view: ViewState) => void;
 }
 
 const Footer: React.FC<FooterProps> = ({ onSetView }) => {
+  const [analytics, setAnalytics] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const initAnalytics = async () => {
+      try {
+        const instance = await getAppAnalytics();
+        if (instance) {
+          setAnalytics(instance);
+        }
+      } catch (err) {
+        console.error("Error initializing analytics:", err);
+      }
+    };
+    initAnalytics();
+  }, []);
+
+  const handleWhatsAppClick = () => {
+    if (analytics) {
+      logEvent(analytics, "whatsapp_click", {
+        link_domain: "wa.me",
+        location: "footer"
+      });
+    }
+  };
+
   return (
     <footer className="bg-black pt-24 pb-12 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-6">
@@ -29,6 +55,7 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
                 rel="noopener noreferrer"
                 title="Chat on WhatsApp – Fastest response"
                 whileHover={{ scale: 1.1, rotate: 5 }}
+                onClick={handleWhatsAppClick}
                 className="w-10 h-10 rounded-full bg-neutral-900 border border-white/5 flex items-center justify-center text-neutral-500 hover:text-[#25D366] hover:border-[#25D366]/50 transition-colors group"
               >
                 <span className="sr-only">WhatsApp</span>

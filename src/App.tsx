@@ -25,6 +25,7 @@ const GuideDetailPage = React.lazy(() => import('../components/GuideDetailPage')
 const TestimonialsPage = React.lazy(() => import('../components/TestimonialsPage'));
 const AdminLoginPage = React.lazy(() => import('../components/AdminLoginPage'));
 const AdminDashboard = React.lazy(() => import('../components/AdminDashboard'));
+const NotFoundPage = React.lazy(() => import('../components/NotFoundPage'));
 
 // Define the possible views for the application
 export type ViewState =
@@ -39,11 +40,59 @@ export type ViewState =
   | 'guides'
   | 'guideDetail'
   | 'testimonials'
-  | 'admin';
+  | 'admin'
+  | 'notFound';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('home');
   const [currentPostId, setCurrentPostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const path = window.location.pathname;
+
+    // Simple routing logic based on URL path
+    if (path === '/' || path === '/index.html') {
+      setView('home');
+    } else if (path === '/plans') {
+      setView('plans');
+    } else if (path === '/how-it-works') {
+      setView('how-it-works');
+    } else if (path === '/guides') {
+      setView('guides');
+    } else if (path.startsWith('/guides/')) {
+      // Extract ID if needed, or handle in component
+      // For now, simpler approach:
+      // The app currently uses state for navigation, so direct linking might need more work for dynamic routes.
+      // However, to fix "Soft 404", we primarily want to catch garbage URLs.
+      setView('guides');
+    } else if (path === '/testimonials') {
+      setView('testimonials');
+    } else if (path === '/faqs') {
+      setView('faqs');
+    } else if (path === '/contact-support') {
+      setView('contact');
+    } else if (path === '/activation-warranty') {
+      setView('warranty');
+    } else if (path === '/legal-privacy-notice') {
+      setView('legal');
+    } else if (path === '/refund-activation-policy') {
+      setView('refund');
+    } else if (path === '/admin-login') {
+      setView('admin');
+    } else if (path.startsWith('/posts/')) {
+      // Allow direct linking to posts if we can extract ID
+      const postId = path.split('/posts/')[1];
+      if (postId) {
+        setCurrentPostId(postId);
+        setView('guideDetail');
+      } else {
+        setView('notFound');
+      }
+    } else {
+      // If path is unknown, show 404
+      setView('notFound');
+    }
+  }, []);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
@@ -111,6 +160,7 @@ const App: React.FC = () => {
       case 'contact': return <ContactPage />;
       case 'warranty': return <WarrantyPage />;
       case 'faqs': return <FaqPage />;
+      case 'notFound': return <NotFoundPage onSetView={handleSetView} />;
       default:
         return <Hero onSetView={handleSetView} />; // Fallback to home content
     }
