@@ -7,6 +7,8 @@ import {
     FileText, Globe, ChevronRight, CheckCircle, AlertCircle,
     Loader2, Plus
 } from 'lucide-react';
+import { savePost } from '../src/admin/services/db';
+import type { Post } from '../src/admin/types/index';
 
 interface CreatePostProps {
   post?: Post | null;
@@ -15,20 +17,6 @@ interface CreatePostProps {
   onCancel: () => void;
 }
 
-export interface Post {
-  id: string;
-  slug: string;
-  title: string;
-  summary: string;
-  content: string;
-  imageUrl?: string;
-  status: 'draft' | 'published';
-  tags: string[];
-  metaTitle?: string;
-  metaDescription?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
 
 const generateSlug = (title: string) =>
   title.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_]+/g, '-').replace(/-+/g, '-');
@@ -184,9 +172,8 @@ const CreatePost: React.FC<CreatePostProps> = ({ post, onPostCreated, onPostUpda
       setSaveStatus('error');
       return;
     }
-    const token = await user.getIdToken();
-
-    const postData = {
+    const postData: Post = {
+      id: isEditMode && post ? post.id : `p_${Date.now()}`,
       title,
       slug,
       summary,
@@ -196,25 +183,19 @@ const CreatePost: React.FC<CreatePostProps> = ({ post, onPostCreated, onPostUpda
       tags,
       metaTitle: metaTitle || title,
       metaDescription: metaDescription || summary,
+      authorUid: user.uid,
+      createdAt: isEditMode && post ? post.createdAt : new Date().toISOString(),
     };
 
     try {
-      const url = isEditMode ? `/posts/${post.id}` : '/posts';
-      const method = isEditMode ? 'PUT' : 'POST';
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(postData),
-      });
-      if (!response.ok) throw new Error(`Failed to ${isEditMode ? 'update' : 'create'} post`);
-      const savedPost = await response.json();
+      await savePost(postData);
       setSaveStatus('saved');
       setStatus(finalStatus);
       setTimeout(() => setSaveStatus('idle'), 3000);
       if (isEditMode) {
-        onPostUpdated(savedPost);
+        onPostUpdated(postData);
       } else {
-        onPostCreated(savedPost);
+        onPostCreated(postData);
       }
     } catch (err: any) {
       setError(err.message);

@@ -1,0 +1,349 @@
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Save, Loader2, Plus, X } from "lucide-react";
+import * as db from "../../services/db";
+import type { Product, SubscriptionType } from "../../types/index";
+
+const SUBSCRIPTION_TYPES: SubscriptionType[] = [
+  'Premium Career',
+  'Premium Business',
+  'Premium Company Page',
+  'Recruiter Lite',
+  'Sales Navigator Core',
+  'Sales Navigator Advanced',
+  'Sales Navigator Advanced Plus'
+];
+
+export function ProductForm() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const isEditing = Boolean(id);
+
+  const [isLoading, setIsLoading] = useState(isEditing);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Array management for features
+  const [featureInput, setFeatureInput] = useState("");
+
+  const [formData, setFormData] = useState<Partial<Product>>({
+    name: "",
+    description: "",
+    price: 0,
+    oldPrice: 0,
+    features: [],
+    category: "LinkedIn",
+    popular: false,
+    isActive: true,
+    subscriptionType: "Premium Career",
+    durationMonths: 1,
+  });
+
+  useEffect(() => {
+    if (isEditing && id) {
+      loadProduct(id);
+    }
+  }, [id, isEditing]);
+
+  const loadProduct = async (productId: string) => {
+    try {
+      const product = await db.getProduct(productId);
+      if (product) {
+        setFormData(product);
+      } else {
+        alert("Product not found");
+        navigate("/admin/products");
+      }
+    } catch (error) {
+      console.error("Failed to load product:", error);
+      alert("Failed to load product");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    
+    if (type === 'checkbox') {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData(prev => ({ ...prev, [name]: checked }));
+    } else if (type === 'number') {
+      setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
+    } else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  const addFeature = () => {
+    if (featureInput.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        features: [...(prev.features || []), featureInput.trim()]
+      }));
+      setFeatureInput("");
+    }
+  };
+
+  const removeFeature = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      features: (prev.features || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    try {
+      const productToSave: Product = {
+        id: isEditing && id ? id : `prod_${Date.now()}`,
+        name: formData.name || "",
+        description: formData.description || "",
+        price: formData.price || 0,
+        oldPrice: formData.oldPrice || 0,
+        features: formData.features || [],
+        category: formData.category || "LinkedIn",
+        popular: formData.popular || false,
+        isActive: formData.isActive ?? true,
+        subscriptionType: formData.subscriptionType as SubscriptionType || "Premium Career",
+        durationMonths: formData.durationMonths || 1,
+      };
+
+      await db.saveProduct(productToSave);
+      navigate("/admin/products");
+    } catch (error) {
+      console.error("Failed to save product:", error);
+      alert("Failed to save product. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Loading product details...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex items-center gap-4 mb-8">
+        <button
+          onClick={() => navigate("/admin/products")}
+          className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            {isEditing ? "Edit Product" : "New Product"}
+          </h1>
+          <p className="text-sm font-medium text-slate-500 mt-1">
+            {isEditing ? "Update product details and pricing" : "Add a new product to the catalog"}
+          </p>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Basic Info */}
+            <div className="space-y-4 md:col-span-2">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Basic Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Product Name *</label>
+                  <input
+                    type="text"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                    placeholder="e.g., LinkedIn Premium Career (12 Months)"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Category</label>
+                  <select
+                    name="category"
+                    value={formData.category}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                  >
+                    <option value="LinkedIn">LinkedIn</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Description</label>
+                  <textarea
+                    name="description"
+                    rows={3}
+                    value={formData.description}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900 resize-none"
+                    placeholder="Brief description of the product benefits..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Pricing & Duration */}
+            <div className="space-y-4 md:col-span-2">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Pricing & Subscription Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Price ($) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="price"
+                    required
+                    value={formData.price}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Retail Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="oldPrice"
+                    value={formData.oldPrice}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Subscription Type</label>
+                  <select
+                    name="subscriptionType"
+                    value={formData.subscriptionType}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                  >
+                    {SUBSCRIPTION_TYPES.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Duration (Months)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    name="durationMonths"
+                    value={formData.durationMonths}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Features */}
+            <div className="space-y-4 md:col-span-2">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Features List</h3>
+              
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={featureInput}
+                  onChange={(e) => setFeatureInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addFeature())}
+                  className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                  placeholder="Add a feature (e.g., Unlimited InMails)..."
+                />
+                <button
+                  type="button"
+                  onClick={addFeature}
+                  className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 font-bold transition flex items-center gap-2"
+                >
+                  <Plus className="w-4 h-4" /> Add
+                </button>
+              </div>
+
+              {formData.features && formData.features.length > 0 && (
+                <ul className="space-y-2 mt-4">
+                  {formData.features.map((feature, index) => (
+                    <li key={index} className="flex items-center justify-between bg-slate-50 border border-slate-100 px-4 py-2 rounded-lg">
+                      <span className="text-sm font-medium text-slate-700">{feature}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeFeature(index)}
+                        className="p-1 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* Flags */}
+            <div className="space-y-4 md:col-span-2">
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Display Options</h3>
+              <div className="flex flex-wrap gap-8">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      name="isActive"
+                      checked={formData.isActive}
+                      onChange={handleChange}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                  </div>
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition">Active (Visible in store)</span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      name="popular"
+                      checked={formData.popular}
+                      onChange={handleChange}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                  </div>
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition mb-0">Highlight as "Popular"</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => navigate("/admin/products")}
+            className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition shadow-sm"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-sm flex items-center gap-2 disabled:opacity-70"
+          >
+            {isSaving ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <Save className="w-5 h-5" />
+            )}
+            {isSaving ? "Saving..." : "Save Product"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

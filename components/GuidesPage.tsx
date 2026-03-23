@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../src/firebase';
 import Button from './Button';
 import { Post } from './GuideDetailPage';
 
@@ -11,11 +13,9 @@ const GuidesPage: React.FC = () => {
     const fetchPosts = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/posts');
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        const postsData = await response.json();
+        const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        const postsData = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Post[];
         setPosts(postsData);
       } catch (error) {
         console.error("Error fetching posts:", error);

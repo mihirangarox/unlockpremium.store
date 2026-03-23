@@ -1,15 +1,38 @@
-import React from 'react';
-import { SERVICES } from '../constants';
+import React, { useState, useEffect } from 'react';
 import Button from './Button';
 import { m } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { getProducts } from '../src/admin/services/db';
+import type { Product } from '../src/admin/types/index';
+import { Loader2, Package } from 'lucide-react';
 
 interface ServicesProps {
   limit?: number;
 }
 
 const Services: React.FC<ServicesProps> = ({ limit }) => {
-  const displayServices = limit ? SERVICES.slice(0, limit) : SERVICES;
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getProducts();
+        
+        // Use active products only, sort by popularity
+        const activeProducts = data.filter(p => p.isActive)
+                                   .sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
+        
+        setProducts(limit ? activeProducts.slice(0, limit) : activeProducts);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProducts();
+  }, [limit]);
   
   const container = {
     hidden: { opacity: 0 },
@@ -55,16 +78,20 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto min-h-[400px]"
         >
-          {displayServices.map((service) => (
+          {isLoading ? (
+            <div className="col-span-1 md:col-span-2 lg:col-span-3 flex justify-center items-center">
+              <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+            </div>
+          ) : products.map((product) => (
             <m.div
-              key={service.id}
+              key={product.id}
               variants={item}
               whileHover={{ y: -10, transition: { duration: 0.3 } }}
               className="group glass rounded-3xl p-8 hover:border-indigo-500/50 transition-all duration-300 flex flex-col relative overflow-hidden"
             >
-              {service.popular && (
+              {product.popular && (
                 <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded text-white z-10">
                   Most Popular
                 </div>
@@ -72,18 +99,15 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
 
               {/* Icon with Circular Background */}
               <div className="w-11 h-11 rounded-full bg-indigo-500/12 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 origin-center text-indigo-400">
-                {(() => {
-                  const Icon = service.icon;
-                  return <Icon />;
-                })()}
+                <Package className="w-5 h-5" />
               </div>
 
-              <h3 className="text-2xl font-bold mb-2 text-white">{service.name}</h3>
+              <h3 className="text-2xl font-bold mb-2 text-white">{product.name}</h3>
 
-              <p className="text-neutral-400 text-sm mb-6 flex-1">{service.description}</p>
+              <p className="text-neutral-400 text-sm mb-6 flex-1">{product.description}</p>
 
               <div className="space-y-3 mb-8">
-                {service.features.map((f: string, i: number) => (
+                {product.features?.slice(0, 4).map((f: string, i: number) => (
                   <div key={i} className="flex items-center gap-2 text-sm text-neutral-300">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-indigo-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -94,39 +118,20 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
               </div>
 
               <div className="flex items-center justify-between mt-auto pt-6 border-t border-white/5">
-                {service.id === 'li-sales' ? (
-                  <div className="w-full">
-                    <div className="mb-4">
-                      <p className="text-sm font-bold text-white">Retail (estimate): From $40/month</p>
-                      <p className="text-xs text-neutral-400 mt-1">Final price confirmed before activation</p>
-                    </div>
-                    <Link
-                      to={`/services/${service.id}`}
-                      className="block w-full"
-                    >
-                      <Button variant="outline" size="sm" className="w-full group-hover:bg-white group-hover:text-black transition-all">
-                        Get Started
-                      </Button>
-                    </Link>
+                <div>
+                  <span className="text-neutral-500 text-xs block mb-1 uppercase tracking-widest font-bold">Limited Offer</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-indigo-400 uppercase tracking-tight">${product.price}</span>
                   </div>
-                ) : (
-                  <>
-                    <div>
-                      <span className="text-neutral-500 text-xs block mb-1 uppercase tracking-widest font-bold">Limited Offer</span>
-                      <div className="flex items-baseline gap-2">
-                        <span className="text-2xl font-black text-indigo-400 uppercase tracking-tight">Claim 70% Off</span>
-                      </div>
-                    </div>
-                    <Link
-                      to={`/services/${service.id}`}
-                      className="block"
-                    >
-                      <Button variant="outline" size="sm" className="group-hover:bg-white group-hover:text-black transition-all">
-                        Get Started
-                      </Button>
-                    </Link>
-                  </>
-                )}
+                </div>
+                <Link
+                  to={`/products/${product.id}`}
+                  className="block"
+                >
+                  <Button variant="outline" size="sm" className="group-hover:bg-white group-hover:text-black transition-all">
+                    View Details
+                  </Button>
+                </Link>
               </div>
             </m.div>
           ))}

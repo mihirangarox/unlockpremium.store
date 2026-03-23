@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getAuth } from 'firebase/auth';
-import CreatePost, { Post } from './CreatePost';
+import CreatePost from './CreatePost';
+import { getPosts, deletePost } from '../src/admin/services/db';
+import type { Post } from '../src/admin/types/index';
 
 
 interface AdminDashboardProps {
@@ -22,12 +24,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   const auth = getAuth();
 
-  const fetchPosts = async () => {
+  const fetchPostsData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/posts');
-      if (!response.ok) throw new Error('Failed to fetch posts');
-      const data = await response.json();
+      const data = await getPosts();
       setPosts(data);
     } catch (err: any) {
       setError(err.message);
@@ -37,7 +37,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   useEffect(() => {
-    fetchPosts();
+    fetchPostsData();
   }, []);
 
   const handleCreateNew = () => { setEditingPost(null); setView('form'); };
@@ -47,13 +47,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     if (!window.confirm('Delete this post? This cannot be undone.')) return;
     const user = auth.currentUser;
     if (!user) { setError('Authentication required.'); return; }
-    const token = await user.getIdToken();
     try {
-      const response = await fetch(`/posts/${postId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error('Failed to delete post');
+      await deletePost(postId);
       setPosts(posts.filter(p => p.id !== postId));
       setSelectedIds(prev => prev.filter(id => id !== postId));
     } catch (err: any) {

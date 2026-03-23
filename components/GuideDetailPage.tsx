@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { db } from '../src/firebase';
 
 export interface Post {
     id: string;
@@ -37,11 +39,12 @@ const GuideDetailPage: React.FC = () => {
             setLoading(true);
             setError(null);
             try {
-                const response = await fetch(`/posts/slug/${slug}`);
-                if (!response.ok) {
+                const q = query(collection(db, 'posts'), where('slug', '==', slug), limit(1));
+                const snap = await getDocs(q);
+                if (snap.empty) {
                     throw new Error('Post not found');
                 }
-                const postData = await response.json();
+                const postData = { id: snap.docs[0].id, ...snap.docs[0].data() } as Post;
                 setPost(postData);
             } catch (error: any) {
                 console.error("Error fetching post:", error);

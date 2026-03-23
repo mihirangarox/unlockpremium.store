@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import { Search, Filter, SearchX, Calendar, ChevronRight, CheckCircle2, XCircle, Clock, ArrowUpDown, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as db from "../../services/db";
+import { useLocalization } from "../../../context/LocalizationContext";
 import type { IntakeRequest, RequestStatus } from "../../types/index";
 
 export function RequestList() {
   const [requests, setRequests] = useState<IntakeRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { formatDate } = useLocalization();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "All">("All");
   const [contactFilter, setContactFilter] = useState<"All" | "WhatsApp" | "Email" | "Reddit">("All");
@@ -37,7 +39,8 @@ export function RequestList() {
     const matchesSearch = 
       req.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      req.whatsappNumber.includes(searchTerm);
+      req.whatsappNumber.includes(searchTerm) ||
+      (req.subscriptionType && req.subscriptionType.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesStatus = statusFilter === "All" || req.status === statusFilter;
     const matchesContact = contactFilter === "All" || req.preferredContact === contactFilter;
     
@@ -299,7 +302,7 @@ export function RequestList() {
                       <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleSelect(request.id, !selectedIds.includes(request.id))}>
                         <div className="flex items-center text-sm font-medium text-slate-600">
                           <Calendar className="w-4 h-4 mr-2 text-slate-400" />
-                          {new Date(request.createdAt).toLocaleDateString()}
+                          {formatDate(request.createdAt)}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -325,7 +328,7 @@ export function RequestList() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <Link 
-                          to={`/requests/${request.id}`}
+                          to={`/admin/requests/${request.id}`}
                           className="inline-flex items-center justify-center px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group-hover:shadow group-hover:border-indigo-200"
                         >
                           Review

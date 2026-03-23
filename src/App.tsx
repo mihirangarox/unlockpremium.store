@@ -22,12 +22,17 @@ const WarrantyPage = React.lazy(() => import('../components/WarrantyPage'));
 const FaqPage = React.lazy(() => import('../components/FaqPage'));
 const HowItWorksPage = React.lazy(() => import('../components/HowItWorksPage'));
 const PlansPage = React.lazy(() => import('../components/PlansPage'));
+const ProductsPage = React.lazy(() => import('../components/ProductsPage'));
+const CheckoutPage = React.lazy(() => import('../components/CheckoutPage'));
 const GuidesPage = React.lazy(() => import('../components/GuidesPage'));
 const GuideDetailPage = React.lazy(() => import('../components/GuideDetailPage'));
 const TestimonialsPage = React.lazy(() => import('../components/TestimonialsPage'));
 import AdminLoginPage from '../components/AdminLoginPage';
 import NotFoundPage from '../components/NotFoundPage';
 import { AdminRoutes } from './admin/AdminRoutes';
+import { CartProvider } from './context/CartContext';
+import { LocalizationProvider } from './context/LocalizationContext';
+import CartDrawer from '../components/CartDrawer';
 const ServiceLandingPage = React.lazy(() => import('../components/ServiceLandingPage'));
 
 // Helper to scroll to top on route change
@@ -77,6 +82,14 @@ const App: React.FC = () => {
       '/plans': {
         title: "LinkedIn Premium Plans & Pricing — Save 70% | UnlockPremium",
         desc: "Explore our discounted LinkedIn Premium plans. Career, Business, and Sales Navigator available at up to 70% off retail prices."
+      },
+      '/products': {
+        title: "Store & Catalog — LinkedIn Premium | UnlockPremium",
+        desc: "Shop our active catalog of discounted LinkedIn Premium subscriptions and digital products."
+      },
+      '/checkout': {
+        title: "Checkout — Secure Payment | UnlockPremium",
+        desc: "Complete your LinkedIn Premium upgrade securely."
       },
       '/guides': {
         title: "LinkedIn Premium Guides & Career Strategy | UnlockPremium",
@@ -213,15 +226,20 @@ const App: React.FC = () => {
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
-    <div className="min-h-screen selection:bg-indigo-500 selection:text-white bg-[#050505]">
-      <ScrollToTop />
-      <LazyMotion features={() => import('framer-motion').then(res => res.domAnimation)}>
-        {!isAdminRoute ? <Header /> : null}
-        <main>
+    <LocalizationProvider>
+      <CartProvider>
+      <div className="min-h-screen selection:bg-indigo-500 selection:text-white bg-[#050505]">
+        <ScrollToTop />
+        <LazyMotion features={() => import('framer-motion').then(res => res.domAnimation)}>
+          {!isAdminRoute ? <Header /> : null}
+          {!isAdminRoute ? <CartDrawer /> : null}
+          <main>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
               <Route path="/plans" element={<PlansPage />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/guides" element={<GuidesPage />} />
               <Route path="/guides/:slug" element={<GuideDetailPage />} />
               <Route path="/testimonials" element={<TestimonialsPage />} />
@@ -231,6 +249,7 @@ const App: React.FC = () => {
               <Route path="/legal-privacy-notice" element={<LegalPage />} />
               <Route path="/refund-activation-policy" element={<RefundPage />} />
               <Route path="/services/:serviceId" element={<ServiceLandingPage />} />
+              <Route path="/products/:serviceId" element={<ServiceLandingPage />} />
               <Route 
                 path="/admin/*" 
                 element={currentUser ? <AdminRoutes onLogout={handleLogout} /> : <Navigate to="/admin-login" />} 
@@ -245,7 +264,9 @@ const App: React.FC = () => {
       <style>{`
         html { scroll-behavior: smooth; }
       `}</style>
-    </div>
+      </div>
+    </CartProvider>
+    </LocalizationProvider>
   );
 };
 

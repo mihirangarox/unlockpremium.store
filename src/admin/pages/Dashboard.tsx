@@ -6,6 +6,7 @@ import type { Customer, Subscription } from "../types/index";
 import { motion } from "framer-motion";
 import { getDaysLeft, formatDaysLeft, getDaysLeftColorClass } from "../utils/dateUtils";
 import { useToast } from "../components/ui/Toast";
+import { useLocalization } from "../../context/LocalizationContext";
 
 function StatCard({ title, value, icon, bgColor, color, subValue }: { title: string, value: string, icon: React.ReactNode, bgColor: string, color: string, subValue?: string }) {
   return (
@@ -28,6 +29,7 @@ function StatCard({ title, value, icon, bgColor, color, subValue }: { title: str
 export function Dashboard() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { formatCurrency, formatDate, formatTime } = useLocalization();
   const [stats, setStats] = useState({
     activeCustomers: 0,
     dueToday: 0,
@@ -108,7 +110,7 @@ export function Dashboard() {
   const handleSendReminder = (customer: Customer, sub: Subscription) => {
     const phone = customer.whatsappNumber.replace(/[^0-9]/g, '');
     const daysLeft = getDaysLeft(sub.renewalDate);
-    const message = encodeURIComponent(`Hi ${customer.fullName}, your ${sub.subscriptionType} plan is renewing ${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`}. Price: £${sub.price}. Would you like to keep it active?`);
+    const message = encodeURIComponent(`Hi ${customer.fullName}, your ${sub.subscriptionType} plan is renewing ${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`}. Price: ${formatCurrency(sub.price)}. Would you like to keep it active?`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
     showToast(`Reminder sent to ${customer.fullName}`, "success");
   };
@@ -121,7 +123,7 @@ export function Dashboard() {
           <p className="text-slate-500 text-sm mt-1">Overview of your business and pending renewals.</p>
         </div>
         <div className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full uppercase tracking-wider">
-          Last updated: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          Last updated: {formatTime(new Date())}
         </div>
       </div>
 
@@ -160,7 +162,7 @@ export function Dashboard() {
 
         <StatCard 
           title="Monthly Revenue" 
-          value={`£${Math.round(stats.monthlyRevenue)}`} 
+          value={formatCurrency(Math.round(stats.monthlyRevenue))} 
           subValue="Projected"
           icon={<PoundSterling className="h-6 w-6" />} 
           bgColor="bg-emerald-50" 
@@ -216,7 +218,7 @@ export function Dashboard() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-slate-600 font-medium whitespace-nowrap">
-                        {new Date(item.sub.renewalDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                        {formatDate(item.sub.renewalDate)}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-lg text-xs font-bold ${getDaysLeftColorClass(daysLeft)}`}>

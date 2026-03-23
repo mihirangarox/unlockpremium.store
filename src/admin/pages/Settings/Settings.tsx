@@ -9,16 +9,19 @@ import { storage } from "../../services/storage";
 import * as db from "../../services/db";
 import { useToast } from "../../components/ui/Toast";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
+import { useLocalization } from "../../../context/LocalizationContext";
 import type { AppSettings, AutoSendMode } from "../../types/index";
 
 export function SettingsPage() {
   const { showToast } = useToast();
+  const { updateSettings: updateLocalization } = useLocalization();
   const [settings, setSettings] = useState<AppSettings>(storage.getSettings());
   const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Notifications' | 'Integrations' | 'Data' | 'Billing' | 'Team'>('Overview');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const handleSave = () => {
     storage.saveSettings(settings);
+    updateLocalization(settings);
     showToast("Settings saved successfully!", "success");
   };
 
@@ -309,23 +312,29 @@ function GeneralSettings({ settings, setSettings }: { settings: AppSettings, set
               <option value="GBP">GBP (£)</option>
               <option value="USD">USD ($)</option>
               <option value="EUR">EUR (€)</option>
+              <option value="GHS">GHS (GH₵)</option>
+              <option value="NGN">NGN (₦)</option>
             </select>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Timezone</label>
             <select 
               value={settings.timezone}
+              onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
               className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none"
             >
               <option>Europe/London</option>
               <option>UTC</option>
               <option>America/New_York</option>
+              <option>Africa/Accra</option>
+              <option>Africa/Lagos</option>
             </select>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Date Format</label>
             <select 
               value={settings.dateFormat}
+              onChange={(e) => setSettings({ ...settings, dateFormat: e.target.value })}
               className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none"
             >
               <option>DD/MM/YYYY</option>

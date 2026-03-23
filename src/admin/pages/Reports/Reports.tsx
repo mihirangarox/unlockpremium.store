@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import { TrendingUp, Users, Calendar, PoundSterling, PieChart, BarChart2, Clock } from "lucide-react";
 import * as db from "../../services/db";
 import { motion } from "framer-motion";
+import { useLocalization } from "../../../context/LocalizationContext";
 
 export function Reports() {
+  const { formatCurrency } = useLocalization();
   const [timeRange, setTimeRange] = useState<'6m' | '1y' | 'all'>('6m');
   const [stats, setStats] = useState({
     totalCustomers: 0,
@@ -14,10 +16,13 @@ export function Reports() {
     churnRate: 0,
     conversionRate: 0,
     avgLtv: 0,
+    totalCosts: 0,
+    netProfit: 0,
+    avgMargin: 0,
     leadSources: [] as { label: string, count: number, percentage: number, color: string }[]
   });
 
-  const [chartData, setChartData] = useState<{ month: string, amount: number }[]>([]);
+  const [chartData, setChartData] = useState<{ month: string, amount: number, cost: number, profit: number }[]>([]);
 
   useEffect(() => {
     (async () => {
@@ -101,6 +106,11 @@ export function Reports() {
     const churn = subscriptions.length > 0 ? (expiredCount / subscriptions.length) * 100 : 0;
     const conv = customers.length > 0 ? (activeSubs.length / customers.length) * 100 : 0;
 
+    // Profit calculations (mocked cost basis: 40% of revenue)
+    const totalCosts = totalRev * 0.45;
+    const netProfit = totalRev - totalCosts;
+    const avgMargin = totalRev > 0 ? (netProfit / totalRev) * 100 : 0;
+
     setStats({
       totalCustomers: customers.length,
       activeSubscriptions: activeSubs.length,
@@ -110,6 +120,9 @@ export function Reports() {
       churnRate: Math.round(churn * 10) / 10,
       conversionRate: Math.round(conv * 10) / 10,
       avgLtv: totalC > 0 ? (history.reduce((sum, h) => sum + h.amount, 0) / totalC) : 0,
+      totalCosts,
+      netProfit,
+      avgMargin: Math.round(avgMargin * 10) / 10,
       leadSources: leadSourcesData
     });
 
@@ -130,7 +143,13 @@ export function Reports() {
         })
         .reduce((sum, h) => sum + h.amount, 0);
       
-      data.push({ month: monthStr, amount: monthlyRev });
+      const monthlyCost = monthlyRev * 0.45; // Mock 45% cost
+      data.push({ 
+        month: monthStr, 
+        amount: monthlyRev, 
+        cost: monthlyCost, 
+        profit: monthlyRev - monthlyCost 
+      });
     }
     setChartData(data);
 
@@ -166,14 +185,14 @@ export function Reports() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <ReportCard 
           title="Revenue" 
-          value={`£${stats.totalRevenue.toLocaleString()}`} 
+          value={formatCurrency(stats.totalRevenue)} 
           change="+12.5%" 
           icon={<PoundSterling className="h-5 w-5 text-emerald-600" />}
           bgColor="bg-emerald-50"
         />
         <ReportCard 
           title="Est. MRR" 
-          value={`£${stats.monthlyRecurringRevenue.toLocaleString()}`} 
+          value={formatCurrency(stats.monthlyRecurringRevenue)} 
           change="+5.2%" 
           icon={<TrendingUp className="w-5 h-5 text-indigo-600" />}
           bgColor="bg-indigo-50"
@@ -200,6 +219,13 @@ export function Reports() {
           bgColor="bg-amber-50"
           inverseColor
         />
+        <ReportCard 
+          title="Net Profit" 
+          value={formatCurrency(stats.netProfit)} 
+          change={`${stats.avgMargin}% Margin`} 
+          icon={<TrendingUp className="w-5 h-5 text-emerald-600" />}
+          bgColor="bg-emerald-50"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -214,18 +240,28 @@ export function Reports() {
             </div>
           </div>
           
-          <div className="flex-1 flex items-end justify-between gap-2 px-2 pb-6">
+          <div className="flex-1 flex items-end justify-between gap-4 px-2 pb-6">
             {chartData.map((data, idx) => (
               <div key={idx} className="flex-1 flex flex-col items-center gap-3 group">
-                <div className="relative w-full flex flex-col items-center justify-end h-full">
+                <div className="relative w-full flex items-end justify-center gap-1 h-full">
+                  {/* Revenue Bar */}
                   <motion.div 
                     initial={{ height: 0 }}
                     animate={{ height: `${(data.amount / maxAmount) * 100}%` }}
-                    transition={{ duration: 0.8, delay: idx * 0.1, ease: "easeOut" }}
-                    className="w-full max-w-[40px] bg-gradient-to-t from-indigo-600 to-indigo-400 rounded-t-xl shadow-lg shadow-indigo-100 group-hover:from-indigo-500 group-hover:to-indigo-300 transition-all cursor-pointer relative"
+                    transition={{ duration: 0.8, delay: idx * 0.1 }}
+                    className="w-full max-w-[12px] bg-slate-100 rounded-t-full relative"
+                  />
+                  {/* Profit Bar */}
+                  <motion.div 
+                    initial={{ height: 0 }}
+                    animate={{ height: `${(data.profit / maxAmount) * 100}%` }}
+                    transition={{ duration: 0.8, delay: (idx * 0.1) + 0.2 }}
+                    className="w-full max-w-[12px] bg-indigo-600 rounded-t-full shadow-lg shadow-indigo-100 group-hover:bg-indigo-500 transition-all cursor-pointer relative"
                   >
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl">
-                      £{data.amount.toLocaleString()}
+                    <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] font-bold px-3 py-2 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-xl z-20">
+                      <div className="text-indigo-400">Rev: {formatCurrency(data.amount)}</div>
+                      <div className="text-emerald-400">Profit: {formatCurrency(data.profit)}</div>
+                      <div className="text-slate-400 text-[8px] uppercase mt-1">Margin: {((data.profit/data.amount)*100).toFixed(1)}%</div>
                     </div>
                   </motion.div>
                 </div>
@@ -261,7 +297,7 @@ export function Reports() {
           <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
              <div>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg LTV</p>
-                <p className="text-xl font-black text-slate-900">£{stats.avgLtv.toFixed(2)}</p>
+                <p className="text-xl font-black text-slate-900">{formatCurrency(stats.avgLtv)}</p>
              </div>
             <div className="p-3 bg-indigo-50 rounded-2xl">
                <TrendingUp className="w-6 h-6 text-indigo-600" />

@@ -6,9 +6,10 @@ import {
   Zap, ChevronRight, AlertTriangle
 } from "lucide-react";
 import { useToast } from "../../components/ui/Toast";
+import { useLocalization } from "../../../context/LocalizationContext";
+import { generateInvoicePDF } from "../../utils/invoiceGenerator";
 import * as db from "../../services/db";
 import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType } from "../../types/index";
-import { jsPDF } from "jspdf";
 
 const SUBSCRIPTION_TYPES: SubscriptionType[] = [
   "Premium Career",
@@ -24,6 +25,7 @@ export function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { formatCurrency, formatDate } = useLocalization();
   
   const [request, setRequest] = useState<IntakeRequest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -208,9 +210,9 @@ export function RequestDetail() {
 -----------------------------
 *Customer:* ${request.fullName}
 *Subscription:* ${request.subscriptionType} (${request.subscriptionPeriod} plan)
-*Activation Date:* ${new Date(request.startDate || startDate).toLocaleDateString()}
-*Renewal Date:* ${new Date(request.renewalDate || renewalDate).toLocaleDateString()}
-*Total Amount:* £${request.soldPrice}
+*Activation Date:* ${formatDate(request.startDate || startDate)}
+*Renewal Date:* ${formatDate(request.renewalDate || renewalDate)}
+*Total Amount:* ${formatCurrency(request.soldPrice)}
 *Status:* ${request.paymentStatus}
 
 Thank you for your business!`;
@@ -219,54 +221,18 @@ Thank you for your business!`;
   const handleGenerateInvoice = () => {
     if (!request) return;
     
-    const doc = new jsPDF();
-    
-    // Header
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("INVOICE", 20, 30);
-    
-    doc.setFontSize(12);
-    
-    const startY = 50;
-    const lh = 10;
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("Customer:", 20, startY);
-    doc.setFont("helvetica", "normal");
-    doc.text(request.fullName, 60, startY);
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("Subscription:", 20, startY + lh);
-    doc.setFont("helvetica", "normal");
-    doc.text(`${request.subscriptionType} (${request.subscriptionPeriod} plan)`, 60, startY + lh);
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("Activation Date:", 20, startY + lh * 2);
-    doc.setFont("helvetica", "normal");
-    doc.text(new Date(request.startDate || startDate).toLocaleDateString(), 60, startY + lh * 2);
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("Renewal Date:", 20, startY + lh * 3);
-    doc.setFont("helvetica", "normal");
-    doc.text(new Date(request.renewalDate || renewalDate).toLocaleDateString(), 60, startY + lh * 3);
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Amount:", 20, startY + lh * 4);
-    doc.setFont("helvetica", "normal");
-    doc.text(`£${request.soldPrice}`, 60, startY + lh * 4);
-    
-    doc.setFont("helvetica", "bold");
-    doc.text("Status:", 20, startY + lh * 5);
-    doc.setFont("helvetica", "normal");
-    doc.text(request.paymentStatus || "Pending", 60, startY + lh * 5);
-    
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "italic");
-    doc.text("Thank you for your business!", 20, startY + lh * 7);
-    
-    doc.save(`Invoice_${request.fullName.replace(/\s+/g, "_")}.pdf`);
-    showToast("PDF Invoice generated!", "success");
+    generateInvoicePDF({
+      customerName: request.fullName,
+      subscriptionType: request.subscriptionType || subscriptionType || "",
+      planDuration: request.subscriptionPeriod || subscriptionPeriod || "",
+      startDate: formatDate(request.startDate || startDate),
+      renewalDate: formatDate(request.renewalDate || renewalDate),
+      amount: formatCurrency(request.soldPrice || 0),
+      status: request.paymentStatus || paymentStatus,
+      email: request.email,
+      whatsapp: request.whatsappNumber
+    });
+    showToast("Professional PDF Invoice generated!", "success");
   };
 
   const handleWhatsAppLink = () => {
@@ -317,7 +283,7 @@ Thank you for your business!`;
                 {request.status}
               </span>
             </div>
-            <p className="text-sm font-medium text-slate-500 mt-1">Submitted on {new Date(request.createdAt).toLocaleDateString()}</p>
+            <p className="text-sm font-medium text-slate-500 mt-1">Submitted on {formatDate(request.createdAt)}</p>
           </div>
         </div>
         
@@ -455,7 +421,7 @@ Thank you for your business!`;
                <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Agreed Price (£) *</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium pb-0.5">£</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-medium pb-0.5">{formatCurrency(0).replace(/[0-9.,\s]/g, '')}</span>
                     <input
                       type="number"
                       value={soldPrice}

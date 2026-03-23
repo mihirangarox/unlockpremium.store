@@ -1,15 +1,59 @@
-import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { m } from 'framer-motion';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle } from 'lucide-react';
-import { SERVICES } from '../constants';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Package } from 'lucide-react';
 import Button from './Button';
+import { getProducts } from '../src/admin/services/db';
+import { useCart } from '../src/context/CartContext';
+import type { Product } from '../src/admin/types/index';
 
 const ServiceLandingPage: React.FC = () => {
   const { serviceId } = useParams<{ serviceId: string }>();
+  const navigate = useNavigate();
+  const { addToCart } = useCart();
   
-  // Find the service based on ID or fallback to Career
-  const service = SERVICES.find(s => s.id === serviceId) || SERVICES[0];
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      try {
+        setIsLoading(true);
+        const products = await getProducts();
+        const found = products.find(p => p.id === serviceId);
+        setProduct(found || null);
+      } catch (error) {
+        console.error("Error fetching product:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProduct();
+  }, [serviceId]);
+
+  if (isLoading) {
+    return (
+      <div className="pt-32 pb-20 min-h-screen flex items-center justify-center">
+        <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="pt-32 pb-20 min-h-screen flex items-center justify-center text-center">
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-4">Product Not Found</h2>
+          <Button variant="outline" onClick={() => navigate('/products')}>Browse Store</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleBuyNow = () => {
+    addToCart(product);
+    // The cart drawer opens automatically, user can proceed from there
+  };
 
   return (
     <div className="pt-32 pb-20">
@@ -26,17 +70,17 @@ const ServiceLandingPage: React.FC = () => {
             </div>
             
             <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.05] text-white">
-              {service.name} <br />
+              {product.name} <br />
               <span className="gradient-text">70% Off</span> 
             </h1>
             
             <p className="text-neutral-400 text-lg mb-10 leading-relaxed max-w-xl">
-              {service.description} Upgrade your professional LinkedIn experience safely and legitimately using our verified referral activation links.
+              {product.description} Upgrade your professional LinkedIn experience safely and legitimately using our verified referral activation links.
             </p>
 
             <div className="flex flex-wrap gap-4 mb-12">
-              <Button size="lg" onClick={() => window.open(service.whatsappUrl, '_blank')}>
-                Claim 70% Discount
+              <Button size="lg" onClick={handleBuyNow}>
+                Add to Cart
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
               <Button variant="outline" size="lg" as={Link} to="/how-it-works">
@@ -65,16 +109,13 @@ const ServiceLandingPage: React.FC = () => {
             <div className="absolute inset-0 bg-indigo-500/20 blur-[120px] rounded-full" />
             <div className="glass p-10 rounded-[40px] border-white/10 relative z-10 overflow-hidden">
               <div className="absolute top-0 right-0 p-8">
-                {(() => {
-                  const Icon = service.icon;
-                  return <Icon className="w-24 h-24 text-indigo-500/20" />;
-                })()}
+                <Package className="w-24 h-24 text-indigo-500/20" />
               </div>
               
               <div className="mb-10">
                 <h2 className="text-2xl font-bold text-white mb-6">Plan Features</h2>
                 <div className="space-y-4">
-                  {service.features.map((feature, i) => (
+                  {product.features?.map((feature, i) => (
                     <div key={i} className="flex items-start gap-3">
                       <div className="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center">
                         <Check className="w-3 h-3 text-indigo-400" />
@@ -87,14 +128,14 @@ const ServiceLandingPage: React.FC = () => {
 
               <div className="p-8 bg-white/5 rounded-3xl border border-white/10">
                 <div className="flex items-end gap-3 mb-6">
-                  <span className="text-5xl font-black text-white">${service.price}</span>
-                  <span className="text-xl text-neutral-500 line-through mb-1">${service.oldPrice}</span>
+                  <span className="text-5xl font-black text-white">${product.price}</span>
+                  <span className="text-xl text-neutral-500 line-through mb-1">${product.oldPrice}</span>
                   <span className="ml-auto px-3 py-1 bg-green-500/10 text-green-400 text-xs font-bold rounded-lg border border-green-500/20">
                     70% SAVINGS
                   </span>
                 </div>
-                <Button className="w-full" size="lg" onClick={() => window.open(service.whatsappUrl, '_blank')}>
-                  Activate Now
+                <Button className="w-full" size="lg" onClick={handleBuyNow}>
+                  Add to Cart
                 </Button>
               </div>
             </div>

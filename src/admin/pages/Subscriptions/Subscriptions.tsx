@@ -7,9 +7,12 @@ import {
 import { useNavigate } from "react-router-dom";
 import * as db from "../../services/db";
 import { useToast } from "../../components/ui/Toast";
+import { useLocalization } from "../../../context/LocalizationContext";
 import { getDaysLeft, formatDaysLeft, getDaysLeftColorClass } from "../../utils/dateUtils";
 import type { Customer, Subscription } from "../../types/index";
 import { motion, AnimatePresence } from "framer-motion";
+import { generateInvoicePDF } from "../../utils/invoiceGenerator";
+import { FileText } from "lucide-react";
 
 interface SubWithCustomer {
   sub: Subscription;
@@ -21,6 +24,7 @@ type SortOrder = 'asc' | 'desc';
 
 export function Subscriptions() {
   const { showToast } = useToast();
+  const { formatCurrency, formatDate } = useLocalization();
   const navigate = useNavigate();
   const [subs, setSubs] = useState<SubWithCustomer[]>([]);
   
@@ -135,11 +139,31 @@ export function Subscriptions() {
     }
   };
 
+  const handleDownloadInvoice = (item: SubWithCustomer) => {
+    if (!item.customer) {
+      showToast("Customer not found for this subscription", "error");
+      return;
+    }
+
+    generateInvoicePDF({
+      customerName: item.customer.fullName,
+      subscriptionType: item.sub.subscriptionType,
+      planDuration: item.sub.planDuration || `${item.sub.durationMonths}M`,
+      startDate: formatDate(item.sub.startDate),
+      renewalDate: formatDate(item.sub.renewalDate),
+      amount: formatCurrency(item.sub.price),
+      status: item.sub.paymentStatus || 'Paid',
+      email: item.customer.email,
+      whatsapp: item.customer.whatsappNumber
+    });
+    showToast("Invoice generated!", "success");
+  };
+
   const handleSendReminder = (item: SubWithCustomer) => {
     if (!item.customer) return;
     const phone = item.customer.whatsappNumber.replace(/[^0-9]/g, '');
     const daysLeft = getDaysLeft(item.sub.renewalDate);
-    const message = encodeURIComponent(`Hi ${item.customer.fullName}, your ${item.sub.subscriptionType} plan is renewing ${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`}. Price: £${item.sub.price}. Would you like to keep it active?`);
+    const message = encodeURIComponent(`Hi ${item.customer.fullName}, your ${item.sub.subscriptionType} plan is renewing ${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`}. Price: ${formatCurrency(item.sub.price)}. Would you like to keep it active?`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
     showToast(`Reminder flow opened for ${item.customer.fullName}`, "info");
   };
@@ -263,15 +287,15 @@ export function Subscriptions() {
                         <span className="text-xs font-semibold text-slate-500">{item.sub.durationMonths} {item.sub.durationMonths === 1 ? 'month' : 'months'}</span>
                       </td>
                       <td className="px-6 py-5">
-                        <span className="font-black text-slate-900 text-sm">£{item.sub.price}</span>
+                        <span className="font-black text-slate-900 text-sm">{formatCurrency(item.sub.price)}</span>
                       </td>
                       <td className="px-6 py-5">
-                        <span className="text-xs text-slate-500 font-medium">{new Date(item.sub.startDate).toLocaleDateString()}</span>
+                        <span className="text-xs text-slate-500 font-medium">{formatDate(item.sub.startDate)}</span>
                       </td>
                       <td className="px-6 py-5">
                         <div className="space-y-0.5">
                           <div className="text-xs font-bold text-slate-900">
-                            {new Date(item.sub.renewalDate).toLocaleDateString()}
+                            {formatDate(item.sub.renewalDate)}
                           </div>
                           <div className={`text-[10px] font-bold uppercase tracking-tight ${getDaysLeftColorClass(daysLeft).split(' ')[0]}`}>
                             {formatDaysLeft(daysLeft)}
@@ -288,6 +312,13 @@ export function Subscriptions() {
                       </td>
                       <td className="px-6 py-5">
                         <div className="flex items-center justify-end gap-1">
+                          <button 
+                            onClick={() => handleDownloadInvoice(item)}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                            title="Download Invoice"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
                           <button 
                             onClick={() => handleSendReminder(item)}
                             className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-xl transition-all"

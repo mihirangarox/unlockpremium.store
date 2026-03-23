@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ShoppingBag } from 'lucide-react';
 import Button from './Button';
+import { useCart } from '../src/context/CartContext';
 
 const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { items, setIsCartOpen } = useCart();
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -16,7 +18,7 @@ const Header: React.FC = () => {
 
   const navLinks = [
     { label: 'How It Works', path: '/how-it-works' },
-    { label: 'Plans', path: '/plans' },
+    { label: 'Products', path: '/products' },
     { label: 'Guides', path: '/guides' },
     { label: 'Testimonials', path: '/testimonials' },
   ];
@@ -57,29 +59,56 @@ const Header: React.FC = () => {
         <div className="hidden lg:flex items-center gap-6">
           <Link
             to="/contact-support"
-            className="hidden sm:block text-sm font-medium text-neutral-400 hover:text-white transition-colors"
+            className="text-sm font-medium text-neutral-400 hover:text-white transition-colors"
           >
             Contact Support
           </Link>
+          
+          <button 
+            onClick={() => setIsCartOpen(true)}
+            className="relative p-2 text-neutral-400 hover:text-white transition-colors"
+          >
+            <ShoppingBag className="w-5 h-5" />
+            {items.length > 0 && (
+              <span className="absolute top-0 right-0 w-4 h-4 bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-zinc-950">
+                {items.length}
+              </span>
+            )}
+          </button>
+
           <Button
             variant="primary"
             size="sm"
             className="shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20"
             as={Link}
-            to="/plans"
+            to="/products"
           >
             Get Started
           </Button>
         </div>
 
-        {/* Mobile Menu Toggle */}
-        <button
-          className="lg:hidden text-white z-50 relative p-2"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label="Toggle mobile menu"
-        >
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        {/* Mobile Menu & Cart Toggles */}
+        <div className="lg:hidden flex items-center gap-4 z-50 relative">
+          <button 
+            onClick={() => setIsCartOpen(true)}
+            className="relative p-2 text-neutral-400 hover:text-white transition-colors"
+          >
+            <ShoppingBag className="w-5 h-5" />
+            {items.length > 0 && (
+              <span className="absolute top-0 right-0 w-4 h-4 bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-zinc-950">
+                {items.length}
+              </span>
+            )}
+          </button>
+          
+          <button
+            className="text-white p-2"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle mobile menu"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
 
         {/* Mobile Navigation Overlay */}
         <div className={`fixed inset-0 bg-zinc-950 z-40 transition-transform duration-300 ease-in-out lg:hidden flex flex-col pt-24 px-6 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
@@ -108,7 +137,7 @@ const Header: React.FC = () => {
                 size="md"
                 className="w-full justify-center shadow-lg shadow-indigo-500/10"
                 as={Link}
-                to="/plans"
+                to="/products"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Get Started

@@ -1,16 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { getAuth } from 'firebase/auth';
 import { Trash2, Edit2, Plus, Star, Pin } from 'lucide-react';
-
-interface Testimonial {
-    id: string;
-    content: string;
-    user: string;
-    rating: number;
-    region: string;
-    featured: boolean;
-    createdAt: string;
-}
+import { getTestimonials, saveTestimonial, deleteTestimonial } from '../src/admin/services/db';
+import type { Testimonial } from '../src/admin/types/index';
 
 const ManageTestimonials: React.FC = () => {
     const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -29,12 +21,10 @@ const ManageTestimonials: React.FC = () => {
 
     const auth = getAuth();
 
-    const fetchTestimonials = async () => {
+    const fetchTestimonialsData = async () => {
         setLoading(true);
         try {
-            const response = await fetch('/testimonials');
-            if (!response.ok) throw new Error('Failed to fetch testimonials');
-            const data = await response.json();
+            const data = await getTestimonials();
             // Sort: featured first
             const sorted = [...data].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
             setTestimonials(sorted);
@@ -45,7 +35,7 @@ const ManageTestimonials: React.FC = () => {
         }
     };
 
-    useEffect(() => { fetchTestimonials(); }, []);
+    useEffect(() => { fetchTestimonialsData(); }, []);
 
     const handleCreateNew = () => {
         setContent(''); setUser(''); setRating(5); setRegion(''); setFeatured(false);
@@ -65,12 +55,8 @@ const ManageTestimonials: React.FC = () => {
         if (!window.confirm('Delete this testimonial?')) return;
         const currentUser = auth.currentUser;
         if (!currentUser) { setError("Not authenticated."); return; }
-        const token = await currentUser.getIdToken();
         try {
-            const response = await fetch(`/testimonials/${id}`, {
-                method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (!response.ok) throw new Error('Failed to delete');
+            await deleteTestimonial(id);
             setTestimonials(prev => prev.filter(t => t.id !== id));
         } catch (err: any) {
             setError(err.message);
@@ -80,18 +66,12 @@ const ManageTestimonials: React.FC = () => {
     const handleToggleFeatured = async (t: Testimonial) => {
         const currentUser = auth.currentUser;
         if (!currentUser) return;
-        const token = await currentUser.getIdToken();
         const newFeatured = !t.featured;
         try {
-            const response = await fetch(`/testimonials/${t.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ ...t, featured: newFeatured }),
-            });
-            if (!response.ok) throw new Error('Failed to update');
-            const updated = await response.json();
+            const updatedTestimonial = { ...t, featured: newFeatured };
+            await saveTestimonial(updatedTestimonial);
             setTestimonials(prev => {
-                const next = prev.map(item => item.id === t.id ? { ...item, featured: newFeatured } : item);
+                const next = prev.map(item => item.id === t.id ? updatedTestimonial : item);
                 return [...next].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
             });
         } catch (err: any) {
@@ -105,26 +85,27 @@ const ManageTestimonials: React.FC = () => {
         setError(null);
         const currentUser = auth.currentUser;
         if (!currentUser) { setError("Not authenticated."); setSubmitting(false); return; }
-        const token = await currentUser.getIdToken();
-        const payload = { content, user, rating, region, featured };
-        const method = editingId ? 'PUT' : 'POST';
-        const url = editingId ? `/testimonials/${editingId}` : '/testimonials';
+        
+        const testimonialData: Testimonial = {
+            id: editingId || `t_${Date.now()}`,
+            content,
+            user,
+            rating,
+            region,
+            featured,
+            createdAt: testimonials.find(t => t.id === editingId)?.createdAt || new Date().toISOString()
+        };
+
         try {
-            const response = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(payload),
-            });
-            if (!response.ok) throw new Error(`Failed to ${editingId ? 'update' : 'create'}`);
-            const saved = await response.json();
+            await saveTestimonial(testimonialData);
             if (editingId) {
                 setTestimonials(prev => {
-                    const next = prev.map(t => t.id === editingId ? saved : t);
+                    const next = prev.map(t => t.id === editingId ? testimonialData : t);
                     return [...next].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
                 });
             } else {
                 setTestimonials(prev => {
-                    const next = [saved, ...prev];
+                    const next = [testimonialData, ...prev];
                     return [...next].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
                 });
             }

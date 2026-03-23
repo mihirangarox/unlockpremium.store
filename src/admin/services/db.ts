@@ -1,6 +1,6 @@
 /**
  * db.ts — Async Firestore service
- * Replaces the synchronous localStorage storage.ts for all data collections.
+ * Connects to the main Firebase project for all data collections.
  * All methods return Promises and operate on Firestore documents.
  */
 import {
@@ -23,7 +23,30 @@ import type {
   RenewalHistory,
   ActivityLog,
   IntakeRequest,
+  Product,
+  Post,
+  Testimonial
 } from "../types/index";
+
+// ─── Products ───────────────────────────────────────────────────────────────
+
+export const getProducts = async (): Promise<Product[]> => {
+  const snap = await getDocs(collection(db, "products"));
+  return snap.docs.map(d => d.data() as Product);
+};
+
+export const getProduct = async (id: string): Promise<Product | undefined> => {
+  const snap = await getDoc(doc(db, "products", id));
+  return snap.exists() ? (snap.data() as Product) : undefined;
+};
+
+export const saveProduct = async (product: Product): Promise<void> => {
+  await setDoc(doc(db, "products", product.id), product);
+};
+
+export const deleteProduct = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "products", id));
+};
 
 // ─── Customers ───────────────────────────────────────────────────────────────
 
@@ -178,4 +201,70 @@ export const saveRequest = async (request: IntakeRequest): Promise<void> => {
 
 export const deleteRequest = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, "requests", id));
+};
+
+// ─── Posts ──────────────────────────────────────────────────────────────────
+
+export const getPosts = async (): Promise<Post[]> => {
+  const snap = await getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc")));
+  return snap.docs.map(d => d.data() as Post);
+};
+
+export const getPost = async (id: string): Promise<Post | undefined> => {
+  const snap = await getDoc(doc(db, "posts", id));
+  return snap.exists() ? (snap.data() as Post) : undefined;
+};
+
+export const getPostBySlug = async (slug: string): Promise<Post | undefined> => {
+  const q = query(collection(db, "posts"), where("slug", "==", slug));
+  const snap = await getDocs(q);
+  return !snap.empty ? (snap.docs[0].data() as Post) : undefined;
+};
+
+export const savePost = async (post: Post): Promise<void> => {
+  await setDoc(doc(db, "posts", post.id), {
+    ...post,
+    updatedAt: new Date().toISOString()
+  });
+};
+
+export const deletePost = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "posts", id));
+};
+
+// ─── Testimonials ────────────────────────────────────────────────────────────
+
+export const getTestimonials = async (): Promise<Testimonial[]> => {
+  const snap = await getDocs(query(collection(db, "testimonials"), orderBy("createdAt", "desc")));
+  return snap.docs.map(d => d.data() as Testimonial);
+};
+
+export const saveTestimonial = async (testimonial: Testimonial): Promise<void> => {
+  await setDoc(doc(db, "testimonials", testimonial.id), testimonial);
+};
+
+export const deleteTestimonial = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "testimonials", id));
+};
+
+// ─── Finance (USDT) ──────────────────────────────────────────────────────────
+
+export const getUSDTTransactions = async (): Promise<any[]> => {
+  const snap = await getDocs(query(collection(db, "usdt_transactions"), orderBy("date", "desc")));
+  return snap.docs.map(d => d.data());
+};
+
+export const saveUSDTTransaction = async (transaction: any): Promise<void> => {
+  await setDoc(doc(db, "usdt_transactions", transaction.id), transaction);
+};
+
+// ─── Inventory ───────────────────────────────────────────────────────────────
+
+export const getInventoryItems = async (): Promise<any[]> => {
+  const snap = await getDocs(collection(db, "inventory"));
+  return snap.docs.map(d => d.data());
+};
+
+export const saveInventoryItem = async (item: any): Promise<void> => {
+  await setDoc(doc(db, "inventory", item.id), item);
 };

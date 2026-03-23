@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Users, CreditCard, BellRing, History, PieChart, Settings, ChevronLeft, ChevronRight, Inbox, FileText, MessageSquare } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, BellRing, History, PieChart, Settings, ChevronLeft, ChevronRight, Inbox, FileText, MessageSquare, Box, Wallet, Package } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { collection, query, where, getCountFromServer } from "firebase/firestore";
 import { db as firestore } from "../../services/firebase";
@@ -50,6 +50,19 @@ export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen }: SidebarProp
       label: "Sales Pipeline",
       items: [
         { name: "Incoming Requests", href: "/admin/requests", icon: Inbox, badge: pendingCount },
+      ],
+    },
+    {
+      label: "Store Management",
+      items: [
+        { name: "Products Catalog", href: "/admin/products", icon: Box },
+        { name: "Inventory", href: "/admin/inventory", icon: Package },
+      ],
+    },
+    {
+      label: "Finance",
+      items: [
+        { name: "USDT Wallet", href: "/admin/finance/usdt", icon: Wallet },
       ],
     },
     {

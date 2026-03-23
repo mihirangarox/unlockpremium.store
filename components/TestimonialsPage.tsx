@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../src/firebase';
 import Button from './Button';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -38,15 +40,13 @@ const TestimonialsPage: React.FC = () => {
 
   useEffect(() => {
     const fetchTestimonials = async () => {
-      // Artificial delay to show off the skeleton (remove in production if desired, but good for UX feel)
+      // Artificial delay to show off the skeleton
       await new Promise(resolve => setTimeout(resolve, 800));
 
       try {
-        const response = await fetch('/testimonials');
-        if (response.ok) {
-          const data = await response.json();
-          setTestimonials(data);
-        }
+        const snap = await getDocs(collection(db, 'testimonials'));
+        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Testimonial[];
+        setTestimonials(data);
       } catch (error) {
         console.error("Failed to fetch testimonials", error);
       } finally {

@@ -38,6 +38,23 @@ export type SubscriptionType =
   | 'Sales Navigator Advanced' 
   | 'Sales Navigator Advanced Plus';
 
+export type ProductCategory = 'LinkedIn';
+
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  oldPrice: number;
+  features: string[];
+  category: ProductCategory;
+  popular: boolean;
+  isActive: boolean;
+  subscriptionType: SubscriptionType;
+  durationMonths: number;
+  iconName?: string; // e.g., 'career', 'business', 'sales'
+}
+
 export interface Subscription {
   id: string;
   customerId: string;
@@ -144,4 +161,30 @@ export interface AppSettings {
     paypal: 'connected' | 'disconnected';
     smtp: 'connected' | 'disconnected';
   };
+}
+
+export interface Post {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  content: string;
+  imageUrl?: string;
+  status: 'draft' | 'published';
+  tags: string[];
+  metaTitle?: string;
+  metaDescription?: string;
+  authorUid?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface Testimonial {
+  id: string;
+  content: string;
+  user: string;
+  rating: number;
+  region?: string;
+  featured: boolean;
+  createdAt: string;
 }
