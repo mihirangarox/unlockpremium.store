@@ -329,6 +329,10 @@ export const deleteLiveStockCode = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, "live_stock", id));
 };
 
+export const updateLiveStockCode = async (id: string, updates: Partial<DigitalCode>): Promise<void> => {
+  await setDoc(doc(db, "live_stock", id), updates, { merge: true });
+};
+
 export const getAvailableCodesCount = async (productId?: string): Promise<number> => {
   const coll = collection(db, "live_stock");
   const q = productId 
