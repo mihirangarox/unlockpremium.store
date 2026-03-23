@@ -1,14 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import Button from './Button';
-import { ViewState } from '../src/App';
 
-interface HeaderProps {
-  onSetView: (view: ViewState) => void;
-}
-
-const Header: React.FC<HeaderProps> = ({ onSetView }) => {
+const Header: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -18,11 +14,11 @@ const Header: React.FC<HeaderProps> = ({ onSetView }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navLinks: { label: string; view: ViewState }[] = [
-    { label: 'How It Works', view: 'how-it-works' },
-    { label: 'Plans', view: 'plans' },
-    { label: 'Guides', view: 'guides' },
-    { label: 'Testimonials', view: 'testimonials' },
+  const navLinks = [
+    { label: 'How It Works', path: '/how-it-works' },
+    { label: 'Plans', path: '/plans' },
+    { label: 'Guides', path: '/guides' },
+    { label: 'Testimonials', path: '/testimonials' },
   ];
 
   return (
@@ -30,9 +26,10 @@ const Header: React.FC<HeaderProps> = ({ onSetView }) => {
       }`}>
       <div className="max-w-7xl mx-auto px-6 flex justify-between items-center">
         {/* Logo links to Home */}
-        <button
-          onClick={() => onSetView('home')}
+        <Link
+          to="/"
           className="flex items-center gap-2 group cursor-pointer transition-transform active:scale-95 text-left z-50 relative"
+          onClick={() => setIsMobileMenuOpen(false)}
         >
           <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center group-hover:rotate-12 transition-transform shadow-lg shadow-indigo-500/20">
             <span className="text-white font-black text-xl">U</span>
@@ -40,35 +37,36 @@ const Header: React.FC<HeaderProps> = ({ onSetView }) => {
           <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-neutral-400">
             UnlockPremium
           </span>
-        </button>
+        </Link>
 
         {/* Desktop Navigation */}
         <nav className="hidden lg:flex items-center gap-8 text-sm font-medium text-neutral-400">
           {navLinks.map((link) => (
-            <button
+            <Link
               key={link.label}
-              onClick={() => onSetView(link.view)}
+              to={link.path}
               className="hover:text-white transition-colors relative group py-2"
             >
               {link.label}
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all group-hover:w-full"></span>
-            </button>
+            </Link>
           ))}
         </nav>
 
         {/* Desktop Utility Actions */}
         <div className="hidden lg:flex items-center gap-6">
-          <button
-            onClick={() => onSetView('contact')}
+          <Link
+            to="/contact-support"
             className="hidden sm:block text-sm font-medium text-neutral-400 hover:text-white transition-colors"
           >
             Contact Support
-          </button>
+          </Link>
           <Button
             variant="primary"
             size="sm"
             className="shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20"
-            onClick={() => onSetView('plans')}
+            as={Link}
+            to="/plans"
           >
             Get Started
           </Button>
@@ -88,35 +86,30 @@ const Header: React.FC<HeaderProps> = ({ onSetView }) => {
           }`}>
           <nav className="flex flex-col gap-6 text-lg font-medium text-neutral-400">
             {navLinks.map((link) => (
-              <button
+              <Link
                 key={link.label}
-                onClick={() => {
-                  onSetView(link.view);
-                  setIsMobileMenuOpen(false);
-                }}
+                to={link.path}
+                onClick={() => setIsMobileMenuOpen(false)}
                 className="text-left hover:text-white transition-colors py-2 border-b border-white/5"
               >
                 {link.label}
-              </button>
+              </Link>
             ))}
-            <button
-              onClick={() => {
-                onSetView('contact');
-                setIsMobileMenuOpen(false);
-              }}
+            <Link
+              to="/contact-support"
+              onClick={() => setIsMobileMenuOpen(false)}
               className="text-left hover:text-white transition-colors py-2 border-b border-white/5"
             >
               Contact Support
-            </button>
+            </Link>
             <div className="pt-4">
               <Button
                 variant="primary"
                 size="md"
                 className="w-full justify-center shadow-lg shadow-indigo-500/10"
-                onClick={() => {
-                  onSetView('plans');
-                  setIsMobileMenuOpen(false);
-                }}
+                as={Link}
+                to="/plans"
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 Get Started
               </Button>

@@ -1,14 +1,10 @@
 import React from 'react';
-import { ViewState } from '../src/App';
+import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { getAppAnalytics } from '../src/firebase';
 import { logEvent } from "firebase/analytics";
 
-interface FooterProps {
-  onSetView: (view: ViewState) => void;
-}
-
-const Footer: React.FC<FooterProps> = ({ onSetView }) => {
+const Footer: React.FC = () => {
   const [analytics, setAnalytics] = React.useState<any>(null);
 
   React.useEffect(() => {
@@ -39,12 +35,12 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
       <div className="max-w-7xl mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-20">
           <div className="lg:col-span-1">
-            <div className="flex items-center gap-2 mb-6">
+            <Link to="/" className="flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center">
                 <span className="text-white font-black text-xl">U</span>
               </div>
               <span className="text-xl font-bold tracking-tight text-white">UnlockPremium</span>
-            </div>
+            </Link>
             <p className="text-neutral-500 text-sm max-w-xs mb-8 leading-relaxed">
               Professional LinkedIn tools delivered instantly. We provide verified activation links for Career, Business, and Sales Navigator plans at 70% off retail prices.
             </p>
@@ -82,15 +78,18 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
           <div>
             <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-widest">Navigation</h3>
             <ul className="space-y-4 text-sm text-neutral-500">
-              {['How It Works', 'Plans', 'Guides', 'Testimonials'].map((item) => (
-                <li key={item}>
-                  <m.button
-                    whileHover={{ x: 5, color: '#818cf8' }}
-                    onClick={() => onSetView('home')}
-                    className="transition-colors text-left"
-                  >
-                    {item}
-                  </m.button>
+              {[
+                { label: 'How It Works', path: '/how-it-works' },
+                { label: 'Plans', path: '/plans' },
+                { label: 'Guides', path: '/guides' },
+                { label: 'Testimonials', path: '/testimonials' }
+              ].map((item) => (
+                <li key={item.label}>
+                  <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                    <Link to={item.path} className="transition-colors text-left block">
+                      {item.label}
+                    </Link>
+                  </m.div>
                 </li>
               ))}
             </ul>
@@ -100,31 +99,25 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
             <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-widest">Support</h3>
             <ul className="space-y-4 text-sm text-neutral-500">
               <li>
-                <m.button
-                  whileHover={{ x: 5, color: '#818cf8' }}
-                  onClick={() => onSetView('contact')}
-                  className="transition-colors text-left"
-                >
-                  Contact Support
-                </m.button>
+                <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                  <Link to="/contact-support" className="transition-colors text-left block">
+                    Contact Support
+                  </Link>
+                </m.div>
               </li>
               <li>
-                <m.button
-                  whileHover={{ x: 5, color: '#818cf8' }}
-                  onClick={() => onSetView('warranty')}
-                  className="transition-colors text-left"
-                >
-                  Activation Warranty
-                </m.button>
+                <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                  <Link to="/activation-warranty" className="transition-colors text-left block">
+                    Activation Warranty
+                  </Link>
+                </m.div>
               </li>
               <li>
-                <m.button
-                  whileHover={{ x: 5, color: '#818cf8' }}
-                  onClick={() => onSetView('faqs')}
-                  className="transition-colors text-left"
-                >
-                  FAQs
-                </m.button>
+                <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                  <Link to="/faqs" className="transition-colors text-left block">
+                    FAQs
+                  </Link>
+                </m.div>
               </li>
             </ul>
           </div>
@@ -133,31 +126,25 @@ const Footer: React.FC<FooterProps> = ({ onSetView }) => {
             <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-widest">Legal</h3>
             <ul className="space-y-4 text-sm text-neutral-500">
               <li>
-                <m.button
-                  whileHover={{ x: 5, color: '#818cf8' }}
-                  onClick={() => onSetView('legal')}
-                  className="transition-colors text-left"
-                >
-                  Legal & Privacy Notice
-                </m.button>
+                <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                  <Link to="/legal-privacy-notice" className="transition-colors text-left block">
+                    Legal & Privacy Notice
+                  </Link>
+                </m.div>
               </li>
               <li>
-                <m.button
-                  whileHover={{ x: 5, color: '#818cf8' }}
-                  onClick={() => onSetView('refund')}
-                  className="transition-colors text-left"
-                >
-                  Refund & Activation Policy
-                </m.button>
+                <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                  <Link to="/refund-activation-policy" className="transition-colors text-left block">
+                    Refund & Activation Policy
+                  </Link>
+                </m.div>
               </li>
               <li>
-                <m.button
-                  whileHover={{ x: 5, color: '#818cf8' }}
-                  onClick={() => onSetView('admin')}
-                  className="transition-colors text-left"
-                >
-                  Admin Login
-                </m.button>
+                <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                  <Link to="/admin-login" className="transition-colors text-left block">
+                    Admin Login
+                  </Link>
+                </m.div>
               </li>
             </ul>
           </div>

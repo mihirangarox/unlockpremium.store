@@ -1,14 +1,9 @@
 
-import React from 'react';
-import { ViewState } from '../src/App';
+import { Link } from 'react-router-dom';
 import Button from './Button';
 import { m } from 'framer-motion';
 
-interface TrustSectionProps {
-  onSetView: (view: ViewState) => void;
-}
-
-const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
+const TrustSection: React.FC = () => {
   return (
     <section id="trust" className="py-24 bg-neutral-950 border-y border-white/5">
       <div className="max-w-7xl mx-auto px-6">
@@ -20,7 +15,7 @@ const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
             transition={{ duration: 0.6 }}
             className="text-4xl md:text-5xl font-bold mb-4 tracking-tight"
           >
-            Verified Professional <span className="text-indigo-500">Trust</span>
+            Why Choose UnlockPremium for <span className="text-indigo-500">LinkedIn Discounts?</span>
           </m.h2>
           <m.p
             initial={{ opacity: 0, y: 20 }}
@@ -73,7 +68,7 @@ const TrustSection: React.FC<TrustSectionProps> = ({ onSetView }) => {
         </div>
 
         <div className="mt-16 text-center">
-          <Button variant="outline" onClick={() => onSetView('testimonials')}>
+          <Button variant="outline" as={Link} to="/testimonials">
             View Community Feedback
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-2" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />

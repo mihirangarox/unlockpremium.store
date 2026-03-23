@@ -1,13 +1,8 @@
 
-import React from 'react';
-import { ViewState } from '../src/App';
+import { Link } from 'react-router-dom';
 import Button from './Button';
 
-interface HowItWorksPageProps {
-  onSetView: (view: ViewState) => void;
-}
-
-const HowItWorksPage: React.FC<HowItWorksPageProps> = ({ onSetView }) => {
+const HowItWorksPage: React.FC = () => {
   return (
     <div className="pt-32 pb-24 px-6 max-w-5xl mx-auto">
       <div className="text-center mb-16">
@@ -55,9 +50,9 @@ const HowItWorksPage: React.FC<HowItWorksPageProps> = ({ onSetView }) => {
             </p>
           </div>
           <div className="mt-12 flex flex-wrap gap-4">
-            <Button variant="primary" onClick={() => onSetView('plans')}>Explore LinkedIn Plans</Button>
-            <Button variant="outline" onClick={() => onSetView('contact')}>Speak to Support</Button>
-            <Button variant="ghost" onClick={() => onSetView('warranty')}>Read our Warranty</Button>
+            <Button variant="primary" as={Link} to="/plans">Explore LinkedIn Plans</Button>
+            <Button variant="outline" as={Link} to="/contact-support">Speak to Support</Button>
+            <Button variant="ghost" as={Link} to="/activation-warranty">Read our Warranty</Button>
           </div>
         </div>
       </div>

@@ -7,7 +7,7 @@ export interface Service {
   description: string;
   price: number;
   oldPrice?: number;
-  icon: React.ReactNode;
+  icon: React.ElementType;
   category: 'LinkedIn' | 'Productivity';
   features: string[];
   popular?: boolean;

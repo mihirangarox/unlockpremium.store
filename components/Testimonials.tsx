@@ -1,13 +1,7 @@
 
 import React from 'react';
 import { TESTIMONIALS } from '../constants';
-import { ViewState } from '../src/App';
-
-interface TestimonialsProps {
-  onSetView: (view: ViewState) => void;
-}
-
-const Testimonials: React.FC<TestimonialsProps> = ({ onSetView }) => {
+const Testimonials: React.FC = () => {
   return (
     <section id="testimonials" className="py-24 bg-neutral-950">
       <div className="max-w-7xl mx-auto px-6">

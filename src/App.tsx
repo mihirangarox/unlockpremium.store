@@ -1,18 +1,20 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { Routes, Route, useLocation, Navigate, Link } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { auth } from './firebase'; // Make sure this path is correct
+import { auth } from './firebase';
 import { LazyMotion } from 'framer-motion';
 import ReactGA from 'react-ga4';
 
-// Static Imports (Critical path)
+// Static Imports
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import Hero from '../components/Hero';
+import Button from '../components/Button';
+import TrustSection from '../components/TrustSection';
+import Services from '../components/Services';
 
-// Lazy Imports (Routes)
-const Services = React.lazy(() => import('../components/Services'));
-const TrustSection = React.lazy(() => import('../components/TrustSection'));
+// Lazy Imports
 const LegalPage = React.lazy(() => import('../components/LegalPage'));
 const RefundPage = React.lazy(() => import('../components/RefundPage'));
 const ContactPage = React.lazy(() => import('../components/ContactPage'));
@@ -26,77 +28,22 @@ const TestimonialsPage = React.lazy(() => import('../components/TestimonialsPage
 const AdminLoginPage = React.lazy(() => import('../components/AdminLoginPage'));
 const AdminDashboard = React.lazy(() => import('../components/AdminDashboard'));
 const NotFoundPage = React.lazy(() => import('../components/NotFoundPage'));
+const ServiceLandingPage = React.lazy(() => import('../components/ServiceLandingPage'));
 
-// Define the possible views for the application
-export type ViewState =
-  | 'home'
-  | 'legal'
-  | 'refund'
-  | 'contact'
-  | 'warranty'
-  | 'faqs'
-  | 'how-it-works'
-  | 'plans'
-  | 'guides'
-  | 'guideDetail'
-  | 'testimonials'
-  | 'admin'
-  | 'notFound';
+// Helper to scroll to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+};
 
 const App: React.FC = () => {
-  const [view, setView] = useState<ViewState>('home');
-  const [currentPostId, setCurrentPostId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const path = window.location.pathname;
-
-    // Simple routing logic based on URL path
-    if (path === '/' || path === '/index.html') {
-      setView('home');
-    } else if (path === '/plans') {
-      setView('plans');
-    } else if (path === '/how-it-works') {
-      setView('how-it-works');
-    } else if (path === '/guides') {
-      setView('guides');
-    } else if (path.startsWith('/guides/')) {
-      // Extract ID if needed, or handle in component
-      // For now, simpler approach:
-      // The app currently uses state for navigation, so direct linking might need more work for dynamic routes.
-      // However, to fix "Soft 404", we primarily want to catch garbage URLs.
-      setView('guides');
-    } else if (path === '/testimonials') {
-      setView('testimonials');
-    } else if (path === '/faqs') {
-      setView('faqs');
-    } else if (path === '/contact-support') {
-      setView('contact');
-    } else if (path === '/activation-warranty') {
-      setView('warranty');
-    } else if (path === '/legal-privacy-notice') {
-      setView('legal');
-    } else if (path === '/refund-activation-policy') {
-      setView('refund');
-    } else if (path === '/admin-login') {
-      setView('admin');
-    } else if (path.startsWith('/posts/')) {
-      // Allow direct linking to posts if we can extract ID
-      const postId = path.split('/posts/')[1];
-      if (postId) {
-        setCurrentPostId(postId);
-        setView('guideDetail');
-      } else {
-        setView('notFound');
-      }
-    } else {
-      // If path is unknown, show 404
-      setView('notFound');
-    }
-  }, []);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const location = useLocation();
 
-  // Effect to listen for authentication state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -105,81 +52,201 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // Initialize Google Analytics
   useEffect(() => {
     ReactGA.initialize("G-186HM7Y7F7");
   }, []);
 
-  // Track page views when view changes
+  // Track page views with GA4
   useEffect(() => {
-    ReactGA.send({ hitType: "pageview", page: `/${view}`, title: view });
-  }, [view]);
+    ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
+  }, [location]);
 
-  const handleSetView = (newView: ViewState, postId?: string) => {
-    setView(newView);
-    if (newView === 'guideDetail' && postId) {
-      setCurrentPostId(postId);
+  // Dynamic SEO Updates based on Path
+  useEffect(() => {
+    const path = location.pathname;
+    
+    const seoData: Record<string, { title: string, desc: string }> = {
+      default: {
+        title: "LinkedIn Premium Discount — 70% Off Career & Sales Navigator | UnlockPremium",
+        desc: "Get LinkedIn Premium at up to 70% off. Verified discount codes for Career, Business & Sales Navigator. Instant activation. Save today at UnlockPremium."
+      },
+      '/how-it-works': {
+        title: "How It Works — LinkedIn Premium Activation | UnlockPremium",
+        desc: "Learn how our safe and legitimate LinkedIn Premium activation process works. Official referral links, no passwords needed."
+      },
+      '/plans': {
+        title: "LinkedIn Premium Plans & Pricing — Save 70% | UnlockPremium",
+        desc: "Explore our discounted LinkedIn Premium plans. Career, Business, and Sales Navigator available at up to 70% off retail prices."
+      },
+      '/guides': {
+        title: "LinkedIn Premium Guides & Career Strategy | UnlockPremium",
+        desc: "Expert guides on optimizing your LinkedIn profile, using Sales Navigator, and accelerating your career with premium tools."
+      },
+      '/testimonials': {
+        title: "Reviews & Community Feedback | UnlockPremium",
+        desc: "Read what our community says about their experience with UnlockPremium activations and service quality."
+      },
+      '/faqs': {
+        title: "Frequently Asked Questions — LinkedIn Premium | UnlockPremium",
+        desc: "Find answers to commonly asked questions about LinkedIn Premium discounts, activation safety, and our warranty."
+      },
+      '/contact-support': {
+        title: "Contact Support — UnlockPremium Help Center",
+        desc: "Need help with your LinkedIn Premium activation? Contact nuestra support team via WhatsApp or email for instant assistance."
+      },
+      '/activation-warranty': {
+        title: "Activation Warranty & Safety Guarantee | UnlockPremium",
+        desc: "Our Activation Warranty ensures your LinkedIn Premium access is protected for the entire term of your subscription."
+      },
+      '/legal-privacy-notice': {
+        title: "Legal & Privacy Policy | UnlockPremium",
+        desc: "Read the legal terms and privacy notice for UnlockPremium services."
+      },
+      '/refund-activation-policy': {
+        title: "Refund & Activation Policy | UnlockPremium",
+        desc: "Understand our refund and activation policies for all LinkedIn Premium digital products."
+      },
+      '/admin-login': {
+        title: "Admin Portal | UnlockPremium",
+        desc: "Management portal for UnlockPremium services."
+      }
+    };
+
+    // Special handling for dynamic service routes
+    let title = seoData.default.title;
+    let desc = seoData.default.desc;
+
+    if (path.startsWith('/services/')) {
+      const serviceId = path.split('/services/')[1];
+      const serviceTitle = serviceId.charAt(0).toUpperCase() + serviceId.slice(1).replace(/-/g, ' ');
+      title = `${serviceTitle} Discount — LinkedIn Premium | UnlockPremium`;
+      desc = `Get ${serviceTitle} at up to 70% off. Instant activation via verified referral links. Save today at UnlockPremium.`;
+    } else {
+      const pageData = seoData[path];
+      if (pageData) {
+        title = pageData.title;
+        desc = pageData.desc;
+      }
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+
+    document.title = title;
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', desc);
+    }
+  }, [location]);
 
   const handleLogout = () => {
     signOut(auth).then(() => {
-      setView('home');
+      // Redirect to home after logout
+      window.location.href = '/';
     }).catch((error) => {
       console.error('Logout Error:', error);
     });
   };
 
+  const HomePage = () => (
+    <>
+      <Hero />
+      <section className="py-20">
+        <Services limit={3} />
+      </section>
+      <TrustSection />
+      
+      {/* How it Works Section (Condensed for Homepage SEO) */}
+      <section className="py-20 bg-[#070707]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight text-white focus:outline-none">
+              How to Activate Your <span className="text-indigo-500">LinkedIn Premium Discount</span>
+            </h2>
+            <p className="text-neutral-500 text-lg max-w-2xl mx-auto">
+              Three simple steps to unlock your professional potential safely and legitimately.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              { step: '01', title: 'Select Your Plan', desc: 'Choose from Career, Business, or Sales Navigator plans.' },
+              { step: '02', title: 'WhatsApp Connect', desc: 'Our specialists handle the activation referral for you.' },
+              { step: '03', title: 'One-Click Upgrade', desc: 'Click the official link while logged in to activate instantly.' }
+            ].map((item, i) => (
+              <div key={i} className="glass p-8 rounded-3xl border-white/5 flex flex-col items-center text-center">
+                <span className="text-5xl font-black text-indigo-500/10 mb-6">{item.step}</span>
+                <h3 className="text-xl font-bold text-white mb-3">{item.title}</h3>
+                <p className="text-neutral-500 text-sm leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-12 text-center">
+            <Button variant="outline" as={Link} to="/how-it-works">Read Detailed Guide</Button>
+          </div>
+        </div>
+      </section>
 
+      {/* FAQ Section (Condensed for Homepage SEO) */}
+      <section className="py-20 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 tracking-tight text-white">
+              Frequently Asked <span className="text-indigo-500">Questions</span>
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            {[
+              { q: "Is this service safe?", a: "Yes. We use official LinkedIn referral links only, require no password sharing, and provide a full-term warranty." },
+              { q: "How long does activation take?", a: "In most cases, activation is completed instantly or within minutes of receiving the referral link." }
+            ].map((faq, i) => (
+              <div key={i} className="p-6 bg-white/[0.03] border border-white/10 rounded-2xl">
+                <h3 className="text-lg font-bold text-white mb-2">{faq.q}</h3>
+                <p className="text-neutral-400 text-sm leading-relaxed">{faq.a}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-12 text-center">
+            <Button variant="outline" as={Link} to="/faqs">See All FAQs</Button>
+          </div>
+        </div>
+      </section>
+    </>
+  );
 
-  const renderContent = () => {
-    if (currentUser && view === 'admin') {
-      return <AdminDashboard onLogout={handleLogout} />;
-    }
-    if (view === 'admin') {
-      return <AdminLoginPage />;
-    }
-
-    switch (view) {
-      case 'home':
-        return (
-          <>
-            <Hero onSetView={handleSetView} />
-            <section className="py-20"><Services onSetView={handleSetView} limit={3} /></section>
-            <TrustSection onSetView={handleSetView} />
-          </>
-        );
-      case 'how-it-works': return <HowItWorksPage onSetView={handleSetView} />;
-      case 'plans': return <PlansPage onSetView={handleSetView} />;
-      case 'guides': return <GuidesPage onSetView={handleSetView} />;
-      case 'guideDetail': return currentPostId ? <GuideDetailPage postId={currentPostId} onSetView={handleSetView} /> : <GuidesPage onSetView={handleSetView} />;
-      case 'testimonials': return <TestimonialsPage onSetView={handleSetView} />;
-      case 'legal': return <LegalPage />;
-      case 'refund': return <RefundPage />;
-      case 'contact': return <ContactPage />;
-      case 'warranty': return <WarrantyPage />;
-      case 'faqs': return <FaqPage />;
-      case 'notFound': return <NotFoundPage onSetView={handleSetView} />;
-      default:
-        return <Hero onSetView={handleSetView} />; // Fallback to home content
-    }
-  };
+  const isAdminRoute = location.pathname === '/admin-dashboard' || location.pathname === '/admin-login';
 
   return (
     <div className="min-h-screen selection:bg-indigo-500 selection:text-white bg-[#050505]">
+      <ScrollToTop />
       <LazyMotion features={() => import('framer-motion').then(res => res.domAnimation)}>
-        {view !== 'admin' || !currentUser ? <Header onSetView={handleSetView} /> : null}
+        {!isAdminRoute ? <Header /> : null}
         <main>
-          <React.Suspense fallback={
+          <Suspense fallback={
             <div className="min-h-screen flex items-center justify-center">
               <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
           }>
-            {renderContent()}
-          </React.Suspense>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
+              <Route path="/plans" element={<PlansPage />} />
+              <Route path="/guides" element={<GuidesPage />} />
+              <Route path="/guides/:slug" element={<GuideDetailPage />} />
+              <Route path="/testimonials" element={<TestimonialsPage />} />
+              <Route path="/faqs" element={<FaqPage />} />
+              <Route path="/contact-support" element={<ContactPage />} />
+              <Route path="/activation-warranty" element={<WarrantyPage />} />
+              <Route path="/legal-privacy-notice" element={<LegalPage />} />
+              <Route path="/refund-activation-policy" element={<RefundPage />} />
+              <Route path="/services/:serviceId" element={<ServiceLandingPage />} />
+              <Route path="/admin" element={<Navigate to="/admin-dashboard" replace />} />
+              <Route 
+                path="/admin-dashboard" 
+                element={currentUser ? <AdminDashboard onLogout={handleLogout} /> : <Navigate to="/admin-login" />} 
+              />
+              <Route path="/admin-login" element={<AdminLoginPage />} />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Suspense>
         </main>
-        {view !== 'admin' || !currentUser ? <Footer onSetView={handleSetView} /> : null}
+        {!isAdminRoute ? <Footer /> : null}
       </LazyMotion>
       <style>{`
         html { scroll-behavior: smooth; }
@@ -189,3 +256,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+

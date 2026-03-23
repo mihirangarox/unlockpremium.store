@@ -1,10 +1,12 @@
 
 import React from 'react';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
   size?: 'sm' | 'md' | 'lg';
   fullWidth?: boolean;
+  as?: React.ElementType;
+  to?: string; // For compatibility when used with Link
 }
 
 const Button: React.FC<ButtonProps> = ({ 
@@ -13,6 +15,7 @@ const Button: React.FC<ButtonProps> = ({
   size = 'md', 
   fullWidth = false,
   className = '',
+  as: Component = 'button',
   ...props 
 }) => {
   const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 rounded-full focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed';
@@ -31,12 +34,12 @@ const Button: React.FC<ButtonProps> = ({
   };
 
   return (
-    <button 
+    <Component 
       className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${fullWidth ? 'w-full' : ''} ${className}`}
       {...props}
     >
       {children}
-    </button>
+    </Component>
   );
 };
 

@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ViewState } from '../src/App';
+import { Link } from 'react-router-dom';
 import Button from './Button';
 import { motion, AnimatePresence } from 'framer-motion';
-
-interface TestimonialsPageProps {
-  onSetView: (view: ViewState) => void;
-}
 
 interface Testimonial {
   id: string;
@@ -36,7 +32,7 @@ const LoadingSkeleton = () => (
   </div>
 );
 
-const TestimonialsPage: React.FC<TestimonialsPageProps> = ({ onSetView }) => {
+const TestimonialsPage: React.FC = () => {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -180,8 +176,8 @@ const TestimonialsPage: React.FC<TestimonialsPageProps> = ({ onSetView }) => {
       </motion.div>
 
       <div className="flex flex-col sm:flex-row justify-center gap-4 py-12 border-t border-white/5">
-        <Button variant="primary" onClick={() => onSetView('plans')}>View LinkedIn Premium plans</Button>
-        <Button variant="outline" onClick={() => onSetView('contact')}>Contact our support team</Button>
+        <Button variant="primary" as={Link} to="/plans">View LinkedIn Premium plans</Button>
+        <Button variant="outline" as={Link} to="/contact-support">Contact our support team</Button>
       </div>
     </div>
   );

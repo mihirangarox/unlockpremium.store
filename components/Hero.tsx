@@ -1,14 +1,9 @@
 
-import React from 'react';
+import { Link } from 'react-router-dom';
 import Button from './Button';
-import { ViewState } from '../src/App';
 import { m } from 'framer-motion';
 
-interface HeroProps {
-  onSetView: (view: ViewState) => void;
-}
-
-const Hero: React.FC<HeroProps> = ({ onSetView }) => {
+const Hero: React.FC = () => {
   return (
     <>
       <section id="home" className="relative pt-32 pb-24 lg:pt-48 lg:pb-32 overflow-hidden flex flex-col items-center justify-center">
@@ -46,8 +41,8 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
             transition={{ duration: 0.6, ease: "easeOut" }}
             className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight mb-8 leading-[1.05]"
           >
-            Unlock the Full <br className="hidden md:block" />
-            Power of <span className="gradient-text">LinkedIn</span>
+            LinkedIn Premium <br className="hidden md:block" />
+            Up to <span className="gradient-text">70% Off</span> All Plans
           </m.h1>
 
           {/* Subheadline */}
@@ -85,10 +80,10 @@ const Hero: React.FC<HeroProps> = ({ onSetView }) => {
             transition={{ duration: 0.8, delay: 0.6 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
           >
-            <Button size="lg" variant="primary" className="shadow-xl shadow-indigo-500/10 min-w-[200px]" onClick={() => onSetView('plans')}>
+            <Button size="lg" variant="primary" className="shadow-xl shadow-indigo-500/10 min-w-[200px]" as={Link} to="/plans">
               Explore Plans
             </Button>
-            <Button size="lg" variant="outline" className="min-w-[200px] backdrop-blur-sm" onClick={() => onSetView('how-it-works')}>
+            <Button size="lg" variant="outline" className="min-w-[200px] backdrop-blur-sm" as={Link} to="/how-it-works">
               How It Works
             </Button>
           </m.div>

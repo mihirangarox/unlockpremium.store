@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Button from './Button';
-import { ViewState } from '../src/App';
 import { Post } from './GuideDetailPage';
 
-interface GuidesPageProps {
-  onSetView: (view: ViewState, postId?: string) => void;
-}
-
-const GuidesPage: React.FC<GuidesPageProps> = ({ onSetView }) => {
+const GuidesPage: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,10 +26,6 @@ const GuidesPage: React.FC<GuidesPageProps> = ({ onSetView }) => {
 
     fetchPosts();
   }, []);
-
-  const handlePostClick = (postId: string) => {
-    onSetView('guideDetail', postId);
-  };
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><p className="text-white">Loading guides...</p></div>
@@ -60,9 +52,9 @@ const GuidesPage: React.FC<GuidesPageProps> = ({ onSetView }) => {
 
       <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {posts.map((post) => (
-          <div
+          <Link
             key={post.id}
-            onClick={() => handlePostClick(post.id)}
+            to={`/guides/${post.slug}`}
             className="glass rounded-[24px] overflow-hidden border border-white/10 group cursor-pointer hover:border-indigo-500/30 hover:-translate-y-1 transition-all duration-300 flex flex-col"
           >
             {post.imageUrl && (
@@ -89,13 +81,13 @@ const GuidesPage: React.FC<GuidesPageProps> = ({ onSetView }) => {
                 </span>
               </div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 
       <div className="mt-20 text-center">
         <p className="text-neutral-500 text-sm mb-6">Want to request a specific guide?</p>
-        <Button variant="ghost" onClick={() => onSetView('contact')}>Contact Editors</Button>
+        <Button variant="ghost" as={Link} to="/contact-support">Contact Editors</Button>
       </div>
     </div>
   );

@@ -3,15 +3,15 @@ import React from 'react';
 import { Service, Testimonial, BlogPost } from './types';
 
 // Premium SVG Icons
-const CareerIcon = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+const CareerIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
     <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
   </svg>
 );
 
-const BusinessIcon = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+const BusinessIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M3 3v18h18" />
     <path d="M18 17V9" />
     <path d="M13 17V5" />
@@ -19,18 +19,19 @@ const BusinessIcon = (
   </svg>
 );
 
-const SalesIcon = (
-  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10" />
-    <circle cx="12" cy="12" r="6" />
-    <circle cx="12" cy="12" r="2" />
+const SalesIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M7 7h10" />
+    <path d="M7 12h10" />
+    <path d="M7 17h10" />
   </svg>
 );
 
 export const SERVICES: Service[] = [
   {
     id: 'li-career',
-    name: 'LinkedIn Career Premium',
+    name: 'LinkedIn Premium Career',
     description: 'Stand out to recruiters and get hired faster with direct messaging and applicant insights.',
     price: 14.99,
     oldPrice: 39.99,
@@ -42,7 +43,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: 'li-business',
-    name: 'LinkedIn Business Premium',
+    name: 'LinkedIn Premium Business',
     description: 'Get deep business insights and expand your professional network with unlimited browsing.',
     price: 19.99,
     oldPrice: 59.99,

@@ -1,17 +1,16 @@
 import React from 'react';
 import { SERVICES } from '../constants';
 import Button from './Button';
-import { ViewState } from '../src/App';
 import { m } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 interface ServicesProps {
-  onSetView: (view: ViewState) => void;
   limit?: number;
 }
 
-const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
+const Services: React.FC<ServicesProps> = ({ limit }) => {
   const displayServices = limit ? SERVICES.slice(0, limit) : SERVICES;
-
+  
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -38,7 +37,7 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
             transition={{ duration: 0.6 }}
             className="text-4xl md:text-5xl font-bold mb-4 tracking-tight"
           >
-            Select your <span className="text-indigo-500">Premium Plan</span>
+            LinkedIn Premium Plans
           </m.h2>
           <m.p
             initial={{ opacity: 0, y: 20 }}
@@ -73,7 +72,10 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
 
               {/* Icon with Circular Background */}
               <div className="w-11 h-11 rounded-full bg-indigo-500/12 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 origin-center text-indigo-400">
-                {service.icon}
+                {(() => {
+                  const Icon = service.icon;
+                  return <Icon />;
+                })()}
               </div>
 
               <h3 className="text-2xl font-bold mb-2 text-white">{service.name}</h3>
@@ -98,16 +100,14 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
                       <p className="text-sm font-bold text-white">Retail (estimate): From $40/month</p>
                       <p className="text-xs text-neutral-400 mt-1">Final price confirmed before activation</p>
                     </div>
-                    <a
-                      href={service.whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Link
+                      to={`/services/${service.id}`}
                       className="block w-full"
                     >
                       <Button variant="outline" size="sm" className="w-full group-hover:bg-white group-hover:text-black transition-all">
                         Get Started
                       </Button>
-                    </a>
+                    </Link>
                   </div>
                 ) : (
                   <>
@@ -117,16 +117,14 @@ const Services: React.FC<ServicesProps> = ({ onSetView, limit }) => {
                         <span className="text-2xl font-black text-indigo-400 uppercase tracking-tight">Claim 70% Off</span>
                       </div>
                     </div>
-                    <a
-                      href={service.whatsappUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <Link
+                      to={`/services/${service.id}`}
                       className="block"
                     >
                       <Button variant="outline" size="sm" className="group-hover:bg-white group-hover:text-black transition-all">
                         Get Started
                       </Button>
-                    </a>
+                    </Link>
                   </>
                 )}
               </div>

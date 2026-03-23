@@ -7,7 +7,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-// Initialize Firebase Admin (no service account needed in Cloud Functions)
+// Initialize Firebase Admin
 admin.initializeApp();
 
 const db = admin.firestore();
@@ -20,7 +20,17 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
-// Authentication Middleware
+// --- HELPERS ---
+const generateSlug = (title) => {
+    return title
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')     // Remove non-word characters
+        .replace(/[\s_]+/g, '-')       // Replace spaces with hyphens
+        .replace(/-+/g, '-');          // Remove duplicate hyphens
+};
+
+// --- MIDDLEWARE ---
 const authenticate = async (req, res, next) => {
     const { authorization } = req.headers;
     if (!authorization || !authorization.startsWith('Bearer ')) {
@@ -37,7 +47,7 @@ const authenticate = async (req, res, next) => {
     }
 };
 
-// Image Upload Route (using Busboy for Cloud Functions)
+// --- IMAGE UPLOAD ---
 app.post('/upload-image', authenticate, (req, res) => {
     const busboy = Busboy({ headers: req.headers });
     let uploadData = null;
@@ -78,12 +88,17 @@ app.post('/upload-image', authenticate, (req, res) => {
     busboy.end(req.rawBody);
 });
 
-// Blog Post Routes
+// --- BLOG POSTS ---
 const postsCollection = db.collection('posts');
 
 app.get('/posts', async (req, res) => {
     try {
-        const snapshot = await postsCollection.orderBy('createdAt', 'desc').get();
+        const { status } = req.query;
+        let query = postsCollection.orderBy('createdAt', 'desc');
+        if (status) {
+            query = query.where('status', '==', status);
+        }
+        const snapshot = await query.get();
         const posts = [];
         snapshot.forEach(doc => {
             posts.push({ id: doc.id, ...doc.data() });
@@ -108,28 +123,45 @@ app.get('/posts/:id', async (req, res) => {
     }
 });
 
+app.get('/posts/slug/:slug', async (req, res) => {
+    try {
+        const snapshot = await postsCollection.where('slug', '==', req.params.slug).limit(1).get();
+        if (snapshot.empty) {
+            return res.status(404).send('Post not found');
+        }
+        const doc = snapshot.docs[0];
+        res.json({ id: doc.id, ...doc.data() });
+    } catch (error) {
+        console.error("Error getting post by slug:", error);
+        res.status(500).send("Error getting post by slug");
+    }
+});
+
 app.post('/posts', authenticate, async (req, res) => {
     try {
-        const { title, summary, content, imageUrl } = req.body;
-        if (!title || !summary || !content) {
-            return res.status(400).send("Title, summary, and content are required.");
+        const { title, summary, content, imageUrl, status, tags, metaTitle, metaDescription } = req.body;
+        if (!title || !content) {
+            return res.status(400).send("Title and content are required.");
         }
 
         let imagePath = null;
         if (imageUrl) {
             try {
                 imagePath = decodeURIComponent(new URL(imageUrl).pathname.split('/').slice(2).join('/'));
-            } catch (e) {
-                console.error('Invalid image URL:', imageUrl, e);
-            }
+            } catch (e) { console.error('Invalid image URL:', imageUrl, e); }
         }
 
         const newPost = {
             title,
-            summary,
+            slug: generateSlug(title),
+            summary: summary || '',
             content,
             imageUrl: imageUrl || null,
             imagePath: imagePath,
+            status: status || 'draft',
+            tags: tags || [],
+            metaTitle: metaTitle || title,
+            metaDescription: metaDescription || summary || '',
             authorUid: req.user.uid,
             createdAt: new Date().toISOString()
         };
@@ -144,9 +176,9 @@ app.post('/posts', authenticate, async (req, res) => {
 
 app.put('/posts/:id', authenticate, async (req, res) => {
     try {
-        const { title, summary, content, imageUrl } = req.body;
-        if (!title || !summary || !content) {
-            return res.status(400).send("Title, summary, and content are required.");
+        const { title, summary, content, imageUrl, status, tags, metaTitle, metaDescription } = req.body;
+        if (!title || !content) {
+            return res.status(400).send("Title and content are required.");
         }
 
         const postRef = postsCollection.doc(req.params.id);
@@ -172,17 +204,20 @@ app.put('/posts/:id', authenticate, async (req, res) => {
             try {
                 const oldFile = bucket.file(oldImagePath);
                 await oldFile.delete();
-            } catch (err) {
-                console.error("Error deleting old image from storage:", err);
-            }
+            } catch (err) { console.error("Error deleting old image:", err); }
         }
 
         const updatedPost = {
             title,
-            summary,
+            slug: generateSlug(title),
+            summary: summary || '',
             content,
             imageUrl: imageUrl,
             imagePath: newImagePath,
+            status: status || 'draft',
+            tags: tags || [],
+            metaTitle: metaTitle || title,
+            metaDescription: metaDescription || summary || '',
             updatedAt: new Date().toISOString()
         };
 
@@ -199,22 +234,15 @@ app.delete('/posts/:id', authenticate, async (req, res) => {
         const postRef = postsCollection.doc(req.params.id);
         const doc = await postRef.get();
 
-        if (!doc.exists) {
-            return res.status(404).send('Post not found');
-        }
-
-        if (doc.data().authorUid !== req.user.uid) {
-            return res.status(403).send('Forbidden: You are not the author of this post.');
-        }
+        if (!doc.exists) { return res.status(404).send('Post not found'); }
+        if (doc.data().authorUid !== req.user.uid) { return res.status(403).send('Forbidden'); }
 
         const imagePath = doc.data().imagePath;
         if (imagePath) {
             try {
                 const file = bucket.file(imagePath);
                 await file.delete();
-            } catch (err) {
-                console.error("Error deleting image from storage:", err);
-            }
+            } catch (err) { console.error("Error deleting image:", err); }
         }
 
         await postRef.delete();
@@ -225,7 +253,7 @@ app.delete('/posts/:id', authenticate, async (req, res) => {
     }
 });
 
-// Testimonials Routes
+// --- TESTIMONIALS ---
 const testimonialsCollection = db.collection('testimonials');
 
 app.get('/testimonials', async (req, res) => {
@@ -244,7 +272,7 @@ app.get('/testimonials', async (req, res) => {
 
 app.post('/testimonials', authenticate, async (req, res) => {
     try {
-        const { content, user, rating, region } = req.body;
+        const { content, user, rating, region, featured } = req.body;
         if (!content || !user) {
             return res.status(400).send("Content and user are required.");
         }
@@ -254,6 +282,7 @@ app.post('/testimonials', authenticate, async (req, res) => {
             user,
             rating: rating || 5,
             region: region || '',
+            featured: featured || false,
             createdAt: new Date().toISOString()
         };
 
@@ -267,7 +296,7 @@ app.post('/testimonials', authenticate, async (req, res) => {
 
 app.put('/testimonials/:id', authenticate, async (req, res) => {
     try {
-        const { content, user, rating, region } = req.body;
+        const { content, user, rating, region, featured } = req.body;
         if (!content || !user) {
             return res.status(400).send("Content and user are required.");
         }
@@ -275,15 +304,14 @@ app.put('/testimonials/:id', authenticate, async (req, res) => {
         const testimonialRef = testimonialsCollection.doc(req.params.id);
         const doc = await testimonialRef.get();
 
-        if (!doc.exists) {
-            return res.status(404).send('Testimonial not found');
-        }
+        if (!doc.exists) { return res.status(404).send('Testimonial not found'); }
 
         const updatedTestimonial = {
             content,
             user,
             rating: rating || doc.data().rating,
             region: region || doc.data().region,
+            featured: featured ?? doc.data().featured ?? false,
             updatedAt: new Date().toISOString()
         };
 
@@ -303,6 +331,71 @@ app.delete('/testimonials/:id', authenticate, async (req, res) => {
     } catch (error) {
         console.error("Error deleting testimonial:", error);
         res.status(500).send("Error deleting testimonial");
+    }
+});
+
+// --- SITEMAP ---
+app.get('/sitemap.xml', async (req, res) => {
+    try {
+        const baseUrl = 'https://unlockpremium.store';
+        const staticPages = [
+            '',
+            '/how-it-works',
+            '/plans',
+            '/guides',
+            '/testimonials',
+            '/faqs',
+            '/contact-support',
+            '/activation-warranty',
+            '/legal-privacy-notice',
+            '/refund-activation-policy'
+        ];
+
+        // Fetch all posts and filter out drafts
+        const snapshot = await postsCollection.get();
+        const postUrls = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // Include everything that isn't explicitly a draft and has a slug
+            if (data.status !== 'draft' && data.slug) {
+                postUrls.push(`/guides/${data.slug}`);
+            }
+        });
+
+        const allUrls = [...staticPages, ...postUrls];
+        const date = new Date().toISOString().split('T')[0];
+
+        let sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+
+        allUrls.forEach(url => {
+            const priority = url === '' ? '1.0' : '0.8';
+            sitemap += '  <url>\n';
+            sitemap += `    <loc>${baseUrl}${url}</loc>\n`;
+            sitemap += `    <lastmod>${date}</lastmod>\n`;
+            sitemap += '    <changefreq>weekly</changefreq>\n';
+            sitemap += `    <priority>${priority}</priority>\n`;
+            sitemap += '  </url>\n';
+        });
+
+        sitemap += '</urlset>';
+
+        res.set('Content-Type', 'text/xml');
+        res.status(200).send(sitemap);
+    } catch (error) {
+        console.error("Error generating sitemap:", error);
+        res.status(500).send("Error generating sitemap");
+    }
+});
+
+// App Login helper (optional for production but keeps consistency)
+app.post('/login', async (req, res) => {
+    const { idToken } = req.body;
+    try {
+        const decodedToken = await auth.verifyIdToken(idToken);
+        res.json({ message: 'Token verified.', uid: decodedToken.uid });
+    } catch (error) {
+        res.status(401).json({ message: 'Invalid token' });
     }
 });
 

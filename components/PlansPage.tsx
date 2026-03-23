@@ -1,14 +1,9 @@
 
-import React from 'react';
-import { ViewState } from '../src/App';
+import { Link } from 'react-router-dom';
 import Services from './Services';
 import Button from './Button';
 
-interface PlansPageProps {
-  onSetView: (view: ViewState) => void;
-}
-
-const PlansPage: React.FC<PlansPageProps> = ({ onSetView }) => {
+const PlansPage: React.FC = () => {
   return (
     <div className="pt-32 pb-24">
       <div className="max-w-7xl mx-auto px-6 mb-16 text-center">
@@ -18,16 +13,16 @@ const PlansPage: React.FC<PlansPageProps> = ({ onSetView }) => {
         </p>
       </div>
 
-      <Services onSetView={onSetView} />
+      <Services />
 
       <div className="max-w-4xl mx-auto px-6 mt-20">
         <div className="glass p-10 rounded-[32px] border-white/10 text-center">
           <h2 className="text-2xl font-bold text-white mb-6">Not sure which plan is right for you?</h2>
           <p className="text-neutral-500 mb-10">Our specialists are available 24/7 to help you choose the tier that matches your career objectives.</p>
           <div className="flex flex-col sm:flex-row justify-center gap-4">
-            <Button variant="primary" onClick={() => onSetView('how-it-works')}>How LinkedIn activation works</Button>
-            <Button variant="outline" onClick={() => onSetView('warranty')}>Activation Warranty</Button>
-            <Button variant="ghost" onClick={() => onSetView('contact')}>Contact Support</Button>
+            <Button variant="primary" as={Link} to="/how-it-works">How LinkedIn activation works</Button>
+            <Button variant="outline" as={Link} to="/activation-warranty">Activation Warranty</Button>
+            <Button variant="ghost" as={Link} to="/contact-support">Contact Support</Button>
           </div>
         </div>
       </div>

@@ -25,6 +25,17 @@ const bucket = admin.storage().bucket();
 const app = express();
 const port = 3001;
 
+// --- START: Helpers ---
+const generateSlug = (title) => {
+    return title
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')     // Remove non-word characters (except spaces and hyphens)
+        .replace(/[\s_]+/g, '-')       // Replace spaces and underscores with hyphens
+        .replace(/-+/g, '-');          // Replace multiple hyphens with a single hyphen
+};
+// --- END: Helpers ---
+
 // --- START: Middleware ---
 app.use(cors());
 app.use(express.json());
@@ -95,7 +106,12 @@ const postsCollection = db.collection('posts');
 
 app.get('/posts', async (req, res) => {
     try {
-        const snapshot = await postsCollection.orderBy('createdAt', 'desc').get();
+        const { status } = req.query;
+        let query = postsCollection.orderBy('createdAt', 'desc');
+        if (status) {
+            query = query.where('status', '==', status);
+        }
+        const snapshot = await query.get();
         const posts = [];
         snapshot.forEach(doc => {
             posts.push({ id: doc.id, ...doc.data() });
@@ -120,11 +136,25 @@ app.get('/posts/:id', async (req, res) => {
     }
 });
 
+app.get('/posts/slug/:slug', async (req, res) => {
+    try {
+        const snapshot = await postsCollection.where('slug', '==', req.params.slug).limit(1).get();
+        if (snapshot.empty) {
+            return res.status(404).send('Post not found');
+        }
+        const doc = snapshot.docs[0];
+        res.json({ id: doc.id, ...doc.data() });
+    } catch (error) {
+        console.error("Error getting post by slug:", error);
+        res.status(500).send("Error getting post by slug");
+    }
+});
+
 app.post('/posts', authenticate, async (req, res) => {
     try {
-        const { title, summary, content, imageUrl } = req.body;
-        if (!title || !summary || !content) {
-            return res.status(400).send("Title, summary, and content are required.");
+        const { title, summary, content, imageUrl, status, tags, metaTitle, metaDescription } = req.body;
+        if (!title || !content) {
+            return res.status(400).send("Title and content are required.");
         }
 
         let imagePath = null;
@@ -138,10 +168,15 @@ app.post('/posts', authenticate, async (req, res) => {
 
         const newPost = {
             title,
-            summary,
+            slug: generateSlug(title),
+            summary: summary || '',
             content,
             imageUrl: imageUrl || null,
             imagePath: imagePath,
+            status: status || 'draft',
+            tags: tags || [],
+            metaTitle: metaTitle || title,
+            metaDescription: metaDescription || summary || '',
             authorUid: req.user.uid,
             createdAt: new Date().toISOString()
         };
@@ -156,9 +191,9 @@ app.post('/posts', authenticate, async (req, res) => {
 
 app.put('/posts/:id', authenticate, async (req, res) => {
     try {
-        const { title, summary, content, imageUrl } = req.body;
-        if (!title || !summary || !content) {
-            return res.status(400).send("Title, summary, and content are required.");
+        const { title, summary, content, imageUrl, status, tags, metaTitle, metaDescription } = req.body;
+        if (!title || !content) {
+            return res.status(400).send("Title and content are required.");
         }
 
         const postRef = postsCollection.doc(req.params.id);
@@ -191,10 +226,15 @@ app.put('/posts/:id', authenticate, async (req, res) => {
 
         const updatedPost = {
             title,
-            summary,
+            slug: generateSlug(title),
+            summary: summary || '',
             content,
             imageUrl: imageUrl,
             imagePath: newImagePath,
+            status: status || 'draft',
+            tags: tags || [],
+            metaTitle: metaTitle || title,
+            metaDescription: metaDescription || summary || '',
             updatedAt: new Date().toISOString()
         };
 
@@ -262,11 +302,13 @@ app.post('/testimonials', authenticate, async (req, res) => {
             return res.status(400).send("Content and user are required.");
         }
 
+        const { featured } = req.body;
         const newTestimonial = {
             content,
             user,
             rating: rating || 5,
             region: region || '',
+            featured: featured || false,
             createdAt: new Date().toISOString()
         };
 
@@ -292,11 +334,13 @@ app.put('/testimonials/:id', authenticate, async (req, res) => {
             return res.status(404).send('Testimonial not found');
         }
 
+        const { featured } = req.body;
         const updatedTestimonial = {
             content,
             user,
             rating: rating || doc.data().rating,
             region: region || doc.data().region,
+            featured: featured ?? doc.data().featured ?? false,
             updatedAt: new Date().toISOString()
         };
 

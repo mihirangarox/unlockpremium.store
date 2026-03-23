@@ -1,0 +1,132 @@
+import React from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { m } from 'framer-motion';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle } from 'lucide-react';
+import { SERVICES } from '../constants';
+import Button from './Button';
+
+const ServiceLandingPage: React.FC = () => {
+  const { serviceId } = useParams<{ serviceId: string }>();
+  
+  // Find the service based on ID or fallback to Career
+  const service = SERVICES.find(s => s.id === serviceId) || SERVICES[0];
+
+  return (
+    <div className="pt-32 pb-20">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <m.div
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 mb-8">
+              <Zap className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Premium Activation Service</span>
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.05] text-white">
+              {service.name} <br />
+              <span className="gradient-text">70% Off</span> 
+            </h1>
+            
+            <p className="text-neutral-400 text-lg mb-10 leading-relaxed max-w-xl">
+              {service.description} Upgrade your professional LinkedIn experience safely and legitimately using our verified referral activation links.
+            </p>
+
+            <div className="flex flex-wrap gap-4 mb-12">
+              <Button size="lg" onClick={() => window.open(service.whatsappUrl, '_blank')}>
+                Claim 70% Discount
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+              <Button variant="outline" size="lg" as={Link} to="/how-it-works">
+                How It Works
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6 pt-12 border-t border-white/5">
+              <div className="flex items-center gap-3">
+                <Shield className="w-5 h-5 text-indigo-500" />
+                <span className="text-sm font-medium text-neutral-300">Full term warranty</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Star className="w-5 h-5 text-indigo-500" />
+                <span className="text-sm font-medium text-neutral-300">Verified Activation</span>
+              </div>
+            </div>
+          </m.div>
+
+          <m.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8 }}
+            className="relative"
+          >
+            <div className="absolute inset-0 bg-indigo-500/20 blur-[120px] rounded-full" />
+            <div className="glass p-10 rounded-[40px] border-white/10 relative z-10 overflow-hidden">
+              <div className="absolute top-0 right-0 p-8">
+                {(() => {
+                  const Icon = service.icon;
+                  return <Icon className="w-24 h-24 text-indigo-500/20" />;
+                })()}
+              </div>
+              
+              <div className="mb-10">
+                <h2 className="text-2xl font-bold text-white mb-6">Plan Features</h2>
+                <div className="space-y-4">
+                  {service.features.map((feature, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className="mt-1 flex-shrink-0 w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                        <Check className="w-3 h-3 text-indigo-400" />
+                      </div>
+                      <span className="text-neutral-300">{feature}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-8 bg-white/5 rounded-3xl border border-white/10">
+                <div className="flex items-end gap-3 mb-6">
+                  <span className="text-5xl font-black text-white">${service.price}</span>
+                  <span className="text-xl text-neutral-500 line-through mb-1">${service.oldPrice}</span>
+                  <span className="ml-auto px-3 py-1 bg-green-500/10 text-green-400 text-xs font-bold rounded-lg border border-green-500/20">
+                    70% SAVINGS
+                  </span>
+                </div>
+                <Button className="w-full" size="lg" onClick={() => window.open(service.whatsappUrl, '_blank')}>
+                  Activate Now
+                </Button>
+              </div>
+            </div>
+          </m.div>
+        </div>
+      </div>
+
+      {/* Trust Section Fragment */}
+      <section className="py-20 mt-20 border-t border-white/5">
+        <div className="max-w-7xl mx-auto px-6 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-12">Why Trust UnlockPremium?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="p-8 rounded-3xl border border-white/5 text-center">
+              <Shield className="w-12 h-12 text-indigo-500 mx-auto mb-6" />
+              <h3 className="text-xl font-bold text-white mb-3">Safe Activation</h3>
+              <p className="text-neutral-500 text-sm">No passwords required. Official LinkedIn referral links only.</p>
+            </div>
+            <div className="p-8 rounded-3xl border border-white/5 text-center">
+              <Star className="w-12 h-12 text-indigo-500 mx-auto mb-6" />
+              <h3 className="text-xl font-bold text-white mb-3">100% Legitimate</h3>
+              <p className="text-neutral-500 text-sm">Real premium benefits delivered via verified channels.</p>
+            </div>
+            <div className="p-8 rounded-3xl border border-white/5 text-center">
+              <MessageCircle className="w-12 h-12 text-indigo-500 mx-auto mb-6" />
+              <h3 className="text-xl font-bold text-white mb-3">Instant Support</h3>
+              <p className="text-neutral-500 text-sm">Our specialists are available on WhatsApp for direct help.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+export default ServiceLandingPage;
