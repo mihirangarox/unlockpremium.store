@@ -14,6 +14,11 @@ service cloud.firestore {
     match /reminders/{doc} { allow read, write: if true; }
     match /renewal_history/{doc} { allow read, write: if true; }
     match /activity_logs/{doc} { allow read, write: if true; }
+    match /vendors/{doc} { allow read, write: if true; }
+    match /inventory/{doc} { allow read, write: if true; }
+    match /inventory_logs/{doc} { allow read, write: if true; }
+    match /usdt_transactions/{doc} { allow read, write: if true; }
+    match /live_stock/{doc} { allow read, write: if true; }
     
     // Default deny for anything else
     match /{document=**} {

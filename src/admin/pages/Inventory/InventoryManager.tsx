@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, AlertTriangle, ArrowRight, ShieldCheck, Tag, DollarSign, Layers } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Package, Plus, AlertTriangle, ArrowRight, ShieldCheck, Tag, DollarSign, Layers, X, History as HistoryIcon, Wallet, Save } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useLocalization } from '../../../context/LocalizationContext';
 import { useToast } from '../../components/ui/Toast';
 import * as db from '../../services/db';
-import { Product } from '../../types';
+import { Product, Vendor, InventoryLog } from '../../types';
 
 interface InventoryItem extends Product {
   stockCount: number;
@@ -16,7 +16,18 @@ export function InventoryManager() {
   const { formatCurrency } = useLocalization();
   const { showToast } = useToast();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Restock Modal State
+  const [isRestockModalOpen, setIsRestockModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<InventoryItem | null>(null);
+  const [restockData, setRestockData] = useState({
+    quantity: 1,
+    vendorId: '',
+    usdtCost: 0,
+    note: ''
+  });
 
   useEffect(() => {
     loadInventory();
@@ -25,10 +36,12 @@ export function InventoryManager() {
   const loadInventory = async () => {
     setIsLoading(true);
     try {
-      const [products, items] = await Promise.all([
+      const [products, items, allVendors] = await Promise.all([
         db.getProducts(),
-        db.getInventoryItems()
+        db.getInventoryItems(),
+        db.getVendors()
       ]);
+      setVendors(allVendors);
       const inventoryMap = new Map(items.map(i => [i.id, i]));
       
       const enriched = products.map(p => {
@@ -49,11 +62,69 @@ export function InventoryManager() {
     }
   };
 
-  const updateStock = async (id: string, newStock: number) => {
-    const item = inventory.find(i => i.id === id);
-    if (!item) return;
+  const handleOpenRestock = (product: InventoryItem) => {
+    setSelectedProduct(product);
+    setRestockData({
+      quantity: 10,
+      vendorId: vendors[0]?.id || '',
+      usdtCost: 0,
+      note: `Stock update for ${product.name}`
+    });
+    setIsRestockModalOpen(true);
+  };
 
-    const updatedItem = { ...item, stockCount: newStock };
+  const handleRestockSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProduct) return;
+
+    try {
+      // 1. Create Inventory Log
+      const log: InventoryLog = {
+        id: `log_${Date.now()}`,
+        productId: selectedProduct.id,
+        vendorId: restockData.vendorId,
+        quantityAdded: restockData.quantity,
+        usdtCost: restockData.usdtCost,
+        localCurrencyRate: 1, // Simplified for now
+        date: new Date().toISOString(),
+        note: restockData.note
+      };
+      await db.saveInventoryLog(log);
+
+      // 2. Update Inventory Stock Count
+      const newStock = selectedProduct.stockCount + restockData.quantity;
+      await db.saveInventoryItem({
+        id: selectedProduct.id,
+        stockCount: newStock,
+        lowStockThreshold: selectedProduct.lowStockThreshold,
+        costPrice: selectedProduct.costPrice
+      });
+
+      // 3. Create Outbound Finance Transaction if USDT cost > 0
+      if (restockData.usdtCost > 0) {
+        await db.saveUSDTTransaction({
+          id: `tx_${Date.now()}`,
+          type: 'Outbound',
+          amount: restockData.usdtCost,
+          usdtRate: 1,
+          date: new Date().toISOString().split('T')[0],
+          note: `Restock cost: ${selectedProduct.name}`,
+          status: 'Completed'
+        });
+      }
+
+      showToast("Inventory restocked successfully", "success");
+      setIsRestockModalOpen(false);
+      loadInventory();
+    } catch (err) {
+      console.error("Restock failed:", err);
+      showToast("Sync failed", "error");
+    }
+  };
+
+  const quickSale = async (item: InventoryItem) => {
+    if (item.stockCount <= 0) return;
+    const newStock = item.stockCount - 1;
     
     try {
       await db.saveInventoryItem({
@@ -62,11 +133,9 @@ export function InventoryManager() {
         lowStockThreshold: item.lowStockThreshold,
         costPrice: item.costPrice
       });
-      setInventory(inventory.map(i => i.id === id ? updatedItem : i));
-      showToast(`Stock updated: ${newStock}`, "success");
-    } catch (error) {
-      console.error("Failed to update stock:", error);
-      showToast("Sync error", "error");
+      setInventory(inventory.map(i => i.id === item.id ? { ...i, stockCount: newStock } : i));
+    } catch (err) {
+      showToast("Failed to update stock", "error");
     }
   };
 
@@ -157,14 +226,14 @@ export function InventoryManager() {
                     <td className="px-6 py-4 text-right">
                        <div className="flex items-center justify-end gap-2">
                           <button 
-                            onClick={() => updateStock(item.id, item.stockCount + 10)}
+                            onClick={() => handleOpenRestock(item)}
                             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                            title="Restock +10"
+                            title="Professional Restock"
                           >
                             <Plus className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => updateStock(item.id, Math.max(0, item.stockCount - 1))}
+                            onClick={() => quickSale(item)}
                             className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                             title="Quick Sale -1"
                           >
@@ -179,6 +248,94 @@ export function InventoryManager() {
           </table>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isRestockModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-lg shadow-2xl p-8 relative"
+            >
+              <button onClick={() => setIsRestockModalOpen(false)} className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-500">
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="flex items-center gap-3 mb-8">
+                <div className="p-3 bg-indigo-50 rounded-2xl">
+                  <Package className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">Restock Product</h3>
+                  <p className="text-sm text-slate-500">{selectedProduct?.name}</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleRestockSubmit} className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Quantity to Add</label>
+                    <input 
+                      type="number" 
+                      required
+                      min="1"
+                      value={restockData.quantity}
+                      onChange={(e) => setRestockData({ ...restockData, quantity: parseInt(e.target.value) })}
+                      className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">USDT Cost (Total)</label>
+                    <div className="relative">
+                      <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={restockData.usdtCost}
+                        onChange={(e) => setRestockData({ ...restockData, usdtCost: parseFloat(e.target.value) })}
+                        className="w-full pl-11 pr-4 py-3 bg-emerald-50/30 border-none rounded-2xl focus:ring-4 focus:ring-emerald-500/10 font-bold text-emerald-700"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vendor</label>
+                  <select 
+                    value={restockData.vendorId}
+                    onChange={(e) => setRestockData({ ...restockData, vendorId: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold appearance-none text-slate-900"
+                  >
+                    <option value="">Select Vendor...</option>
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Note</label>
+                  <input 
+                    type="text" 
+                    value={restockData.note}
+                    onChange={(e) => setRestockData({ ...restockData, note: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-medium text-slate-900"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setIsRestockModalOpen(false)} className="flex-1 py-4 text-slate-400 font-bold">Cancel</button>
+                  <button type="submit" className="flex-2 py-4 px-8 bg-slate-900 text-white rounded-2xl font-bold shadow-xl shadow-slate-100 flex items-center justify-center gap-2">
+                    <Save className="w-4 h-4" />
+                    Complete Restock
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

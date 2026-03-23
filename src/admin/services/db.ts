@@ -14,6 +14,7 @@ import {
   where,
   writeBatch,
   orderBy,
+  limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -25,7 +26,10 @@ import type {
   IntakeRequest,
   Product,
   Post,
-  Testimonial
+  Testimonial,
+  Vendor,
+  InventoryLog,
+  DigitalCode
 } from "../types/index";
 
 // ─── Products ───────────────────────────────────────────────────────────────
@@ -267,4 +271,126 @@ export const getInventoryItems = async (): Promise<any[]> => {
 
 export const saveInventoryItem = async (item: any): Promise<void> => {
   await setDoc(doc(db, "inventory", item.id), item);
+};
+
+// ─── Vendors ─────────────────────────────────────────────────────────────────
+
+export const getVendors = async (): Promise<Vendor[]> => {
+  const snap = await getDocs(query(collection(db, "vendors"), orderBy("createdAt", "desc")));
+  return snap.docs.map(d => d.data() as Vendor);
+};
+
+export const saveVendor = async (vendor: Vendor): Promise<void> => {
+  await setDoc(doc(db, "vendors", vendor.id), vendor);
+};
+
+export const deleteVendor = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "vendors", id));
+};
+
+// ─── Inventory Logs ──────────────────────────────────────────────────────────
+
+export const getInventoryLogs = async (productId?: string): Promise<InventoryLog[]> => {
+  const coll = collection(db, "inventory_logs");
+  const q = productId 
+    ? query(coll, where("productId", "==", productId), orderBy("date", "desc"))
+    : query(coll, orderBy("date", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => d.data() as InventoryLog);
+};
+
+export const saveInventoryLog = async (log: InventoryLog): Promise<void> => {
+  await setDoc(doc(db, "inventory_logs", log.id), log);
+};
+
+// ─── Live Stock ─────────────────────────────────────────────────────────────
+
+export const getLiveStock = async (): Promise<DigitalCode[]> => {
+  const snap = await getDocs(query(collection(db, "live_stock"), orderBy("createdAt", "desc")));
+  return snap.docs.map(d => d.data() as DigitalCode);
+};
+
+export const saveLiveStockBatch = async (codes: DigitalCode[]): Promise<void> => {
+  const batch = writeBatch(db);
+  codes.forEach(code => {
+    batch.set(doc(db, "live_stock", code.id), code);
+  });
+  await batch.commit();
+};
+
+export const deleteLiveStockCode = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "live_stock", id));
+};
+
+export const getAvailableCodesCount = async (productId?: string): Promise<number> => {
+  const coll = collection(db, "live_stock");
+  const q = productId 
+    ? query(coll, where("productId", "==", productId), where("status", "==", "Available"))
+    : query(coll, where("status", "==", "Available"));
+  const snap = await getDocs(q);
+  return snap.size;
+};
+
+/**
+ * Claims an available digital code for a specific request.
+ * Returns the code string if successful, or null if no codes available.
+ */
+export const claimCodeForRequest = async (
+  productIdOrType: string, 
+  duration: string, 
+  requestId: string
+): Promise<string | null> => {
+  // 1. Try to find by direct productId first
+  let q = query(
+    collection(db, "live_stock"),
+    where("productId", "==", productIdOrType),
+    where("duration", "==", duration),
+    where("status", "==", "Available"),
+    limit(1)
+  );
+  
+  let snap = await getDocs(q);
+  
+  // 2. If not found, try finding product by subscriptionType first
+  if (snap.empty) {
+    const products = await getProducts();
+    const product = products.find(p => p.subscriptionType === productIdOrType);
+    if (product) {
+      q = query(
+        collection(db, "live_stock"),
+        where("productId", "==", product.id),
+        where("duration", "==", duration),
+        where("status", "==", "Available"),
+        limit(1)
+      );
+      snap = await getDocs(q);
+    }
+  }
+
+  // 3. Last resort: try matching by productName directly (legacy or loose matching)
+  if (snap.empty) {
+     q = query(
+      collection(db, "live_stock"),
+      where("productName", "==", productIdOrType),
+      where("duration", "==", duration),
+      where("status", "==", "Available"),
+      limit(1)
+    );
+    snap = await getDocs(q);
+  }
+
+  if (snap.empty) return null;
+  
+  const codeDoc = snap.docs[0];
+  const codeData = codeDoc.data() as DigitalCode;
+  
+  const updatedCode: DigitalCode = {
+    ...codeData,
+    status: 'Assigned',
+    assignedToRequestId: requestId,
+    assignedAt: new Date().toISOString()
+  };
+  
+  await setDoc(codeDoc.ref, updatedCode);
+  return updatedCode.code;
 };

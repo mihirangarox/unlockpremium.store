@@ -70,6 +70,7 @@ export interface Subscription {
   paymentLink?: string;
   lastContactedAt?: string;
   lastRenewed?: string;
+  activationCode?: string; // New: For digital fulfillment
   createdAt: string;
   updatedAt: string;
 }
@@ -109,6 +110,7 @@ export interface IntakeRequest {
   redditUsername?: string;
   subscriptionType: SubscriptionType | '';
   subscriptionPeriod: PlanDuration | '';
+  linkedinUrl?: string;
   notes: string;
   
   // Admin-added fields during processing
@@ -117,6 +119,8 @@ export interface IntakeRequest {
   startDate?: string;
   renewalDate?: string;
   paymentStatus?: 'Paid' | 'Pending' | 'Partial';
+  
+  activationCode?: string; // New: Assigned upon approval
   
   status: RequestStatus;
   createdAt: string;
@@ -186,5 +190,50 @@ export interface Testimonial {
   rating: number;
   region?: string;
   featured: boolean;
+  createdAt: string;
+}
+
+// ─── Phase 8: Inventory & Vendors ─────────────────────────────────────────────
+
+export interface Vendor {
+  id: string;
+  name: string;
+  email: string;
+  contactNumber: string;
+  note: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InventoryItem extends Product {
+  stockCount: number;
+  lowStockThreshold: number;
+  costPrice: number; // In local currency
+}
+
+export interface InventoryLog {
+  id: string;
+  productId: string;
+  vendorId?: string;
+  quantityAdded: number;
+  usdtCost: number; // USDT cost for this batch
+  localCurrencyRate: number; // Rate at time of purchase
+  date: string;
+  note: string;
+}
+
+// ─── Phase 9: Live Stock & Digital Fulfillment ────────────────────────────────
+
+export interface DigitalCode {
+  id: string;
+  productId: string;
+  productName: string;
+  code: string;
+  duration: PlanDuration;
+  costBasisUSDT: number;
+  vendorId?: string;
+  status: 'Available' | 'Assigned' | 'Expired';
+  assignedToRequestId?: string;
+  assignedAt?: string;
   createdAt: string;
 }

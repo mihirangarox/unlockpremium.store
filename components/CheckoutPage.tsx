@@ -46,8 +46,9 @@ const CheckoutPage: React.FC = () => {
         whatsappNumber: formData.whatsapp,
         preferredContact: 'WhatsApp',
         subscriptionType: items[0]?.subscriptionType || '',
-        subscriptionPeriod: '', // We can leave this blank or map it, but the notes have full details
-        notes: `E-COMMERCE CHECKOUT \nItems: ${orderContent}\nTotal: $${totalPrice.toFixed(2)}\nTransaction ID: ${formData.transactionId || 'Pending'}\nLinkedIn: ${formData.linkedinUrl || 'N/A'}`,
+        subscriptionPeriod: items[0]?.durationMonths === 1 ? '1M' : items[0]?.durationMonths === 3 ? '3M' : items[0]?.durationMonths === 6 ? '6M' : (items[0]?.durationMonths + 'M' as any),
+        linkedinUrl: formData.linkedinUrl,
+        notes: `E-COMMERCE CHECKOUT \nItems: ${orderContent}\nTotal: $${totalPrice.toFixed(2)}\nTransaction ID: ${formData.transactionId || 'Pending'}`,
         status: 'Pending',
         paymentStatus: 'Pending',
         createdAt: new Date().toISOString(),

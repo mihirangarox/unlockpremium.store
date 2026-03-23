@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
-  ArrowLeft, CheckCircle2, XCircle, User, 
-  MessageSquare, CreditCard, FileText,
-  Zap, ChevronRight, AlertTriangle
+  Zap, ChevronRight, AlertTriangle, Copy, ExternalLink
 } from "lucide-react";
 import { useToast } from "../../components/ui/Toast";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { generateInvoicePDF } from "../../utils/invoiceGenerator";
 import * as db from "../../services/db";
-import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType } from "../../types/index";
+import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType, Product } from "../../types/index";
 
 const SUBSCRIPTION_TYPES: SubscriptionType[] = [
   "Premium Career",
@@ -28,6 +26,7 @@ export function RequestDetail() {
   const { formatCurrency, formatDate } = useLocalization();
   
   const [request, setRequest] = useState<IntakeRequest | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -60,6 +59,18 @@ export function RequestDetail() {
         if (data.internalNotes) setInternalNotes(data.internalNotes);
         if (data.subscriptionType) setSubscriptionType(data.subscriptionType);
         if (data.subscriptionPeriod) setSubscriptionPeriod(data.subscriptionPeriod);
+        
+        // Fetch products to populate dropdown
+        const allProducts = await db.getProducts();
+        setProducts(allProducts);
+        
+        // Initial Price Logic
+        if (data.soldPrice) {
+          setSoldPrice(data.soldPrice.toString());
+        } else {
+          const matchedProduct = allProducts.find(p => p.subscriptionType === data.subscriptionType);
+          if (matchedProduct) setSoldPrice(matchedProduct.price.toString());
+        }
         
         // Duplicate check
         const allRequests = await db.getRequests();
@@ -126,7 +137,7 @@ export function RequestDetail() {
         fullName: request.fullName,
         whatsappNumber: request.whatsappNumber || "",
         email: request.email || "",
-        linkedinUrl: "", // Not collected in intake yet
+        linkedinUrl: request.linkedinUrl || "",
         country: "Unknown", // Can be updated later
         leadSource: request.preferredContact === 'Reddit' ? 'Reddit' : 'Organic', // Heuristic
         notes: request.notes,
@@ -152,7 +163,22 @@ export function RequestDetail() {
         updatedAt: now
       };
 
-      // 3. Mark Request as Approved
+      // 3. Claim Digital Activation Code if available
+      // Find the specific product ID for better matching
+      const targetProduct = products.find(p => p.subscriptionType === (subscriptionType || request.subscriptionType));
+      
+      const claimedCode = await db.claimCodeForRequest(
+        targetProduct?.id || (subscriptionType as string) || (request.subscriptionType as string) || "",
+        (subscriptionPeriod as string) || request.subscriptionPeriod || "",
+        request.id
+      );
+
+      // 4. Update Subscription with Code
+      if (claimedCode) {
+        subscription.activationCode = claimedCode;
+      }
+
+      // 5. Mark Request as Approved
       const updatedRequest: IntakeRequest = {
         ...request,
         soldPrice: defaultPrice,
@@ -160,6 +186,7 @@ export function RequestDetail() {
         renewalDate,
         paymentStatus,
         internalNotes,
+        activationCode: claimedCode || null,
         status: "Approved",
         updatedAt: now
       };
@@ -171,9 +198,15 @@ export function RequestDetail() {
       
       // Log initial transaction implicitly by saving sub and calling logTransaction
       await db.logTransaction(subscription);
-
-      showToast("Request approved and customer created!", "success");
+      
+      // Update local state to reflect changes immediately
       setRequest(updatedRequest);
+      showToast(
+        claimedCode 
+          ? "Approved & Activation Code Assigned!" 
+          : "Approved! (No available codes to assign)", 
+        claimedCode ? "success" : "info"
+      );
       
     } catch (error) {
       console.error("Failed to approve request:", error);
@@ -214,6 +247,7 @@ export function RequestDetail() {
 *Renewal Date:* ${formatDate(request.renewalDate || renewalDate)}
 *Total Amount:* ${formatCurrency(request.soldPrice)}
 *Status:* ${request.paymentStatus}
+${request.activationCode ? `\n*Digital Activation Key:* ${request.activationCode}` : ""}
 
 Thank you for your business!`;
   };
@@ -355,6 +389,29 @@ Thank you for your business!`;
                   </div>
                 )}
               </div>
+              
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors px-2 rounded-xl">
+                  <span className="text-slate-500 font-medium">LinkedIn URL</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-700 truncate max-w-[200px]">{request.linkedinUrl || 'N/A'}</span>
+                    {request.linkedinUrl && (
+                      <button 
+                        onClick={() => window.open(request.linkedinUrl, '_blank')}
+                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        title="Open Profile"
+                      >
+                        <ExternalLink size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors px-2 rounded-xl">
+                  <span className="text-slate-500 font-medium">Channel</span>
+                  <span className="font-bold text-slate-700">{request.preferredContact}</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -371,9 +428,15 @@ Thank you for your business!`;
                     <select
                       value={subscriptionType}
                       onChange={e => setSubscriptionType(e.target.value as any)}
-                      className="w-full text-sm font-bold text-indigo-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-500"
+                      className="w-full text-sm font-bold text-indigo-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-500 text-slate-900"
                     >
-                      {SUBSCRIPTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      <option value="">Select Plan...</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.subscriptionType}>{p.name}</option>
+                      ))}
+                      {!products.some(p => p.subscriptionType === request.subscriptionType) && request.subscriptionType && (
+                        <option value={request.subscriptionType}>{request.subscriptionType} (Legacy)</option>
+                      )}
                     </select>
                   ) : (
                     <div className="font-bold text-indigo-600">{request.subscriptionType || 'N/A'}</div>
@@ -385,7 +448,7 @@ Thank you for your business!`;
                     <select
                       value={subscriptionPeriod}
                       onChange={e => setSubscriptionPeriod(e.target.value as any)}
-                      className="w-full text-sm font-bold text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-500"
+                      className="w-full text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="1M">1 Month</option>
                       <option value="3M">3 Months</option>
@@ -427,7 +490,7 @@ Thank you for your business!`;
                       value={soldPrice}
                       onChange={e => setSoldPrice(e.target.value)}
                       disabled={request.status !== "Pending"}
-                      className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-inner-spin-button]:appearance-none"
+                      className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-inner-spin-button]:appearance-none text-slate-900"
                       placeholder="0.00"
                     />
                   </div>
@@ -438,7 +501,7 @@ Thank you for your business!`;
                     value={paymentStatus}
                     onChange={e => setPaymentStatus(e.target.value as any)}
                     disabled={request.status !== "Pending"}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-medium disabled:opacity-50 text-slate-900"
                   >
                     <option value="Paid">Paid</option>
                     <option value="Pending">Pending</option>
@@ -459,7 +522,7 @@ Thank you for your business!`;
                       // but they can click the button
                     }}
                     disabled={request.status !== "Pending"}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold disabled:opacity-50 text-sm"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold disabled:opacity-50 text-sm text-slate-900"
                   />
                </div>
                <div>
@@ -474,7 +537,7 @@ Thank you for your business!`;
                     value={renewalDate}
                     onChange={e => setRenewalDate(e.target.value)}
                     disabled={request.status !== "Pending"}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold disabled:opacity-50 text-sm"
+                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 font-bold disabled:opacity-50 text-sm text-slate-900"
                   />
                </div>
             </div>
@@ -518,12 +581,37 @@ Thank you for your business!`;
           )}
           
           {request.status === "Approved" && (
-            <div className="pt-6 mt-6 border-t border-emerald-100 bg-emerald-50 rounded-xl p-4 flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-emerald-800">Request Converted</p>
-                <p className="text-xs text-emerald-600 mt-1">This request has been successfully converted into a Customer and Subscription record in your CRM.</p>
+            <div className="pt-6 mt-6 border-t border-emerald-100 space-y-4">
+              <div className="bg-emerald-50 rounded-xl p-4 flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-emerald-800">Request Converted</p>
+                  <p className="text-xs text-emerald-600 mt-1">This request has been successfully converted into a Customer and Subscription record in your CRM.</p>
+                </div>
               </div>
+
+              {request.activationCode && (
+                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                       <Zap className="w-4 h-4 text-indigo-600" />
+                       <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Assigned Activation Code</span>
+                    </div>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText(request.activationCode || "");
+                        showToast("Code copied!", "success");
+                      }}
+                      className="p-1.5 hover:bg-white rounded-lg text-indigo-400 hover:text-indigo-600 transition"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="font-mono text-lg font-bold text-indigo-900 break-all bg-white/50 p-4 rounded-xl border border-indigo-50">
+                    {request.activationCode}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

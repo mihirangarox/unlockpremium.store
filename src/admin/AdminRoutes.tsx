@@ -14,11 +14,13 @@ import { Reports } from './pages/Reports/Reports';
 import { SettingsPage } from './pages/Settings/Settings';
 import { USDTPurchases } from './pages/Finance/USDTPurchases';
 import { InventoryManager } from './pages/Inventory/InventoryManager';
+import { LiveStockManager } from './pages/Inventory/LiveStockManager';
 import AdminDashboard from '../../components/AdminDashboard';
 import ManageTestimonials from '../../components/ManageTestimonials';
 import { ToastProvider } from './components/ui/Toast';
 import { ProductList } from './pages/Products/ProductList';
 import { ProductForm } from './pages/Products/ProductForm';
+import { VendorManager } from './pages/Vendors/VendorManager';
 
 interface AdminRoutesProps {
   onLogout: () => void;
@@ -45,6 +47,8 @@ export const AdminRoutes: React.FC<AdminRoutesProps> = ({ onLogout }) => {
           <Route path="reports" element={<Reports />} />
           <Route path="finance/usdt" element={<USDTPurchases />} />
           <Route path="inventory" element={<InventoryManager />} />
+          <Route path="live-stock" element={<LiveStockManager />} />
+          <Route path="vendors" element={<VendorManager />} />
           <Route path="settings" element={<SettingsPage />} />
           
           {/* Legacy integrated features */}
