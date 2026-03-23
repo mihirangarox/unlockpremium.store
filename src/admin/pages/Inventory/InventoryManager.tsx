@@ -190,7 +190,7 @@ export function InventoryManager() {
                 <th className="px-6 py-4">Unit Cost</th>
                 <th className="px-6 py-4">Unit Price</th>
                 <th className="px-6 py-4">Margin</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4 text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-sm font-medium text-slate-600">
@@ -223,24 +223,7 @@ export function InventoryManager() {
                     <td className="px-6 py-4">
                        <span className="text-emerald-600 font-bold">+{margin.toFixed(1)}%</span>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                       <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => handleOpenRestock(item)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                            title="Professional Restock"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => quickSale(item)}
-                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                            title="Quick Sale -1"
-                          >
-                            <ArrowRight className="w-4 h-4 rotate-90" />
-                          </button>
-                       </div>
-                    </td>
+                    <td className="px-6 py-4 text-right"></td>
                   </tr>
                 );
               })}

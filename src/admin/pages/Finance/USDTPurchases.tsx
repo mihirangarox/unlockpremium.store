@@ -202,7 +202,7 @@ export function USDTPurchases() {
                     type="number" 
                     value={newTx.amount}
                     onChange={(e) => setNewTx({ ...newTx, amount: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold"
+                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
                   />
                 </div>
                 <div>
@@ -211,7 +211,7 @@ export function USDTPurchases() {
                     type="number" 
                     value={newTx.usdtRate}
                     onChange={(e) => setNewTx({ ...newTx, usdtRate: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold"
+                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
                   />
                 </div>
                 <div>
@@ -220,7 +220,7 @@ export function USDTPurchases() {
                     type="text" 
                     value={newTx.note}
                     onChange={(e) => setNewTx({ ...newTx, note: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold"
+                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
                   />
                 </div>
                 <div className="flex gap-3 mt-8">

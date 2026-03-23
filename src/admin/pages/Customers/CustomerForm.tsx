@@ -237,15 +237,15 @@ export function CustomerForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm font-medium text-slate-700">Full Name *</label>
-                <input 
-                  type="text" 
-                  name="fullName"
-                  value={formData.fullName}
-                  onChange={handleChange}
-                  required
-                  placeholder="e.g. John Smith"
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                />
+                  <input 
+                    type="text" 
+                    name="fullName"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    required
+                    placeholder="e.g. John Smith"
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900"
+                  />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Status</label>
@@ -253,7 +253,7 @@ export function CustomerForm() {
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white text-slate-900"
                 >
                   <option value="New">New</option>
                   <option value="In Follow-up">In Follow-up</option>
@@ -267,7 +267,7 @@ export function CustomerForm() {
                   name="leadSource"
                   value={formData.leadSource}
                   onChange={handleChange}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white text-slate-900"
                 >
                   <option value="">Select Source</option>
                   <option value="WhatsApp">WhatsApp</option>
@@ -291,14 +291,14 @@ export function CustomerForm() {
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">WhatsApp Number</label>
                 <div className="relative">
-                  <input 
-                    type="text" 
-                    name="whatsappNumber"
-                    value={formData.whatsappNumber}
-                    onChange={handleChange}
-                    placeholder="+44 7700 900000"
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  />
+                    <input 
+                      type="text" 
+                      name="whatsappNumber"
+                      value={formData.whatsappNumber}
+                      onChange={handleChange}
+                      placeholder="+44 7700 900000"
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900"
+                    />
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
                     <MessageSquare className="w-4 h-4 text-slate-300" />
                   </div>
@@ -312,34 +312,34 @@ export function CustomerForm() {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="email@example.com"
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">Country</label>
                 <div className="relative">
-                  <input 
-                    type="text" 
-                    name="country"
-                    value={formData.country}
-                    onChange={handleChange}
-                    placeholder="e.g. UAE"
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  />
+                    <input 
+                      type="text" 
+                      name="country"
+                      value={formData.country}
+                      onChange={handleChange}
+                      placeholder="e.g. UAE"
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900"
+                    />
                   <Globe className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                 </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-slate-700">LinkedIn URL</label>
                 <div className="relative group">
-                  <input 
-                    type="url" 
-                    name="linkedinUrl"
-                    value={formData.linkedinUrl}
-                    onChange={handleChange}
-                    placeholder="https://linkedin.com/..."
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
-                  />
+                    <input 
+                      type="url" 
+                      name="linkedinUrl"
+                      value={formData.linkedinUrl}
+                      onChange={handleChange}
+                      placeholder="https://linkedin.com/..."
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900"
+                    />
                   {formData.linkedinUrl && (
                     <a 
                       href={formData.linkedinUrl} 
@@ -372,7 +372,7 @@ export function CustomerForm() {
                   name="subscriptionType"
                   value={subData.subscriptionType}
                   onChange={handleSubChange}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white text-slate-900"
                 >
                   <option value="">Select Subscription</option>
                   <option value="Premium Career">Premium Career</option>
@@ -393,7 +393,7 @@ export function CustomerForm() {
                       name="durationMonths"
                       value={subData.durationMonths}
                       onChange={handleSubChange}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white"
+                      className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white text-slate-900"
                     >
                       <option value={1}>1 month</option>
                       <option value={2}>2 months</option>
@@ -415,7 +415,7 @@ export function CustomerForm() {
                         value={subData.price}
                         onChange={handleSubChange}
                         placeholder="25.00"
-                        className="w-full px-8 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                        className="w-full px-8 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-900"
                       />
                     </div>
                   </div>
@@ -429,7 +429,7 @@ export function CustomerForm() {
                         value={subData.startDate}
                         onChange={handleSubChange}
                         required={!!subData.subscriptionType}
-                        className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white"
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white text-slate-900"
                       />
                     </div>
                   </div>
@@ -482,7 +482,7 @@ export function CustomerForm() {
                   name="reminderChannel"
                   value={formData.reminderPreferences?.channel}
                   onChange={handleChange}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white"
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 bg-white text-slate-900"
                 >
                   <option value="WhatsApp">WhatsApp</option>
                   <option value="Email">Email</option>
@@ -505,7 +505,7 @@ export function CustomerForm() {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Add initial notes or update details..."
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-y"
+                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/50 resize-y text-slate-900"
               />
               <p className="text-[10px] text-slate-400 font-medium italic">Note: Editing here updates the current general note. History is viewed in the profile timeline.</p>
             </div>

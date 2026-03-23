@@ -284,7 +284,7 @@ function GeneralSettings({ settings, setSettings }: { settings: AppSettings, set
               type="text" 
               value={settings.organizationName}
               onChange={(e) => setSettings({ ...settings, organizationName: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium"
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900"
             />
           </div>
           <div className="space-y-2">
@@ -293,7 +293,7 @@ function GeneralSettings({ settings, setSettings }: { settings: AppSettings, set
               type="email" 
               value={settings.organizationEmail}
               onChange={(e) => setSettings({ ...settings, organizationEmail: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium"
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900"
             />
           </div>
         </div>
@@ -307,7 +307,7 @@ function GeneralSettings({ settings, setSettings }: { settings: AppSettings, set
             <select 
               value={settings.currency}
               onChange={(e) => setSettings({ ...settings, currency: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none"
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none text-slate-900"
             >
               <option value="GBP">GBP (£)</option>
               <option value="USD">USD ($)</option>
@@ -321,7 +321,7 @@ function GeneralSettings({ settings, setSettings }: { settings: AppSettings, set
             <select 
               value={settings.timezone}
               onChange={(e) => setSettings({ ...settings, timezone: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none"
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none text-slate-900"
             >
               <option>Europe/London</option>
               <option>UTC</option>
@@ -335,7 +335,7 @@ function GeneralSettings({ settings, setSettings }: { settings: AppSettings, set
             <select 
               value={settings.dateFormat}
               onChange={(e) => setSettings({ ...settings, dateFormat: e.target.value })}
-              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none"
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-bold appearance-none text-slate-900"
             >
               <option>DD/MM/YYYY</option>
               <option>MM/DD/YYYY</option>
@@ -403,7 +403,7 @@ function AutomationSettings({ settings, setSettings }: { settings: AppSettings, 
               value={settings.whatsappTemplate}
               onChange={(e) => setSettings({ ...settings, whatsappTemplate: e.target.value })}
               rows={4}
-              className="w-full px-6 py-4 bg-indigo-50/30 border-none rounded-3xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-700 placeholder:text-slate-300 transition-all leading-relaxed"
+              className="w-full px-6 py-4 bg-indigo-50/30 border-none rounded-3xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900 placeholder:text-slate-300 transition-all leading-relaxed"
             />
             <div className="flex flex-wrap gap-2">
               {['customer_name', 'plan_name', 'days', 'renewal_date', 'price', 'payment_link'].map(tag => (

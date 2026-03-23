@@ -221,7 +221,7 @@ export function LiveStockManager() {
                 <th className="px-6 py-4">Activation Code/Link</th>
                 <th className="px-6 py-4">Cost (USDT)</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4 text-right"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-sm font-medium text-slate-600">
@@ -263,14 +263,7 @@ export function LiveStockManager() {
                         {item.status}
                      </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => handleDeleteCode(item.id)}
-                      className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </td>
+                  <td className="px-6 py-4 text-right"></td>
                 </tr>
               ))}
             </tbody>

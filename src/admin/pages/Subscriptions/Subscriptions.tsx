@@ -189,13 +189,13 @@ export function Subscriptions() {
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search customers, email, or phone..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none"
-            />
+              <input 
+                type="text" 
+                placeholder="Search customers, email, or phone..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-2xl text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 transition-all outline-none text-slate-900"
+              />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <FilterSelect 
@@ -392,7 +392,7 @@ function FilterSelect({ value, onChange, options, label, formatOption }: {
       <select 
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="py-1.5 pl-3 pr-8 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-4 focus:ring-indigo-500/10 outline-none appearance-none cursor-pointer"
+        className="py-1.5 pl-3 pr-8 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10 outline-none appearance-none cursor-pointer"
         style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\' /%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.5rem center', backgroundSize: '0.75rem' }}
       >
         {options.map(opt => (
