@@ -3,9 +3,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { m } from 'framer-motion';
 import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Package } from 'lucide-react';
 import Button from './Button';
-import { getProducts } from '../src/admin/services/db';
+import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
 import { useCart } from '../src/context/CartContext';
-import type { Product } from '../src/admin/types/index';
+import type { Product, ProductPricing } from '../src/admin/types/index';
 
 const ServiceLandingPage: React.FC = () => {
   const { serviceId } = useParams<{ serviceId: string }>();
@@ -14,14 +14,44 @@ const ServiceLandingPage: React.FC = () => {
   
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTier, setSelectedTier] = useState<ProductPricing | null>(null);
+  const [stockCounts, setStockCounts] = useState<Record<number, number>>({});
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         setIsLoading(true);
-        const products = await getProducts();
+        const [products, liveStock] = await Promise.all([
+          getProducts(),
+          getAvailableLiveStock()
+        ]);
+        
         const found = products.find(p => p.id === serviceId);
-        setProduct(found || null);
+        if (found) {
+          const pricingTiers = found.pricing && found.pricing.length > 0 
+            ? found.pricing 
+            : [{ durationMonths: found.durationMonths || 1, price: found.price || 0, oldPrice: found.oldPrice || 0 }];
+            
+          const sortedPricing = [...pricingTiers].sort((a,b) => a.price - b.price);
+          found.pricing = sortedPricing;
+          
+          const counts = liveStock
+            .filter(code => code.productId === found.id)
+            .reduce((acc, code) => {
+              const dur = parseInt(code.duration.replace('M', '')) || 0;
+              acc[dur] = (acc[dur] || 0) + 1;
+              return acc;
+            }, {} as Record<number, number>);
+            
+          setStockCounts(counts);
+
+          // Find first in-stock tier, or fallback
+          const firstInStock = sortedPricing.find(t => (counts[t.durationMonths] || 0) > 0);
+          setSelectedTier(firstInStock || sortedPricing[0]);
+          setProduct(found);
+        } else {
+          setProduct(null);
+        }
       } catch (error) {
         console.error("Error fetching product:", error);
       } finally {
@@ -51,7 +81,14 @@ const ServiceLandingPage: React.FC = () => {
   }
 
   const handleBuyNow = () => {
-    addToCart(product);
+    if (!product || !selectedTier) return;
+    const cartProduct: Product = {
+      ...product,
+      price: selectedTier.price,
+      oldPrice: selectedTier.oldPrice,
+      durationMonths: selectedTier.durationMonths
+    };
+    addToCart(cartProduct);
     // The cart drawer opens automatically, user can proceed from there
   };
 
@@ -128,14 +165,52 @@ const ServiceLandingPage: React.FC = () => {
 
               <div className="p-8 bg-white/5 rounded-3xl border border-white/10">
                 <div className="flex items-end gap-3 mb-6">
-                  <span className="text-5xl font-black text-white">${product.price}</span>
-                  <span className="text-xl text-neutral-500 line-through mb-1">${product.oldPrice}</span>
+                  <span className="text-5xl font-black text-white">${selectedTier?.price.toFixed(2) || product.price.toFixed(2)}</span>
+                  {selectedTier?.oldPrice ? (
+                    <span className="text-xl text-neutral-500 line-through mb-1">${selectedTier.oldPrice.toFixed(2)}</span>
+                  ) : product.oldPrice > 0 ? (
+                    <span className="text-xl text-neutral-500 line-through mb-1">${product.oldPrice.toFixed(2)}</span>
+                  ) : null}
                   <span className="ml-auto px-3 py-1 bg-green-500/10 text-green-400 text-xs font-bold rounded-lg border border-green-500/20">
                     70% SAVINGS
                   </span>
                 </div>
-                <Button className="w-full" size="lg" onClick={handleBuyNow}>
-                  Add to Cart
+                
+                {product.pricing && product.pricing.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest mb-3">Select Plan Duration</h3>
+                    <div className="flex flex-wrap gap-2">
+                       {product.pricing.map((tier, idx) => {
+                          const inStock = (stockCounts[tier.durationMonths] || 0) > 0;
+                          const isSelected = selectedTier?.durationMonths === tier.durationMonths;
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => inStock && setSelectedTier(tier)}
+                              disabled={!inStock}
+                              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                                isSelected
+                                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border border-indigo-500/50'
+                                  : inStock 
+                                    ? 'bg-white/5 border border-white/10 text-neutral-300 hover:bg-white/10'
+                                    : 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-50'
+                              }`}
+                            >
+                              {tier.durationMonths} Months {inStock ? '' : '(Out of Stock)'}
+                            </button>
+                          );
+                       })}
+                    </div>
+                  </div>
+                )}
+
+                <Button 
+                  className={`w-full ${!(selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0) ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                  size="lg" 
+                  onClick={() => selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0 && handleBuyNow()}
+                  disabled={!(selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0)}
+                >
+                  {!(selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0) ? "Out of Stock" : "Add to Cart"}
                 </Button>
               </div>
             </div>

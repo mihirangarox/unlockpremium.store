@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
+  ArrowLeft, CheckCircle2, XCircle, User, 
+  MessageSquare, CreditCard, FileText,
   Zap, ChevronRight, AlertTriangle, Copy, ExternalLink
 } from "lucide-react";
 import { useToast } from "../../components/ui/Toast";

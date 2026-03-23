@@ -29,29 +29,34 @@ export interface Customer {
   updatedAt: string;
 }
 
-export type SubscriptionType = 
-  | 'Premium Career' 
-  | 'Premium Business' 
-  | 'Premium Company Page' 
-  | 'Recruiter Lite' 
-  | 'Sales Navigator Core' 
-  | 'Sales Navigator Advanced' 
-  | 'Sales Navigator Advanced Plus';
+export type SubscriptionType = string;
 
 export type ProductCategory = 'LinkedIn';
+
+export interface ProductPricing {
+  durationMonths: number;
+  price: number;
+  oldPrice: number;
+}
 
 export interface Product {
   id: string;
   name: string;
   description: string;
-  price: number;
-  oldPrice: number;
+  // Legacy fields (optional for backward compatibility)
+  price?: number;
+  oldPrice?: number;
+  subscriptionType?: SubscriptionType;
+  durationMonths?: number;
+
   features: string[];
   category: ProductCategory;
   popular: boolean;
   isActive: boolean;
-  subscriptionType: SubscriptionType;
-  durationMonths: number;
+  
+  // New unified pricing array
+  pricing: ProductPricing[];
+  
   iconName?: string; // e.g., 'career', 'business', 'sales'
 }
 

@@ -2,17 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, Loader2, Plus, X } from "lucide-react";
 import * as db from "../../services/db";
-import type { Product, SubscriptionType } from "../../types/index";
-
-const SUBSCRIPTION_TYPES: SubscriptionType[] = [
-  'Premium Career',
-  'Premium Business',
-  'Premium Company Page',
-  'Recruiter Lite',
-  'Sales Navigator Core',
-  'Sales Navigator Advanced',
-  'Sales Navigator Advanced Plus'
-];
+import type { Product, ProductPricing } from "../../types/index";
 
 export function ProductForm() {
   const { id } = useParams();
@@ -28,14 +18,11 @@ export function ProductForm() {
   const [formData, setFormData] = useState<Partial<Product>>({
     name: "",
     description: "",
-    price: 0,
-    oldPrice: 0,
     features: [],
     category: "LinkedIn",
     popular: false,
     isActive: true,
-    subscriptionType: "Premium Career",
-    durationMonths: 1,
+    pricing: [{ durationMonths: 1, price: 0, oldPrice: 0 }],
   });
 
   useEffect(() => {
@@ -48,7 +35,19 @@ export function ProductForm() {
     try {
       const product = await db.getProduct(productId);
       if (product) {
-        setFormData(product);
+        // Handle migration from legacy single-pricing to array
+        let pricing = product.pricing || [];
+        if (pricing.length === 0 && product.price !== undefined) {
+           pricing = [{
+             durationMonths: product.durationMonths || 1,
+             price: product.price || 0,
+             oldPrice: product.oldPrice || 0
+           }];
+        }
+        if (pricing.length === 0) {
+           pricing = [{ durationMonths: 1, price: 0, oldPrice: 0 }];
+        }
+        setFormData({ ...product, pricing });
       } else {
         alert("Product not found");
         navigate("/admin/products");
@@ -67,11 +66,31 @@ export function ProductForm() {
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
-    } else if (type === 'number') {
-      setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handlePricingChange = (index: number, field: keyof ProductPricing, value: number) => {
+    setFormData(prev => {
+      const newPricing = [...(prev.pricing || [])];
+      newPricing[index] = { ...newPricing[index], [field]: value };
+      return { ...prev, pricing: newPricing };
+    });
+  };
+
+  const addPricingTier = () => {
+    setFormData(prev => ({
+      ...prev,
+      pricing: [...(prev.pricing || []), { durationMonths: 1, price: 0, oldPrice: 0 }]
+    }));
+  };
+
+  const removePricingTier = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      pricing: (prev.pricing || []).filter((_, i) => i !== index)
+    }));
   };
 
   const addFeature = () => {
@@ -96,18 +115,29 @@ export function ProductForm() {
     setIsSaving(true);
 
     try {
+      if (!formData.pricing || formData.pricing.length === 0) {
+        alert("Please add at least one pricing tier.");
+        setIsSaving(false);
+        return;
+      }
+
+      // Automatically set lowest price/duration for backward compatibility/quick sorting
+      const sortedPricing = [...formData.pricing].sort((a,b) => a.price - b.price);
+      const basePricing = sortedPricing[0];
+
       const productToSave: Product = {
         id: isEditing && id ? id : `prod_${Date.now()}`,
         name: formData.name || "",
         description: formData.description || "",
-        price: formData.price || 0,
-        oldPrice: formData.oldPrice || 0,
         features: formData.features || [],
         category: formData.category || "LinkedIn",
         popular: formData.popular || false,
         isActive: formData.isActive ?? true,
-        subscriptionType: formData.subscriptionType as SubscriptionType || "Premium Career",
-        durationMonths: formData.durationMonths || 1,
+        pricing: formData.pricing,
+        // Sync legacy fields with the lowest base tier
+        price: basePricing.price,
+        oldPrice: basePricing.oldPrice,
+        durationMonths: basePricing.durationMonths,
       };
 
       await db.saveProduct(productToSave);
@@ -192,58 +222,77 @@ export function ProductForm() {
               </div>
             </div>
 
-            {/* Pricing & Duration */}
+            {/* Pricing & Subscription Options */}
             <div className="space-y-4 md:col-span-2">
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Pricing & Subscription Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Price ($) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="price"
-                    required
-                    value={formData.price}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Retail Price ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    name="oldPrice"
-                    value={formData.oldPrice}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Subscription Type</label>
-                  <select
-                    name="subscriptionType"
-                    value={formData.subscriptionType}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
-                  >
-                    {SUBSCRIPTION_TYPES.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Duration (Months)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    name="durationMonths"
-                    value={formData.durationMonths}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
-                  />
-                </div>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Pricing Options (Durations)</h3>
+                <button
+                  type="button"
+                  onClick={addPricingTier}
+                  className="flex items-center gap-1 text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add Tier
+                </button>
               </div>
+
+              {(formData.pricing || []).map((tier, index) => (
+                <div key={index} className="flex flex-wrap items-end gap-4 bg-slate-50 p-4 border border-slate-200 rounded-xl relative group">
+                  {index > 0 && (
+                     <button
+                       type="button"
+                       onClick={() => removePricingTier(index)}
+                       className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-full p-1 shadow-sm transition opacity-0 group-hover:opacity-100"
+                     >
+                       <X className="w-4 h-4" />
+                     </button>
+                  )}
+                  
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Duration (Months) *</label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={tier.durationMonths || ''}
+                      onChange={(e) => handlePricingChange(index, 'durationMonths', parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                    />
+                  </div>
+                  
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Retail Price ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={tier.oldPrice || ''}
+                      onChange={(e) => handlePricingChange(index, 'oldPrice', parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
+                    />
+                  </div>
+                  
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Sale Price ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={tier.price || ''}
+                      onChange={(e) => handlePricingChange(index, 'price', parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700 bg-indigo-50/50"
+                    />
+                  </div>
+                </div>
+              ))}
+              
+              {(!formData.pricing || formData.pricing.length === 0) && (
+                <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
+                  <p className="text-slate-400 text-sm">No pricing tiers added. You must add at least one.</p>
+                </div>
+              )}
             </div>
 
             {/* Features */}

@@ -2,10 +2,108 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { m } from 'framer-motion';
 import Button from './Button';
-import { getProducts } from '../src/admin/services/db';
+import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
 import { useCart } from '../src/context/CartContext';
-import type { Product } from '../src/admin/types/index';
+import type { Product, ProductPricing } from '../src/admin/types/index';
 import { Package, Tag, Check, Loader2, ShoppingCart } from 'lucide-react';
+
+const ProductCard = ({ product, variants }: { product: Product, variants: any }) => {
+  const { addToCart } = useCart();
+  
+  const pricingTiers = product.pricing && product.pricing.length > 0 
+    ? [...product.pricing].sort((a,b) => a.price - b.price) 
+    : [{ durationMonths: product.durationMonths || 1, price: product.price || 0, oldPrice: product.oldPrice || 0 }];
+    
+  const [selectedTier, setSelectedTier] = useState<ProductPricing>(pricingTiers[0]);
+
+  const handleAddToCart = () => {
+    addToCart({
+      ...product,
+      price: selectedTier.price,
+      oldPrice: selectedTier.oldPrice,
+      durationMonths: selectedTier.durationMonths
+    } as Product);
+  };
+
+  return (
+    <m.div
+      variants={variants}
+      whileHover={{ y: -8 }}
+      className="group glass rounded-3xl p-8 hover:border-indigo-500/50 transition-all duration-300 flex flex-col relative overflow-hidden"
+    >
+      {product.popular && (
+        <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-indigo-500/20">
+          Most Popular
+        </div>
+      )}
+
+      <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 origin-center text-indigo-400 border border-indigo-500/20">
+        <Tag className="w-6 h-6" />
+      </div>
+
+      <div className="mb-2">
+        <h3 className="text-2xl font-bold text-white">{product.name}</h3>
+        <p className="text-neutral-400 text-sm mt-3 mb-6">{product.description}</p>
+      </div>
+
+      <div className="mb-6">
+        <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-3">Select Duration</h4>
+        <div className="flex flex-wrap gap-2">
+          {pricingTiers.map(tier => (
+            <button
+              key={tier.durationMonths}
+              onClick={() => setSelectedTier(tier)}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                selectedTier.durationMonths === tier.durationMonths
+                  ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
+                  : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
+              }`}
+            >
+              {tier.durationMonths} Months
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-end gap-3 mb-8">
+        <span className="text-4xl font-black text-white">${selectedTier.price.toFixed(2)}</span>
+        {selectedTier.oldPrice > 0 && (
+          <span className="text-lg text-neutral-500 line-through font-medium mb-1">
+            ${selectedTier.oldPrice.toFixed(2)}
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-3 mb-8 flex-1">
+        {product.features.map((feature, i) => (
+          <div key={i} className="flex items-start gap-3 text-sm text-neutral-300">
+            <Check className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+            <span>{feature}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-auto pt-6 border-t border-white/5 flex gap-3">
+        <Button 
+          variant="outline" 
+          className="flex-shrink-0 !px-4 hover:border-indigo-500 hover:text-white"
+          as={Link}
+          to={`/products/${product.id}`}
+        >
+          Details
+        </Button>
+        <Button 
+          variant="primary" 
+          className="w-full group"
+          onClick={handleAddToCart}
+        >
+          <span>Add to Cart</span>
+          <ShoppingCart className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform" />
+        </Button>
+      </div>
+    </m.div>
+  );
+};
 
 const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -15,9 +113,25 @@ const ProductsPage: React.FC = () => {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const data = await getProducts();
-        // Only show active products to the public
-        setProducts(data.filter(p => p.isActive));
+        const [data, liveStock] = await Promise.all([
+          getProducts(),
+          getAvailableLiveStock()
+        ]);
+        
+        // Count available stock per product ID
+        const stockCounts = liveStock.reduce((acc, code) => {
+          acc[code.productId] = (acc[code.productId] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+
+        // Only show active products that have at least 1 item in stock
+        const inStockProducts = data.filter(p => p.isActive && (stockCounts[p.id] || 0) > 0);
+        
+        // To simplify the catalog, if there are multiple durations for the same type,
+        // we might just show the most popular or lowest duration one?
+        // For now, we show all in-stock products as separate cards as originally designed,
+        // but ServiceLandingPage will handle the dynamic switching.
+        setProducts(inStockProducts);
       } catch (error) {
         console.error("Failed to load products:", error);
       } finally {
@@ -81,68 +195,7 @@ const ProductsPage: React.FC = () => {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
           >
             {products.map((product) => (
-              <m.div
-                key={product.id}
-                variants={item}
-                whileHover={{ y: -8 }}
-                className="group glass rounded-3xl p-8 hover:border-indigo-500/50 transition-all duration-300 flex flex-col relative overflow-hidden"
-              >
-                {product.popular && (
-                  <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-indigo-500/20">
-                    Most Popular
-                  </div>
-                )}
-
-                <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 origin-center text-indigo-400 border border-indigo-500/20">
-                  <Tag className="w-6 h-6" />
-                </div>
-
-                <div className="mb-2">
-                  <h3 className="text-2xl font-bold text-white">{product.name}</h3>
-                  <p className="text-indigo-400 text-sm font-semibold tracking-wide uppercase mt-1">
-                    {product.subscriptionType} • {product.durationMonths} Months
-                  </p>
-                </div>
-
-                <p className="text-neutral-400 text-sm mb-8 flex-1">{product.description}</p>
-
-                <div className="flex items-end gap-3 mb-8">
-                  <span className="text-4xl font-black text-white">${product.price.toFixed(2)}</span>
-                  {product.oldPrice > 0 && (
-                    <span className="text-lg text-neutral-500 line-through font-medium mb-1">
-                      ${product.oldPrice.toFixed(2)}
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-3 mb-8">
-                  {product.features.map((feature, i) => (
-                    <div key={i} className="flex items-start gap-3 text-sm text-neutral-300">
-                      <Check className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-auto pt-6 border-t border-white/5 flex gap-3">
-                  <Button 
-                    variant="outline" 
-                    className="flex-shrink-0 !px-4 hover:border-indigo-500 hover:text-white"
-                    as={Link}
-                    to={`/products/${product.id}`}
-                  >
-                    Details
-                  </Button>
-                  <Button 
-                    variant="primary" 
-                    className="w-full group"
-                    onClick={() => addToCart(product)}
-                  >
-                    <span>Add to Cart</span>
-                    <ShoppingCart className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform" />
-                  </Button>
-                </div>
-              </m.div>
+              <ProductCard key={product.id} product={product} variants={item} />
             ))}
           </m.div>
         )}

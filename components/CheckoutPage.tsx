@@ -37,7 +37,7 @@ const CheckoutPage: React.FC = () => {
 
     try {
       // Create an order request mapped to the existing IntakeRequest structure
-      const orderContent = items.map(item => `${item.name} (${item.subscriptionType} - ${item.durationMonths}Mo)`).join(', ');
+      const orderContent = items.map(item => `${item.name} (${item.durationMonths}Mo)`).join(', ');
       
       const newRequest: IntakeRequest = {
         id: `ord_${Date.now()}`,
@@ -45,7 +45,7 @@ const CheckoutPage: React.FC = () => {
         email: formData.email,
         whatsappNumber: formData.whatsapp,
         preferredContact: 'WhatsApp',
-        subscriptionType: items[0]?.subscriptionType || '',
+        subscriptionType: items[0]?.name || '',
         subscriptionPeriod: items[0]?.durationMonths === 1 ? '1M' : items[0]?.durationMonths === 3 ? '3M' : items[0]?.durationMonths === 6 ? '6M' : (items[0]?.durationMonths + 'M' as any),
         linkedinUrl: formData.linkedinUrl,
         notes: `E-COMMERCE CHECKOUT \nItems: ${orderContent}\nTotal: $${totalPrice.toFixed(2)}\nTransaction ID: ${formData.transactionId || 'Pending'}`,
@@ -208,7 +208,7 @@ const CheckoutPage: React.FC = () => {
                         <div key={item.cartItemId} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5">
                           <div>
                             <p className="font-bold text-white">{item.name}</p>
-                            <p className="text-xs text-neutral-400">{item.subscriptionType} • {item.durationMonths} Months</p>
+                            <p className="text-xs text-neutral-400">{item.durationMonths} Months</p>
                           </div>
                           <span className="font-black text-white">${item.price.toFixed(2)}</span>
                         </div>

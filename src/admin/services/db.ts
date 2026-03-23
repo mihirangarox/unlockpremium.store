@@ -310,6 +310,13 @@ export const getLiveStock = async (): Promise<DigitalCode[]> => {
   return snap.docs.map(d => d.data() as DigitalCode);
 };
 
+export const getAvailableLiveStock = async (): Promise<DigitalCode[]> => {
+  const snap = await getDocs(
+    query(collection(db, "live_stock"), where("status", "==", "Available"))
+  );
+  return snap.docs.map(d => d.data() as DigitalCode);
+};
+
 export const saveLiveStockBatch = async (codes: DigitalCode[]): Promise<void> => {
   const batch = writeBatch(db);
   codes.forEach(code => {
@@ -391,6 +398,20 @@ export const claimCodeForRequest = async (
     assignedAt: new Date().toISOString()
   };
   
-  await setDoc(codeDoc.ref, updatedCode);
+  const batch = writeBatch(db);
+  batch.set(codeDoc.ref, updatedCode);
+
+  // Deduct from general inventory if applicable
+  const inventoryRef = doc(db, "inventory", codeData.productId);
+  const inventorySnap = await getDoc(inventoryRef);
+  if (inventorySnap.exists()) {
+    const invData = inventorySnap.data();
+    if (invData.stockCount > 0) {
+      batch.update(inventoryRef, { stockCount: invData.stockCount - 1 });
+    }
+  }
+
+  await batch.commit();
+
   return updatedCode.code;
 };

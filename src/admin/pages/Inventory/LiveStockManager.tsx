@@ -12,11 +12,22 @@ import { useToast } from '../../components/ui/Toast';
 import * as db from '../../services/db';
 import { Product, DigitalCode, PlanDuration } from '../../types';
 
+interface USDTTransaction {
+  id: string;
+  type: 'Inbound' | 'Outbound';
+  amount: number;
+  usdtRate: number;
+  date: string;
+  note: string;
+  status: 'Completed' | 'Pending';
+}
+
 export function LiveStockManager() {
   const { formatCurrency, formatDate } = useLocalization();
   const { showToast } = useToast();
   const [stock, setStock] = useState<DigitalCode[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [inboundTxs, setInboundTxs] = useState<USDTTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'All' | 'Available' | 'Assigned'>('All');
@@ -26,9 +37,9 @@ export function LiveStockManager() {
   const [isAdding, setIsAdding] = useState(false);
   const [formData, setFormData] = useState({
     productId: '',
-    duration: '1M' as PlanDuration,
+    duration: '',
     codesText: '',
-    usdtCost: 0,
+    selectedTxId: '',
     vendorId: ''
   });
 
@@ -39,12 +50,14 @@ export function LiveStockManager() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [allStock, allProducts] = await Promise.all([
+      const [allStock, allProducts, allTxs] = await Promise.all([
         db.getLiveStock(),
-        db.getProducts()
+        db.getProducts(),
+        db.getUSDTTransactions()
       ]);
       setStock(allStock);
       setProducts(allProducts);
+      setInboundTxs(allTxs.filter((tx: USDTTransaction) => tx.type === 'Inbound'));
     } catch (error) {
       console.error("Failed to load live stock:", error);
       showToast("Sync failed", "error");
@@ -69,35 +82,25 @@ export function LiveStockManager() {
 
       if (codes.length === 0) throw new Error("No codes provided");
 
+      const selectedTx = inboundTxs.find(tx => tx.id === formData.selectedTxId);
+      const batchCost = selectedTx ? selectedTx.amount : 0;
+
       const newCodes: DigitalCode[] = codes.map(codeString => ({
         id: `code_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         productId: formData.productId,
         productName: selectedProduct?.name || 'Unknown Product',
         code: codeString,
-        duration: formData.duration,
-        costBasisUSDT: formData.usdtCost / codes.length,
+        duration: formData.duration as PlanDuration,
+        costBasisUSDT: batchCost / codes.length,
         status: 'Available',
         createdAt: new Date().toISOString()
       }));
 
       await db.saveLiveStockBatch(newCodes);
-      
-      // Also log a transaction if USDT cost > 0
-      if (formData.usdtCost > 0) {
-        await db.saveUSDTTransaction({
-          id: `tx_bulk_${Date.now()}`,
-          type: 'Outbound',
-          amount: formData.usdtCost,
-          usdtRate: 1,
-          date: new Date().toISOString().split('T')[0],
-          note: `Bulk stock: ${selectedProduct?.name} (${codes.length} codes)`,
-          status: 'Completed'
-        });
-      }
 
       showToast(`Successfully added ${codes.length} codes!`, "success");
       setIsAddModalOpen(false);
-      setFormData({ productId: '', duration: '1M', codesText: '', usdtCost: 0, vendorId: '' });
+      setFormData({ productId: '', duration: '', codesText: '', selectedTxId: '', vendorId: '' });
       loadData();
     } catch (error) {
       console.error("Add stock failed:", error);
@@ -309,11 +312,16 @@ export function LiveStockManager() {
                     <select 
                       required
                       value={formData.productId}
-                      onChange={(e) => setFormData({ ...formData, productId: e.target.value })}
+                      onChange={(e) => {
+                         const pId = e.target.value;
+                         const prod = products.find(p => p.id === pId);
+                         const firstDur = prod?.pricing && prod.pricing.length > 0 ? `${prod.pricing[0].durationMonths}M` : '1M';
+                         setFormData({ ...formData, productId: pId, duration: firstDur });
+                      }}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold appearance-none text-slate-900"
                     >
                       <option value="">Select Product...</option>
-                      {products.map(p => (
+                      {products.filter(p => p.isActive).map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
@@ -323,13 +331,12 @@ export function LiveStockManager() {
                     <select 
                       required
                       value={formData.duration}
-                      onChange={(e) => setFormData({ ...formData, duration: e.target.value as any })}
+                      onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold appearance-none text-slate-900"
                     >
-                      <option value="1M">1 Month</option>
-                      <option value="3M">3 Months</option>
-                      <option value="6M">6 Months</option>
-                      <option value="12M">12 Months</option>
+                      {formData.productId ? products.find(p => p.id === formData.productId)?.pricing?.map(tier => (
+                        <option key={tier.durationMonths} value={`${tier.durationMonths}M`}>{tier.durationMonths} Months</option>
+                      )) : <option value="">Select Product First</option>}
                     </select>
                   </div>
                 </div>
@@ -352,17 +359,22 @@ export function LiveStockManager() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">USDT Batch Cost (Total)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">USDT Funding Source (Inbound Transaction)</label>
                   <div className="relative">
                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      placeholder="0.00"
-                      value={formData.usdtCost || ''}
-                      onChange={(e) => setFormData({ ...formData, usdtCost: parseFloat(e.target.value) || 0 })}
-                      className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
-                    />
+                    <select 
+                      required
+                      value={formData.selectedTxId}
+                      onChange={(e) => setFormData({ ...formData, selectedTxId: e.target.value })}
+                      className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900 appearance-none"
+                    >
+                      <option value="">N/A (No Cost Assessed)</option>
+                      {inboundTxs.map(tx => (
+                        <option key={tx.id} value={tx.id}>
+                          {tx.amount.toFixed(2)} USDT - {tx.date} ({tx.note})
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
