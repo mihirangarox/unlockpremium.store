@@ -13,7 +13,7 @@ const AdminLoginPage = () => {
     // If already logged in, redirect immediately
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
-            if (user) navigate('/admin-dashboard');
+            if (user) navigate('/admin');
         });
         return unsubscribe;
     }, [navigate]);

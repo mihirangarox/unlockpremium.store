@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { getAuth } from 'firebase/auth';
 import CreatePost, { Post } from './CreatePost';
-import AdminLayout from './AdminLayout';
-import ManageTestimonials from './ManageTestimonials';
+
 
 interface AdminDashboardProps {
   onLogout: () => void;
 }
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'posts' | 'testimonials'>('posts');
-
   // Blog Post State
   const [posts, setPosts] = useState<Post[]>([]);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -40,8 +37,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   useEffect(() => {
-    if (activeTab === 'posts') fetchPosts();
-  }, [activeTab]);
+    fetchPosts();
+  }, []);
 
   const handleCreateNew = () => { setEditingPost(null); setView('form'); };
   const handleEdit = (post: Post) => { setEditingPost(post); setView('form'); };
@@ -83,7 +80,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   });
 
   const renderContent = () => {
-    if (activeTab === 'testimonials') return <ManageTestimonials />;
     if (view === 'form') {
       return (
         <CreatePost
@@ -203,9 +199,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   return (
-    <AdminLayout activeTab={activeTab} onTabChange={setActiveTab} onLogout={onLogout}>
+    <div className="p-4 md:p-6 w-full max-w-7xl mx-auto">
       {renderContent()}
-    </AdminLayout>
+    </div>
   );
 };
 

@@ -25,9 +25,9 @@ const PlansPage = React.lazy(() => import('../components/PlansPage'));
 const GuidesPage = React.lazy(() => import('../components/GuidesPage'));
 const GuideDetailPage = React.lazy(() => import('../components/GuideDetailPage'));
 const TestimonialsPage = React.lazy(() => import('../components/TestimonialsPage'));
-const AdminLoginPage = React.lazy(() => import('../components/AdminLoginPage'));
-const AdminDashboard = React.lazy(() => import('../components/AdminDashboard'));
-const NotFoundPage = React.lazy(() => import('../components/NotFoundPage'));
+import AdminLoginPage from '../components/AdminLoginPage';
+import NotFoundPage from '../components/NotFoundPage';
+import { AdminRoutes } from './admin/AdminRoutes';
 const ServiceLandingPage = React.lazy(() => import('../components/ServiceLandingPage'));
 
 // Helper to scroll to top on route change
@@ -210,7 +210,7 @@ const App: React.FC = () => {
     </>
   );
 
-  const isAdminRoute = location.pathname === '/admin-dashboard' || location.pathname === '/admin-login';
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   return (
     <div className="min-h-screen selection:bg-indigo-500 selection:text-white bg-[#050505]">
@@ -218,11 +218,6 @@ const App: React.FC = () => {
       <LazyMotion features={() => import('framer-motion').then(res => res.domAnimation)}>
         {!isAdminRoute ? <Header /> : null}
         <main>
-          <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          }>
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
@@ -236,15 +231,14 @@ const App: React.FC = () => {
               <Route path="/legal-privacy-notice" element={<LegalPage />} />
               <Route path="/refund-activation-policy" element={<RefundPage />} />
               <Route path="/services/:serviceId" element={<ServiceLandingPage />} />
-              <Route path="/admin" element={<Navigate to="/admin-dashboard" replace />} />
               <Route 
-                path="/admin-dashboard" 
-                element={currentUser ? <AdminDashboard onLogout={handleLogout} /> : <Navigate to="/admin-login" />} 
+                path="/admin/*" 
+                element={currentUser ? <AdminRoutes onLogout={handleLogout} /> : <Navigate to="/admin-login" />} 
               />
               <Route path="/admin-login" element={<AdminLoginPage />} />
+              <Route path="/admin-dashboard" element={<Navigate to="/admin" replace />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
-          </Suspense>
         </main>
         {!isAdminRoute ? <Footer /> : null}
       </LazyMotion>

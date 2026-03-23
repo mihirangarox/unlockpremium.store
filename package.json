@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently \"vite\" \"npm start --prefix backend\"",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "firebase deploy",
@@ -24,13 +24,18 @@
     "@tiptap/extension-youtube": "^3.19.0",
     "@tiptap/react": "^3.19.0",
     "@tiptap/starter-kit": "^3.19.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "firebase": "^12.9.0",
     "framer-motion": "^12.34.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-ga4": "^2.1.0",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -38,6 +43,7 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "autoprefixer": "^10.4.24",
+    "concurrently": "^9.2.1",
     "firebase-tools": "^15.5.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
