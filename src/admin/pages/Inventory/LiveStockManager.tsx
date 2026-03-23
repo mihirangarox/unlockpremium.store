@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocalization } from '../../../context/LocalizationContext';
 import { useToast } from '../../components/ui/Toast';
 import * as db from '../../services/db';
-import { Product, DigitalCode, PlanDuration } from '../../types';
+import { Product, DigitalCode, PlanDuration, Vendor } from '../../types';
 
 interface USDTTransaction {
   id: string;
@@ -39,9 +39,12 @@ export function LiveStockManager() {
     productId: '',
     duration: '',
     codesText: '',
-    selectedTxId: '',
-    vendorId: ''
+    selectedTxId: '', // Legacy / Optional
+    vendorId: '',
+    cost: '',
+    costType: 'unit' as 'unit' | 'total'
   });
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [editField, setEditField] = useState<'code' | 'cost'>('code');
@@ -58,14 +61,16 @@ export function LiveStockManager() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [allStock, allProducts, allTxs] = await Promise.all([
+      const [allStock, allProducts, allTxs, allVendors] = await Promise.all([
         db.getLiveStock(),
         db.getProducts(),
-        db.getUSDTTransactions()
+        db.getUSDTTransactions(),
+        db.getVendors()
       ]);
       setStock(allStock);
       setProducts(allProducts);
       setInboundTxs(allTxs.filter((tx: USDTTransaction) => tx.type === 'Inbound'));
+      setVendors(allVendors);
     } catch (error) {
       console.error("Failed to load live stock:", error);
       showToast("Sync failed", "error");
@@ -90,8 +95,8 @@ export function LiveStockManager() {
 
       if (codes.length === 0) throw new Error("No codes provided");
 
-      const selectedTx = inboundTxs.find(tx => tx.id === formData.selectedTxId);
-      const batchCost = selectedTx ? selectedTx.amount : 0;
+      const inputCost = parseFloat(formData.cost) || 0;
+      const unitCost = formData.costType === 'unit' ? inputCost : (inputCost / codes.length);
 
       const newCodes: DigitalCode[] = codes.map(codeString => ({
         id: `code_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -99,7 +104,8 @@ export function LiveStockManager() {
         productName: selectedProduct?.name || 'Unknown Product',
         code: codeString,
         duration: formData.duration as PlanDuration,
-        costBasisUSDT: batchCost / codes.length,
+        costBasisUSDT: unitCost,
+        vendorId: formData.vendorId,
         status: 'Available',
         createdAt: new Date().toISOString()
       }));
@@ -108,7 +114,7 @@ export function LiveStockManager() {
 
       showToast(`Successfully added ${codes.length} codes!`, "success");
       setIsAddModalOpen(false);
-      setFormData({ productId: '', duration: '', codesText: '', selectedTxId: '', vendorId: '' });
+      setFormData({ productId: '', duration: '', codesText: '', selectedTxId: '', vendorId: '', cost: '', costType: 'unit' });
       loadData();
     } catch (error) {
       console.error("Add stock failed:", error);
@@ -585,6 +591,44 @@ export function LiveStockManager() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Purchase Cost (USDT)</label>
+                    <div className="flex gap-2">
+                      <input 
+                        required
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={formData.cost}
+                        onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                        className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
+                      />
+                      <select 
+                        value={formData.costType}
+                        onChange={(e) => setFormData({ ...formData, costType: e.target.value as any })}
+                        className="px-3 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-wider text-slate-500 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                        <option value="unit">Per Unit</option>
+                        <option value="total">Total Batch</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Vendor / Source</label>
+                    <select 
+                      value={formData.vendorId}
+                      onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold appearance-none text-slate-900"
+                    >
+                      <option value="">Select Vendor...</option>
+                      {vendors.map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Activation Code / Link (One per line)</label>
                   <textarea 
@@ -596,26 +640,35 @@ export function LiveStockManager() {
                     className="w-full px-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-medium text-sm text-slate-900"
                   />
                   <div className="flex justify-between items-center px-1">
-                    <p className="text-[10px] font-bold text-slate-400">
-                      Detected: {formData.codesText.split('\n').filter(l => l.trim()).length} Items
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-[10px] font-bold text-slate-400">
+                        Detected: {formData.codesText.split('\n').filter(l => l.trim()).length} Items
+                      </p>
+                      <div className="h-3 w-px bg-slate-200" />
+                      <p className="text-[10px] font-bold text-indigo-600">
+                        Total Investment: {(() => {
+                          const count = formData.codesText.split('\n').filter(l => l.trim()).length;
+                          const cost = parseFloat(formData.cost) || 0;
+                          return (formData.costType === 'unit' ? (count * cost) : cost).toFixed(2);
+                        })()} USDT
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">USDT Funding Source (Inbound Transaction)</label>
+                <div className="space-y-2 opacity-50">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Legacy Funding Source (Optional)</label>
                   <div className="relative">
                     <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                     <select 
-                      required
                       value={formData.selectedTxId}
                       onChange={(e) => setFormData({ ...formData, selectedTxId: e.target.value })}
-                      className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900 appearance-none"
+                      className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900 appearance-none text-xs"
                     >
-                      <option value="">N/A (No Cost Assessed)</option>
+                      <option value="">N/A</option>
                       {inboundTxs.map(tx => (
                         <option key={tx.id} value={tx.id}>
-                          {tx.amount.toFixed(2)} USDT - {tx.date} ({tx.note})
+                          {tx.amount.toFixed(2)} USDT - {tx.date}
                         </option>
                       ))}
                     </select>

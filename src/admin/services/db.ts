@@ -357,6 +357,7 @@ export const claimCodeForRequest = async (
     where("productId", "==", productIdOrType),
     where("duration", "==", duration),
     where("status", "==", "Available"),
+    orderBy("createdAt", "asc"),
     limit(1)
   );
   
@@ -372,6 +373,7 @@ export const claimCodeForRequest = async (
         where("productId", "==", product.id),
         where("duration", "==", duration),
         where("status", "==", "Available"),
+        orderBy("createdAt", "asc"),
         limit(1)
       );
       snap = await getDocs(q);
@@ -385,6 +387,7 @@ export const claimCodeForRequest = async (
       where("productName", "==", productIdOrType),
       where("duration", "==", duration),
       where("status", "==", "Available"),
+      orderBy("createdAt", "asc"),
       limit(1)
     );
     snap = await getDocs(q);
