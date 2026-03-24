@@ -6,6 +6,8 @@ import Button from './Button';
 import { saveRequest } from '../src/admin/services/db';
 import type { IntakeRequest } from '../src/admin/types/index';
 import { CheckCircle, CreditCard, User, ChevronRight, ShieldCheck, ShoppingBag, ArrowLeft, Loader2, Copy, Check, Upload, Zap, MessageCircle } from 'lucide-react';
+import PhoneInput from 'react-phone-number-input';
+import 'react-phone-number-input/style.css';
 
 const CheckoutPage: React.FC = () => {
   const { items, totalPrice, clearCart } = useCart();
@@ -40,6 +42,10 @@ const CheckoutPage: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handlePhoneChange = (value?: string) => {
+    setFormData(prev => ({ ...prev, whatsapp: value || '' }));
   };
 
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
@@ -239,9 +245,16 @@ const CheckoutPage: React.FC = () => {
                         <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Email Address</label>
                         <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" placeholder="john@company.com" />
                       </div>
-                      <div className="md:col-span-2">
+                      <div className="md:col-span-2 phone-input-container">
                         <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">WhatsApp Number</label>
-                        <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" placeholder="+1 234 567 8900" />
+                        <PhoneInput
+                          placeholder="+1 234 567 8900"
+                          value={formData.whatsapp}
+                          onChange={handlePhoneChange}
+                          defaultCountry="US"
+                          international
+                          className="checkout-phone-input"
+                        />
                         <p className="mt-2 text-[10px] text-neutral-500">Please provide either Email or WhatsApp for delivery.</p>
                       </div>
                       <div className="md:col-span-2">
@@ -554,3 +567,59 @@ const CheckoutPage: React.FC = () => {
 };
 
 export default CheckoutPage;
+
+// Style overrides for react-phone-number-input to match the glass theme
+const styleOverrides = `
+  .phone-input-container .checkout-phone-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: white;
+    display: flex;
+    transition: all 0.2s;
+  }
+
+  .phone-input-container .checkout-phone-input:focus-within {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1);
+  }
+
+  .phone-input-container .PhoneInputInput {
+    background: transparent;
+    border: none;
+    color: white;
+    outline: none;
+    font-size: 1rem;
+    margin-left: 0.75rem;
+    width: 100%;
+  }
+
+  .phone-input-container .PhoneInputCountry {
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0 0.5rem;
+    border-radius: 0.5rem;
+    margin-right: -0.25rem;
+  }
+
+  .phone-input-container .PhoneInputCountryIcon {
+    width: 1.5rem;
+    height: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  }
+
+  .phone-input-container .PhoneInputCountrySelect {
+    background: #1a1a1a;
+    color: white;
+  }
+`;
+
+if (typeof document !== 'undefined') {
+  const style = document.createElement('style');
+  style.type = 'text/css';
+  style.appendChild(document.createTextNode(styleOverrides));
+  document.head.appendChild(style);
+}
