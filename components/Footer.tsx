@@ -139,19 +139,15 @@ const Footer: React.FC = () => {
                   </Link>
                 </m.div>
               </li>
-              <li>
-                <m.div whileHover={{ x: 5, color: '#818cf8' }}>
-                  <Link to="/admin-login" className="transition-colors text-left block">
-                    Admin Login
-                  </Link>
-                </m.div>
-              </li>
             </ul>
           </div>
         </div>
 
         <div className="flex flex-col md:flex-row items-center justify-between py-8 border-t border-white/5 gap-4">
-          <p className="text-neutral-500 text-[13px]">© 2026 UnlockPremium. All rights reserved.</p>
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            <p className="text-neutral-500 text-[13px]">© 2026 UnlockPremium. All rights reserved.</p>
+            <Link to="/admin-login" className="text-neutral-700 hover:text-neutral-500 text-[11px] transition-colors">Admin Access</Link>
+          </div>
           <div className="flex gap-4 text-[13px] text-neutral-500">
             <span>Digital service</span>
             <span className="text-white/10">•</span>

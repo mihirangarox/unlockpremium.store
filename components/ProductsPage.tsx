@@ -15,6 +15,7 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
     : [{ durationMonths: product.durationMonths || 1, price: product.price || 0, oldPrice: product.oldPrice || 0 }];
     
   const [selectedTier, setSelectedTier] = useState<ProductPricing>(pricingTiers[0]);
+  const isOutOfStock = (variants as any)?.stockCount === 0;
 
   const handleAddToCart = () => {
     addToCart({
@@ -28,16 +29,28 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
   return (
     <m.div
       variants={variants}
-      whileHover={{ y: -8 }}
-      className="group glass rounded-3xl p-8 hover:border-indigo-500/50 transition-all duration-300 flex flex-col relative overflow-hidden"
+      whileHover={isOutOfStock ? {} : { y: -8 }}
+      className={`group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden ${
+        isOutOfStock ? 'opacity-70 grayscale-[0.5]' : 'hover:border-indigo-500/50'
+      }`}
     >
-      {product.popular && (
+      {product.popular && !isOutOfStock && (
         <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-indigo-500/20">
           Most Popular
         </div>
       )}
 
-      <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 origin-center text-indigo-400 border border-indigo-500/20">
+      {isOutOfStock && (
+        <div className="absolute top-4 right-4 bg-rose-600/90 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-rose-500/20">
+          Sold Out
+        </div>
+      )}
+
+      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 transform transition-transform duration-300 origin-center border ${
+        isOutOfStock 
+          ? 'bg-neutral-800 text-neutral-500 border-neutral-700' 
+          : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 group-hover:scale-110'
+      }`}>
         <Tag className="w-6 h-6" />
       </div>
 
@@ -77,7 +90,7 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       <div className="space-y-3 mb-8 flex-1">
         {product.features.map((feature, i) => (
           <div key={i} className="flex items-start gap-3 text-sm text-neutral-300">
-            <Check className="w-5 h-5 text-indigo-500 flex-shrink-0 mt-0.5" />
+            <Check className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isOutOfStock ? 'text-neutral-600' : 'text-indigo-500'}`} />
             <span>{feature}</span>
           </div>
         ))}
@@ -93,12 +106,19 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
           Details
         </Button>
         <Button 
-          variant="primary" 
+          variant={isOutOfStock ? "outline" : "primary"} 
           className="w-full group"
           onClick={handleAddToCart}
+          disabled={isOutOfStock}
         >
-          <span>Add to Cart</span>
-          <ShoppingCart className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform" />
+          {isOutOfStock ? (
+            <span className="text-neutral-500">Out of Stock</span>
+          ) : (
+            <>
+              <span>Add to Cart</span>
+              <ShoppingCart className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform" />
+            </>
+          )}
         </Button>
       </div>
     </m.div>
@@ -124,14 +144,11 @@ const ProductsPage: React.FC = () => {
           return acc;
         }, {} as Record<string, number>);
 
-        // Only show active products that have at least 1 item in stock
-        const inStockProducts = data.filter(p => p.isActive && (stockCounts[p.id] || 0) > 0);
+        // Show all active products
+        setProducts(data.filter(p => p.isActive));
         
-        // To simplify the catalog, if there are multiple durations for the same type,
-        // we might just show the most popular or lowest duration one?
-        // For now, we show all in-stock products as separate cards as originally designed,
-        // but ServiceLandingPage will handle the dynamic switching.
-        setProducts(inStockProducts);
+        // Pass stock counts to the component state if needed, but for now we'll just pass them to ProductCard
+        (window as any).__stockCounts = stockCounts;
       } catch (error) {
         console.error("Failed to load products:", error);
       } finally {
@@ -195,7 +212,14 @@ const ProductsPage: React.FC = () => {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
           >
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} variants={item} />
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                variants={{
+                  ...item,
+                  stockCount: (window as any).__stockCounts?.[product.id] || 0
+                }} 
+              />
             ))}
           </m.div>
         )}

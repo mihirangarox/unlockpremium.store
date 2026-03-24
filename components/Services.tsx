@@ -25,20 +25,34 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
     } as Product);
   };
 
+  const isOutOfStock = (variants as any)?.stockCount === 0;
+
   return (
     <m.div
       variants={variants}
-      whileHover={{ y: -10, transition: { duration: 0.3 } }}
-      className="group glass rounded-3xl p-8 hover:border-indigo-500/50 transition-all duration-300 flex flex-col relative overflow-hidden"
+      whileHover={isOutOfStock ? {} : { y: -10, transition: { duration: 0.3 } }}
+      className={`group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden ${
+        isOutOfStock ? 'opacity-70 grayscale-[0.5]' : 'hover:border-indigo-500/50'
+      }`}
     >
-      {product.popular && (
+      {product.popular && !isOutOfStock && (
         <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded text-white z-10">
           Most Popular
         </div>
       )}
 
+      {isOutOfStock && (
+        <div className="absolute top-4 right-4 bg-rose-600/90 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-rose-500/20">
+          Sold Out
+        </div>
+      )}
+
       {/* Icon with Circular Background */}
-      <div className="w-11 h-11 rounded-full bg-indigo-500/12 flex items-center justify-center mb-6 transform group-hover:scale-110 transition-transform duration-300 origin-center text-indigo-400">
+      <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-6 transform transition-transform duration-300 origin-center border ${
+        isOutOfStock 
+          ? 'bg-neutral-800 text-neutral-500 border-neutral-700' 
+          : 'bg-indigo-500/12 text-indigo-400 border-transparent group-hover:scale-110'
+      }`}>
         <Package className="w-5 h-5" />
       </div>
 
@@ -95,13 +109,18 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
             Details
           </Button>
           <Button 
-            variant="primary" 
+            variant={isOutOfStock ? "outline" : "primary"} 
             size="sm"
             className="flex-1 group"
             onClick={handleAddToCart}
+            disabled={isOutOfStock}
           >
-            Add to Cart
-            <ShoppingCart className="w-4 h-4 ml-1.5 group-hover:scale-110 transition-transform" />
+            {isOutOfStock ? "Out of Stock" : (
+              <>
+                Add to Cart
+                <ShoppingCart className="w-4 h-4 ml-1.5 group-hover:scale-110 transition-transform" />
+              </>
+            )}
           </Button>
         </div>
       </div>
@@ -131,10 +150,13 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
           return acc;
         }, {} as Record<string, number>);
 
-        // Use active products only, filter out of stock, sort by popularity
-        const activeProducts = data.filter(p => p.isActive && (stockCounts[p.id] || 0) > 0)
+        // Use active products only, sort by popularity
+        const activeProducts = data.filter(p => p.isActive)
                                    .sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
         
+        // Pass stock counts to global (same as ProductsPage)
+        (window as any).__stockCounts = stockCounts;
+
         setProducts(limit ? activeProducts.slice(0, limit) : activeProducts);
       } catch (error) {
         console.error("Error fetching products:", error);
@@ -196,7 +218,14 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
                 <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
               </div>
             ) : products.map((product) => (
-              <ProductCard key={product.id} product={product} variants={item} />
+              <ProductCard 
+                key={product.id} 
+                product={product} 
+                variants={{
+                  ...item,
+                  stockCount: (window as any).__stockCounts?.[product.id] || 0
+                }} 
+              />
             ))}
         </m.div>
       </div>
