@@ -136,11 +136,9 @@ export function RequestDetail() {
     }
 
     setIsProcessing(true);
-    console.log("Starting Approve & Convert process...");
     try {
       const now = new Date().toISOString();
       const customerId = `cu_${Date.now()}`;
-      console.log("Customer ID created:", customerId);
       
       // 1. Create Customer
       const customer: Customer = {
@@ -156,7 +154,6 @@ export function RequestDetail() {
         createdAt: now,
         updatedAt: now
       };
-      console.log("Customer object prepared:", customer);
 
       // 2. Create Subscription
       const subId = `su_${Date.now()}`;
@@ -174,10 +171,8 @@ export function RequestDetail() {
         createdAt: now,
         updatedAt: now
       };
-      console.log("Subscription object prepared:", subscription);
 
       // 3. Claim Digital Activation Code
-      console.log("Claiming activation code for:", subscriptionType || request.subscriptionType);
       const targetProduct = products.find(p => p.subscriptionType === (subscriptionType || request.subscriptionType));
       
       const claimedCode = await db.claimCodeForRequest(
@@ -185,7 +180,6 @@ export function RequestDetail() {
         (subscriptionPeriod as string) || request.subscriptionPeriod || "",
         request.id
       );
-      console.log("Code claim result:", claimedCode);
 
       if (claimedCode) {
         subscription.activationCode = claimedCode;
@@ -203,21 +197,15 @@ export function RequestDetail() {
         status: "Approved",
         updatedAt: now
       };
-      console.log("Updating request to Approved:", updatedRequest);
 
       // Save everything
-      console.log("Saving customer...");
       await db.saveCustomer(customer);
-      console.log("Saving subscription...");
       await db.saveSubscription(subscription);
-      console.log("Saving request...");
       await db.saveRequest(updatedRequest);
       
-      console.log("Logging transaction...");
       await db.logTransaction(subscription);
       
       setRequest(updatedRequest);
-      console.log("Process complete!");
       
       showToast(
         claimedCode 
@@ -227,7 +215,7 @@ export function RequestDetail() {
       );
       
     } catch (error) {
-      console.error("CRITICAL FAILURE in handleApproveAndConvert:", error);
+      console.error("Failed to approve request:", error);
       showToast("Failed to process request.", "error");
     } finally {
       setIsProcessing(false);
