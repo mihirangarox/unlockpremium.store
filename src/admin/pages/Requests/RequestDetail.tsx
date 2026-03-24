@@ -41,6 +41,13 @@ export function RequestDetail() {
   const [subscriptionType, setSubscriptionType] = useState<SubscriptionType | "">("");
   const [subscriptionPeriod, setSubscriptionPeriod] = useState<PlanDuration | "">("");
   const [duplicateWarning, setDuplicateWarning] = useState(false);
+  
+  // Edit Client Information state
+  const [isEditingClient, setIsEditingClient] = useState(false);
+  const [editedFullName, setEditedFullName] = useState("");
+  const [editedEmail, setEditedEmail] = useState("");
+  const [editedWhatsapp, setEditedWhatsapp] = useState("");
+  const [editedLinkedinUrl, setEditedLinkedinUrl] = useState("");
 
   useEffect(() => {
     if (id) {
@@ -129,9 +136,11 @@ export function RequestDetail() {
     }
 
     setIsProcessing(true);
+    console.log("Starting Approve & Convert process...");
     try {
       const now = new Date().toISOString();
       const customerId = `cu_${Date.now()}`;
+      console.log("Customer ID created:", customerId);
       
       // 1. Create Customer
       const customer: Customer = {
@@ -140,13 +149,14 @@ export function RequestDetail() {
         whatsappNumber: request.whatsappNumber || "",
         email: request.email || "",
         linkedinUrl: request.linkedinUrl || "",
-        country: "Unknown", // Can be updated later
-        leadSource: request.preferredContact === 'Reddit' ? 'Reddit' : 'Organic', // Heuristic
+        country: "Unknown", 
+        leadSource: request.preferredContact === 'Reddit' ? 'Reddit' : 'Organic',
         notes: request.notes,
         status: "Active",
         createdAt: now,
         updatedAt: now
       };
+      console.log("Customer object prepared:", customer);
 
       // 2. Create Subscription
       const subId = `su_${Date.now()}`;
@@ -164,9 +174,10 @@ export function RequestDetail() {
         createdAt: now,
         updatedAt: now
       };
+      console.log("Subscription object prepared:", subscription);
 
-      // 3. Claim Digital Activation Code if available
-      // Find the specific product ID for better matching
+      // 3. Claim Digital Activation Code
+      console.log("Claiming activation code for:", subscriptionType || request.subscriptionType);
       const targetProduct = products.find(p => p.subscriptionType === (subscriptionType || request.subscriptionType));
       
       const claimedCode = await db.claimCodeForRequest(
@@ -174,8 +185,8 @@ export function RequestDetail() {
         (subscriptionPeriod as string) || request.subscriptionPeriod || "",
         request.id
       );
+      console.log("Code claim result:", claimedCode);
 
-      // 4. Update Subscription with Code
       if (claimedCode) {
         subscription.activationCode = claimedCode;
       }
@@ -192,17 +203,22 @@ export function RequestDetail() {
         status: "Approved",
         updatedAt: now
       };
+      console.log("Updating request to Approved:", updatedRequest);
 
       // Save everything
+      console.log("Saving customer...");
       await db.saveCustomer(customer);
+      console.log("Saving subscription...");
       await db.saveSubscription(subscription);
+      console.log("Saving request...");
       await db.saveRequest(updatedRequest);
       
-      // Log initial transaction implicitly by saving sub and calling logTransaction
+      console.log("Logging transaction...");
       await db.logTransaction(subscription);
       
-      // Update local state to reflect changes immediately
       setRequest(updatedRequest);
+      console.log("Process complete!");
+      
       showToast(
         claimedCode 
           ? "Approved & Activation Code Assigned!" 
@@ -211,7 +227,7 @@ export function RequestDetail() {
       );
       
     } catch (error) {
-      console.error("Failed to approve request:", error);
+      console.error("CRITICAL FAILURE in handleApproveAndConvert:", error);
       showToast("Failed to process request.", "error");
     } finally {
       setIsProcessing(false);
@@ -237,6 +253,41 @@ export function RequestDetail() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const handleSaveClient = async () => {
+    if (!request) return;
+    
+    setIsProcessing(true);
+    try {
+      const updatedRequest: IntakeRequest = {
+        ...request,
+        fullName: editedFullName,
+        email: editedEmail,
+        whatsappNumber: editedWhatsapp,
+        linkedinUrl: editedLinkedinUrl,
+        updatedAt: new Date().toISOString()
+      };
+      
+      await db.saveRequest(updatedRequest);
+      setRequest(updatedRequest);
+      setIsEditingClient(false);
+      showToast("Client information updated", "success");
+    } catch (error) {
+      console.error("Failed to update client info:", error);
+      showToast("Failed to update client information", "error");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const startEditingClient = () => {
+    if (!request) return;
+    setEditedFullName(request.fullName);
+    setEditedEmail(request.email || "");
+    setEditedWhatsapp(request.whatsappNumber || "");
+    setEditedLinkedinUrl(request.linkedinUrl || "");
+    setIsEditingClient(true);
   };
 
   const getInvoiceText = () => {
@@ -357,14 +408,49 @@ Thank you for your business!`;
         {/* Left Side: Submitted Data */}
         <div className="space-y-6">
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
-              <User className="w-4 h-4" /> Client Information
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <User className="w-4 h-4" /> Client Information
+              </h3>
+              {isEditingClient ? (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsEditingClient(false)}
+                    className="px-3 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSaveClient}
+                    disabled={isProcessing}
+                    className="px-3 py-1.5 text-xs font-bold bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={startEditingClient}
+                  className="px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+                >
+                  Edit Information
+                </button>
+              )}
+            </div>
             
             <div className="space-y-6">
               <div>
                 <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Full Name</label>
-                <div className="text-lg font-bold text-slate-900">{request.fullName}</div>
+                {isEditingClient ? (
+                  <input 
+                    type="text" 
+                    value={editedFullName}
+                    onChange={e => setEditedFullName(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                ) : (
+                  <div className="text-lg font-bold text-slate-900">{request.fullName}</div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-6">
@@ -372,18 +458,32 @@ Thank you for your business!`;
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Contact</label>
                   <div className="font-medium text-slate-700">{request.preferredContact}</div>
                 </div>
-                {request.whatsappNumber && (
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">WhatsApp</label>
-                    <div className="font-medium text-slate-700">{request.whatsappNumber}</div>
-                  </div>
-                )}
-                {request.email && (
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</label>
-                    <div className="font-medium text-slate-700">{request.email}</div>
-                  </div>
-                )}
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">WhatsApp</label>
+                  {isEditingClient ? (
+                    <input 
+                      type="tel" 
+                      value={editedWhatsapp}
+                      onChange={e => setEditedWhatsapp(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  ) : (
+                    <div className="font-medium text-slate-700">{request.whatsappNumber || 'N/A'}</div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</label>
+                  {isEditingClient ? (
+                    <input 
+                      type="email" 
+                      value={editedEmail}
+                      onChange={e => setEditedEmail(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  ) : (
+                    <div className="font-medium text-slate-700">{request.email || 'N/A'}</div>
+                  )}
+                </div>
                 {request.redditUsername && (
                   <div>
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Reddit</label>
@@ -393,20 +493,46 @@ Thank you for your business!`;
               </div>
               
               <div className="pt-4 border-t border-slate-100">
-                <div className="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors px-2 rounded-xl">
-                  <span className="text-slate-500 font-medium">LinkedIn URL</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-700 truncate max-w-[200px]">{request.linkedinUrl || 'N/A'}</span>
-                    {request.linkedinUrl && (
-                      <button 
-                        onClick={() => window.open(request.linkedinUrl, '_blank')}
-                        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        title="Open Profile"
-                      >
-                        <ExternalLink size={16} />
-                      </button>
-                    )}
+                <div className="py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors px-2 rounded-xl">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-slate-500 font-medium">LinkedIn URL</span>
+                    <div className="flex items-center gap-1">
+                      {request.linkedinUrl && (
+                        <>
+                          <button 
+                            onClick={() => {
+                              navigator.clipboard.writeText(request.linkedinUrl || "");
+                              showToast("URL copied!", "success");
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Copy URL"
+                          >
+                            <Copy size={14} />
+                          </button>
+                          <button 
+                            onClick={() => window.open(request.linkedinUrl, '_blank')}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Open Profile"
+                          >
+                            <ExternalLink size={14} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
+                  {isEditingClient ? (
+                    <input 
+                      type="url" 
+                      value={editedLinkedinUrl}
+                      onChange={e => setEditedLinkedinUrl(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                      placeholder="https://linkedin.com/in/..."
+                    />
+                  ) : (
+                    <div className="text-xs font-bold text-slate-700 break-all leading-relaxed pr-2">
+                       {request.linkedinUrl || 'N/A'}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-between items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors px-2 rounded-xl">
