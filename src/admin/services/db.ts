@@ -114,6 +114,10 @@ export const saveSubscription = async (subscription: Subscription): Promise<void
   await setDoc(doc(db, "subscriptions", subscription.id), subscription);
 };
 
+export const deleteSubscription = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "subscriptions", id));
+};
+
 // ─── Reminders ────────────────────────────────────────────────────────────────
 
 export const getReminders = async (): Promise<Reminder[]> => {
@@ -331,6 +335,14 @@ export const deleteLiveStockCode = async (id: string): Promise<void> => {
 
 export const updateLiveStockCode = async (id: string, updates: Partial<DigitalCode>): Promise<void> => {
   await setDoc(doc(db, "live_stock", id), updates, { merge: true });
+};
+
+export const updateLiveStockStatus = async (id: string, status: 'Available' | 'Assigned' | 'Expired', subscriptionId?: string): Promise<void> => {
+  await setDoc(doc(db, "live_stock", id), { 
+    status, 
+    assignedToSubscriptionId: subscriptionId || null,
+    assignedAt: status === 'Assigned' ? new Date().toISOString() : null
+  }, { merge: true });
 };
 
 export const getAvailableCodesCount = async (productId?: string): Promise<number> => {

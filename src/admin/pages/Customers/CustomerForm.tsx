@@ -197,7 +197,7 @@ export function CustomerForm() {
       }
 
       showToast(isEditing ? "Customer updated successfully" : "Customer created successfully", "success");
-      navigate(`/customers/${customer.id}`);
+      navigate(`/admin/customers/${customer.id}`);
     } catch (err) {
       console.error("Save failed:", err);
       showToast("Failed to save. Please try again.", "error");

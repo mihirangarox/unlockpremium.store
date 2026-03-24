@@ -63,6 +63,7 @@ export interface Product {
 export interface Subscription {
   id: string;
   customerId: string;
+  productId?: string; // New: For direct product mapping
   subscriptionType?: SubscriptionType;
   durationMonths?: number;
   planDuration: PlanDuration;
@@ -239,6 +240,7 @@ export interface DigitalCode {
   vendorId?: string;
   status: 'Available' | 'Assigned' | 'Expired';
   assignedToRequestId?: string;
+  assignedToSubscriptionId?: string; // New: For direct subscription renewal
   assignedAt?: string;
   createdAt: string;
 }
