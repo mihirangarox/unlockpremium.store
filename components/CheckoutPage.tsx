@@ -236,12 +236,13 @@ const CheckoutPage: React.FC = () => {
                         <input required type="text" name="lastName" value={formData.lastName} onChange={handleInputChange} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" placeholder="Doe" />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Email Address *</label>
-                        <input required type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" placeholder="john@company.com" />
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Email Address</label>
+                        <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" placeholder="john@company.com" />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">WhatsApp Number *</label>
-                        <input required type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" placeholder="+1 234 567 8900" />
+                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">WhatsApp Number</label>
+                        <input type="tel" name="whatsapp" value={formData.whatsapp} onChange={handleInputChange} className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" placeholder="+1 234 567 8900" />
+                        <p className="mt-2 text-[10px] text-neutral-500">Please provide either Email or WhatsApp for delivery.</p>
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">LinkedIn Profile URL</label>
@@ -278,7 +279,7 @@ const CheckoutPage: React.FC = () => {
                             animate={{ opacity: 1, y: 0 }}
                             className="mt-4 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl flex items-center gap-4"
                           >
-                            <div className="w-12 h-12 rounded-full bg-neutral-800 border border-white/10 flex items-center justify-center text-neutral-500 overflow-hidden">
+                            <div className="w-12 h-12 rounded-full bg-neutral-800 border border-white/5 flex items-center justify-center text-neutral-500 overflow-hidden">
                               <User className="w-6 h-6" />
                             </div>
                             <div>
@@ -310,8 +311,12 @@ const CheckoutPage: React.FC = () => {
                       type="button" 
                       variant="primary" 
                       onClick={() => {
-                        if (formData.firstName && formData.lastName && formData.email && formData.whatsapp) setStep(2);
-                        else alert('Please fill in all required fields marked with *');
+                        const hasContact = formData.email || formData.whatsapp;
+                        const hasNames = formData.firstName && formData.lastName;
+                        
+                        if (hasNames && hasContact) setStep(2);
+                        else if (!hasNames) alert('Please fill in your name.');
+                        else alert('Please provide at least one contact method (Email or WhatsApp).');
                       }}
                     >
                       Continue to Review
