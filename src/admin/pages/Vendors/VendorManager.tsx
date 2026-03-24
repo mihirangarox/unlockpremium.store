@@ -3,11 +3,12 @@ import { Users, Plus, Search, Mail, Phone, FileText, Trash2, Edit, Save, X, Exte
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../components/ui/Toast';
 import * as db from '../../services/db';
-import { Vendor } from '../../types';
+import { Vendor, DigitalCode } from '../../types';
 
 export function VendorManager() {
   const { showToast } = useToast();
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [liveStock, setLiveStock] = useState<DigitalCode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -26,8 +27,12 @@ export function VendorManager() {
   const loadVendors = async () => {
     setIsLoading(true);
     try {
-      const data = await db.getVendors();
-      setVendors(data);
+      const [vendorData, stockData] = await Promise.all([
+        db.getVendors(),
+        db.getLiveStock()
+      ]);
+      setVendors(vendorData);
+      setLiveStock(stockData);
     } catch (error) {
       console.error("Failed to load vendors:", error);
       showToast("Failed to sync vendors", "error");
@@ -124,8 +129,9 @@ export function VendorManager() {
               <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 <th className="px-6 py-4">Vendor Name</th>
                 <th className="px-6 py-4">Contact Info</th>
+                <th className="px-6 py-4 text-center">Stock Count</th>
+                <th className="px-6 py-4 text-center">Total Spent</th>
                 <th className="px-6 py-4">Notes</th>
-                <th className="px-6 py-4">Added On</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -150,14 +156,28 @@ export function VendorManager() {
                       {vendor.contactNumber || '—'}
                     </div>
                   </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                      liveStock.filter(c => c.vendorId === vendor.id && c.status === 'Available').length > 0 
+                      ? 'bg-emerald-50 text-emerald-600' 
+                      : 'bg-slate-50 text-slate-400 opacity-50'
+                    }`}>
+                      {liveStock.filter(c => c.vendorId === vendor.id && c.status === 'Available').length} In Stock
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="font-bold text-slate-900">
+                      {liveStock.filter(c => c.vendorId === vendor.id)
+                        .reduce((sum, c) => sum + (c.costBasisUSDT || 0), 0)
+                        .toFixed(2)}
+                      <span className="text-[10px] text-slate-400 ml-1">USDT</span>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 max-w-[200px] truncate">
                     <div className="flex items-center gap-2">
                        <FileText className="w-3 h-3 text-slate-300 flex-shrink-0" />
                        <span className="italic text-slate-400 font-normal">{vendor.note || 'No notes added'}</span>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-400">
-                    {new Date(vendor.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
