@@ -3,13 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, CheckCircle2, XCircle, User, 
   MessageSquare, CreditCard, FileText,
-  Zap, ChevronRight, AlertTriangle, Copy, ExternalLink
+  Zap, ChevronRight, AlertTriangle, Copy, ExternalLink,
+  Clock, Filter
 } from "lucide-react";
 import { useToast } from "../../components/ui/Toast";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { generateInvoicePDF } from "../../utils/invoiceGenerator";
 import * as db from "../../services/db";
-import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType, Product } from "../../types/index";
+import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType, Product, RequestStatus } from "../../types/index";
 
 const SUBSCRIPTION_TYPES: SubscriptionType[] = [
   "Premium Career",
@@ -243,6 +244,27 @@ export function RequestDetail() {
     }
   };
 
+  const handleUpdateStatus = async (newStatus: RequestStatus) => {
+    if (!request) return;
+    if (!window.confirm(`Mark this request as ${newStatus}?`)) return;
+
+    setIsProcessing(true);
+    try {
+      const updatedRequest: IntakeRequest = {
+        ...request,
+        status: newStatus,
+        updatedAt: new Date().toISOString()
+      };
+      await db.saveRequest(updatedRequest);
+      setRequest(updatedRequest);
+      showToast(`Request marked as ${newStatus}.`, "success");
+    } catch (error) {
+      showToast(`Failed to update status to ${newStatus}.`, "error");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleSaveClient = async () => {
     if (!request) return;
     
@@ -333,9 +355,11 @@ Thank you for your business!`;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Pending': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Approved': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'Rejected': return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'Pending': return 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-500/10 font-black tracking-wide';
+      case 'Approved': return 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-2 ring-emerald-500/10 font-black tracking-wide';
+      case 'Rejected': return 'bg-rose-100 text-rose-800 border-rose-300 ring-2 ring-rose-500/10 font-black tracking-wide';
+      case 'Spam': return 'bg-slate-200 text-slate-700 border-slate-300 font-black tracking-wide';
+      case 'Archived': return 'bg-indigo-50 text-indigo-700 border-indigo-200 font-black tracking-wide';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
@@ -671,28 +695,46 @@ Thank you for your business!`;
           </div>
           
           {request.status === "Pending" && (
-            <div className="pt-6 mt-6 border-t border-slate-200 grid grid-cols-2 gap-4">
-              <button
-                onClick={handleReject}
-                disabled={isProcessing}
-                className="w-full py-3.5 bg-white border-2 border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 transition disabled:opacity-50"
-              >
-                Reject Request
-              </button>
-              <button
-                onClick={handleApproveAndConvert}
-                disabled={isProcessing}
-                className="w-full py-3.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isProcessing ? (
-                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <>
-                    Approve & Convert
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </>
-                )}
-              </button>
+            <div className="pt-6 mt-6 border-t border-slate-200 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={handleReject}
+                  disabled={isProcessing}
+                  className="w-full py-3.5 bg-white border-2 border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 transition disabled:opacity-50"
+                >
+                  Reject Request
+                </button>
+                <button
+                  onClick={handleApproveAndConvert}
+                  disabled={isProcessing}
+                  className="w-full py-3.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isProcessing ? (
+                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      Approve & Convert
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => handleUpdateStatus('Archived')}
+                  disabled={isProcessing}
+                  className="w-full py-3 bg-slate-50 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition disabled:opacity-50 text-xs uppercase tracking-widest"
+                >
+                  Archive for Stats
+                </button>
+                <button
+                  onClick={() => handleUpdateStatus('Spam')}
+                  disabled={isProcessing}
+                  className="w-full py-3 bg-slate-50 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition disabled:opacity-50 text-xs uppercase tracking-widest"
+                >
+                  Mark as Spam
+                </button>
+              </div>
             </div>
           )}
           
@@ -732,12 +774,46 @@ Thank you for your business!`;
           )}
 
           {request.status === "Rejected" && (
-            <div className="pt-6 mt-6 border-t border-rose-100 bg-rose-50 rounded-xl p-4 flex items-start gap-3">
-               <XCircle className="w-5 h-5 text-rose-600 mt-0.5" />
-               <div>
-                <p className="text-sm font-bold text-rose-800">Request Rejected</p>
-                <p className="text-xs text-rose-600 mt-1">This request was rejected and archived.</p>
-              </div>
+            <div className="pt-6 mt-6 border-t border-rose-100 space-y-4">
+               <div className="bg-rose-50 rounded-xl p-4 flex items-start gap-3 border border-rose-100">
+                  <XCircle className="w-5 h-5 text-rose-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-rose-800">Request Rejected</p>
+                    <p className="text-xs text-rose-600 mt-1">This request was rejected manually. It is still visible in the Rejected list but filtered from active views.</p>
+                  </div>
+               </div>
+               <div className="flex gap-4">
+                 <button 
+                   onClick={() => handleUpdateStatus('Archived')} 
+                   className="flex-1 py-3 text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 rounded-xl hover:bg-indigo-100 transition"
+                 >
+                   Move to Archive
+                 </button>
+               </div>
+            </div>
+          )}
+
+          {request.status === "Archived" && (
+            <div className="pt-6 mt-6 border-t border-indigo-100 space-y-4">
+               <div className="bg-indigo-50/50 rounded-xl p-4 flex items-start gap-3 border border-indigo-100">
+                  <Clock className="w-5 h-5 text-indigo-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-indigo-800">Request Archived</p>
+                    <p className="text-xs text-indigo-600 mt-1">This request is archived for conversion statistics. It will not appear in the main "Waiting Room" list.</p>
+                  </div>
+               </div>
+            </div>
+          )}
+
+          {request.status === "Spam" && (
+            <div className="pt-6 mt-6 border-t border-slate-100 space-y-4">
+               <div className="bg-slate-50 rounded-xl p-4 flex items-start gap-3 border border-slate-200">
+                  <Filter className="w-5 h-5 text-slate-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">Flagged as Spam</p>
+                    <p className="text-xs text-slate-600 mt-1">This request is hidden from list views to keep your workspace clean.</p>
+                  </div>
+               </div>
             </div>
           )}
         </div>

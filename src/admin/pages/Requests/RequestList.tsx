@@ -18,6 +18,10 @@ export function RequestList() {
   
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isProcessingBulk, setIsProcessingBulk] = useState(false);
+  const [groupByContact, setGroupByContact] = useState(false);
+  const [ageFilter, setAgeFilter] = useState<"All" | "7d">("All");
+
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     loadRequests();
@@ -40,11 +44,21 @@ export function RequestList() {
       req.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.whatsappNumber.includes(searchTerm) ||
+      req.whatsappNumber.slice(-4).includes(searchTerm) ||
       (req.subscriptionType && req.subscriptionType.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = statusFilter === "All" || req.status === statusFilter;
+    
+    // Default hiding Archived and Spam
+    const matchesStatus = statusFilter === "All" 
+      ? (req.status !== "Archived" && req.status !== "Spam")
+      : req.status === statusFilter;
+      
     const matchesContact = contactFilter === "All" || req.preferredContact === contactFilter;
     
-    return matchesSearch && matchesStatus && matchesContact;
+    const matchesAge = ageFilter === "All" || (
+      new Date().getTime() - new Date(req.createdAt).getTime() > 7 * 24 * 60 * 60 * 1000
+    );
+    
+    return matchesSearch && matchesStatus && matchesContact && matchesAge;
   }).sort((a, b) => {
     if (sortBy === "date") {
       const dateA = new Date(a.createdAt).getTime();
@@ -56,6 +70,21 @@ export function RequestList() {
       return sortDirection === "desc" ? planB.localeCompare(planA) : planA.localeCompare(planB);
     }
   });
+
+  // Grouping logic
+  const displayRequests = groupByContact ? (() => {
+    const groups: Record<string, IntakeRequest[]> = {};
+    filteredRequests.forEach(req => {
+      const key = req.whatsappNumber || req.email || req.id;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(req);
+    });
+    return Object.values(groups).map(group => ({
+      ...group[0],
+      groupCount: group.length,
+      groupIds: group.map(r => r.id)
+    }));
+  })() : filteredRequests;
 
   const toggleSort = (field: "date" | "plan") => {
     if (sortBy === field) {
@@ -82,25 +111,68 @@ export function RequestList() {
     }
   };
 
-  const handleBulkReject = async () => {
+  const handleBulkAction = async (action: "Reject" | "Spam" | "Archive" | "Delete") => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to reject ${selectedIds.length} requests?`)) return;
+    
+    const confirmMsg = action === "Delete" 
+      ? `Permanently delete ${selectedIds.length} requests? This cannot be undone.`
+      : `Mark ${selectedIds.length} requests as ${action}?`;
+      
+    if (!window.confirm(confirmMsg)) return;
 
     setIsProcessingBulk(true);
     try {
-      const updates = selectedIds.map(id => {
-        const req = requests.find(r => r.id === id);
-        if (!req) return Promise.resolve();
-        return db.saveRequest({ ...req, status: "Rejected", updatedAt: new Date().toISOString() });
-      });
-      await Promise.all(updates);
+      if (action === "Delete") {
+        await Promise.all(selectedIds.map(id => db.deleteRequest(id)));
+      } else {
+        const statusMap = { Reject: "Rejected", Spam: "Spam", Archive: "Archived" };
+        const newStatus = (statusMap as any)[action] as RequestStatus;
+        
+        const updates = selectedIds.map(id => {
+          const req = requests.find(r => r.id === id);
+          if (!req) return Promise.resolve();
+          return db.saveRequest({ ...req, status: newStatus, updatedAt: new Date().toISOString() });
+        });
+        await Promise.all(updates);
+      }
       await loadRequests();
       setSelectedIds([]);
     } catch (error) {
-      console.error("Bulk reject failed:", error);
+      console.error(`Bulk ${action} failed:`, error);
     } finally {
       setIsProcessingBulk(false);
     }
+  };
+
+  const handleDeleteRequest = async (id: string, isApproved: boolean) => {
+    if (isApproved) {
+      if (!window.confirm("This request is already APPROVED. Are you sure you want to delete it? This data is important for your sales records.")) {
+        return;
+      }
+    } else {
+      if (!window.confirm("Permanently delete this request?")) return;
+    }
+
+    try {
+      await db.deleteRequest(id);
+      await loadRequests();
+      if (selectedIds.includes(id)) {
+        setSelectedIds(prev => prev.filter(i => i !== id));
+      }
+    } catch (error) {
+      console.error("Delete failed:", error);
+    }
+  };
+
+  const checkDuplicate = (request: IntakeRequest) => {
+    const contact = request.whatsappNumber || request.email;
+    if (!contact) return false;
+    
+    return requests.some(r => 
+      r.id !== request.id && 
+      (r.whatsappNumber === request.whatsappNumber || r.email === request.email) &&
+      Math.abs(new Date(r.createdAt).getTime() - new Date(request.createdAt).getTime()) < 24 * 60 * 60 * 1000
+    );
   };
 
   const totalReqs = requests.length;
@@ -110,9 +182,11 @@ export function RequestList() {
 
   const getStatusColor = (status: RequestStatus) => {
     switch (status) {
-      case 'Pending': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Approved': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      case 'Rejected': return 'bg-rose-100 text-rose-700 border-rose-200';
+      case 'Pending': return 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-500/10';
+      case 'Approved': return 'bg-emerald-100 text-emerald-800 border-emerald-300 ring-2 ring-emerald-500/10';
+      case 'Rejected': return 'bg-rose-100 text-rose-800 border-rose-300 ring-2 ring-rose-500/10';
+      case 'Spam': return 'bg-slate-200 text-slate-700 border-slate-300';
+      case 'Archived': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
@@ -130,7 +204,20 @@ export function RequestList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Incoming Requests</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Review and process new subscription requests</p>
+          <p className="text-sm font-medium text-slate-500 mt-1">The "Waiting Room" for your revenue. Process requests and clean up spam.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setGroupByContact(!groupByContact)}
+            className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 ${
+              groupByContact 
+              ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-500/20' 
+              : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300'
+            }`}
+          >
+            {groupByContact ? <CheckCircle2 className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+            {groupByContact ? 'Grouped by Contact' : 'Individual View'}
+          </button>
         </div>
       </div>
 
@@ -161,18 +248,18 @@ export function RequestList() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search by name, email, or WhatsApp..."
+              placeholder="Search by name, email, WhatsApp (or last 4 digits)..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
             />
           </div>
-          <div className="flex-[1] min-w-[160px]">
+          <div className="flex-[1] min-w-[140px]">
             <div className="relative">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
               <select
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as RequestStatus | "All")}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 appearance-none cursor-pointer"
                 style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\' /%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.25rem' }}
               >
@@ -180,24 +267,32 @@ export function RequestList() {
                 <option value="Pending">Pending</option>
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
+                <option value="Archived">Archived</option>
+                <option value="Spam">Spam</option>
               </select>
             </div>
           </div>
-          <div className="flex-[1] min-w-[160px]">
+          <div className="flex-[1] min-w-[140px]">
             <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 pointer-events-none" />
               <select
-                value={contactFilter}
-                onChange={(e) => setContactFilter(e.target.value as any)}
+                value={ageFilter}
+                onChange={(e) => setAgeFilter(e.target.value as any)}
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-700 appearance-none cursor-pointer"
                 style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 24 24\' stroke=\'%2364748b\'%3E%3Cpath stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'2\' d=\'M19 9l-7 7-7-7\' /%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 1rem center', backgroundSize: '1.25rem' }}
               >
-                <option value="All">All Channels</option>
-                <option value="WhatsApp">WhatsApp</option>
-                <option value="Email">Email</option>
-                <option value="Reddit">Reddit</option>
+                <option value="All">All Time</option>
+                <option value="7d">Older than 7 days</option>
               </select>
             </div>
+          </div>
+          <div className="flex items-center">
+            <button 
+              onClick={() => handleBulkAction('Archive')}
+              className="px-4 py-2.5 text-xs font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-xl transition-all"
+            >
+              Archive Rejected
+            </button>
           </div>
         </div>
       </div>
@@ -205,20 +300,50 @@ export function RequestList() {
       <AnimatePresence>
         {selectedIds.length > 0 && (
           <motion.div 
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-center justify-between shadow-sm"
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl p-4 flex items-center gap-6 shadow-2xl border border-white/10 min-w-[400px]"
           >
-            <span className="font-bold text-indigo-900">{selectedIds.length} request(s) selected</span>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3 pr-6 border-r border-white/10">
+              <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center font-black text-sm">
+                {selectedIds.length}
+              </div>
+              <span className="font-bold text-sm tracking-tight text-slate-300">Requests Selected</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
               <button 
-                onClick={handleBulkReject}
+                onClick={() => handleBulkAction('Reject')}
                 disabled={isProcessingBulk}
-                className="px-4 py-2 bg-white text-rose-600 border border-rose-200 rounded-xl font-bold flex items-center gap-2 hover:bg-rose-50 shadow-sm transition disabled:opacity-50"
+                className="px-4 py-2 text-sm font-bold bg-white/5 hover:bg-white/10 rounded-xl transition flex items-center gap-2"
+              >
+                <XCircle className="w-4 h-4 text-rose-400" />
+                Reject
+              </button>
+              <button 
+                onClick={() => handleBulkAction('Spam')}
+                disabled={isProcessingBulk}
+                className="px-4 py-2 text-sm font-bold bg-white/5 hover:bg-white/10 rounded-xl transition flex items-center gap-2"
+              >
+                <Filter className="w-4 h-4 text-amber-400" />
+                Spam
+              </button>
+              <button 
+                onClick={() => handleBulkAction('Archive')}
+                disabled={isProcessingBulk}
+                className="px-4 py-2 text-sm font-bold bg-white/5 hover:bg-white/10 rounded-xl transition flex items-center gap-2"
+              >
+                <Clock className="w-4 h-4 text-indigo-400" />
+                Archive
+              </button>
+              <button 
+                onClick={() => handleBulkAction('Delete')}
+                disabled={isProcessingBulk}
+                className="px-4 py-2 text-sm font-bold bg-rose-600 hover:bg-rose-700 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-900/20"
               >
                 <Trash2 className="w-4 h-4" />
-                Bulk Reject
+                Delete Forever
               </button>
             </div>
           </motion.div>
@@ -226,33 +351,33 @@ export function RequestList() {
       </AnimatePresence>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[calc(100vh-400px)] overflow-y-auto">
           <table className="w-full text-left border-collapse">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-4 w-12">
+                <th className="px-6 py-4 w-12 bg-slate-50">
                   <input 
                     type="checkbox" 
-                    checked={selectedIds.length === filteredRequests.length && filteredRequests.length > 0}
+                    checked={selectedIds.length === displayRequests.length && displayRequests.length > 0}
                     onChange={handleSelectAll}
                     className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
                   />
                 </th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition group" onClick={() => toggleSort("date")}>
+                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition group bg-slate-50" onClick={() => toggleSort("date")}>
                   <div className="flex items-center">
                     Date
                     <ArrowUpDown className={`w-3.5 h-3.5 ml-2 ${sortBy === 'date' ? 'text-indigo-600' : 'text-slate-300 group-hover:text-slate-500'}`} />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Name & Contact</th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition group" onClick={() => toggleSort("plan")}>
+                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider bg-slate-50">Name & Contact</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition group bg-slate-50" onClick={() => toggleSort("plan")}>
                   <div className="flex items-center">
                     Requested Subscription
                     <ArrowUpDown className={`w-3.5 h-3.5 ml-2 ${sortBy === 'plan' ? 'text-indigo-600' : 'text-slate-300 group-hover:text-slate-500'}`} />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider bg-slate-50">Status</th>
+                <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider text-right bg-slate-50">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -283,60 +408,101 @@ export function RequestList() {
                     </td>
                   </motion.tr>
                 ) : (
-                  filteredRequests.map((request) => (
-                    <motion.tr 
-                      key={request.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(request.id) ? 'bg-indigo-50/30' : ''}`}
-                    >
-                      <td className="px-6 py-4">
-                        <input 
-                          type="checkbox" 
-                          checked={selectedIds.includes(request.id)}
-                          onChange={(e) => handleSelect(request.id, e.target.checked)}
-                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleSelect(request.id, !selectedIds.includes(request.id))}>
-                        <div className="flex items-center text-sm font-medium text-slate-600">
-                          <Calendar className="w-4 h-4 mr-2 text-slate-400" />
-                          {formatDate(request.createdAt)}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-bold text-slate-900">{request.fullName}</div>
-                        <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
-                          <span className="font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] uppercase">
-                            {request.preferredContact}
+                  displayRequests.map((request) => {
+                    const isDuplicate = checkDuplicate(request);
+                    const isGroup = (request as any).groupCount > 1;
+                    
+                    return (
+                      <motion.tr 
+                        key={request.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        className={`hover:bg-slate-50/80 transition-colors group ${selectedIds.includes(request.id) ? 'bg-indigo-50/30' : ''}`}
+                      >
+                        <td className="px-6 py-4">
+                          <input 
+                            type="checkbox" 
+                            checked={selectedIds.includes(request.id)}
+                            onChange={(e) => handleSelect(request.id, e.target.checked)}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap cursor-pointer" onClick={() => handleSelect(request.id, !selectedIds.includes(request.id))}>
+                          <div className="flex flex-col">
+                            <div className="flex items-center text-sm font-bold text-slate-900">
+                              <Calendar className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                              {formatDate(request.createdAt)}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium ml-5 italic">
+                              {new Date(request.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-bold text-slate-900">{request.fullName}</div>
+                            {isDuplicate && !isGroup && (
+                              <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[9px] font-black uppercase tracking-tighter shadow-sm flex items-center gap-0.5">
+                                <Filter className="w-2.5 h-2.5" />
+                                Duplicate
+                              </span>
+                            )}
+                            {isGroup && (
+                              <span className="px-1.5 py-0.5 bg-indigo-500 text-white rounded text-[9px] font-black uppercase tracking-tighter shadow-sm">
+                                { (request as any).groupCount } Requests
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
+                            <span className="font-medium bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[10px] uppercase">
+                              {request.preferredContact}
+                            </span>
+                            <span className="font-mono">
+                              {request.preferredContact === 'WhatsApp' ? request.whatsappNumber :
+                               request.preferredContact === 'Email' ? request.email :
+                               request.redditUsername}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-bold text-slate-900 tracking-tight">{request.subscriptionType}</div>
+                          <div className="text-xs text-slate-500 mt-0.5 font-bold uppercase tracking-wider text-[10px] opacity-60 italic">{request.subscriptionPeriod} plan</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black border tracking-wide shadow-sm ${getStatusColor(request.status)}`}>
+                            <span className="mr-1.5">{getStatusIcon(request.status)}</span>
+                            {request.status.toUpperCase()}
                           </span>
-                          {request.preferredContact === 'WhatsApp' ? request.whatsappNumber :
-                           request.preferredContact === 'Email' ? request.email :
-                           request.redditUsername}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-bold text-slate-900">{request.subscriptionType}</div>
-                        <div className="text-xs text-slate-500 mt-0.5 font-medium">{request.subscriptionPeriod} plan</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusColor(request.status)}`}>
-                          <span className="mr-1.5">{getStatusIcon(request.status)}</span>
-                          {request.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link 
-                          to={`/admin/requests/${request.id}`}
-                          className="inline-flex items-center justify-center px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group-hover:shadow group-hover:border-indigo-200"
-                        >
-                          Review
-                          <ChevronRight className="w-4 h-4 ml-1 opacity-50 group-hover:opacity-100" />
-                        </Link>
-                      </td>
-                    </motion.tr>
-                  ))
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Link 
+                              to={`/admin/requests/${request.id}`}
+                              className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                              title="Review Details"
+                            >
+                              <ChevronRight className="w-5 h-5" />
+                            </Link>
+                            <button 
+                              onClick={() => handleDeleteRequest(request.id, request.status === 'Approved')}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                              title="Delete Permanently"
+                            >
+                              <Trash2 className="w-4.5 h-4.5" />
+                            </button>
+                          </div>
+                          
+                          <Link 
+                            to={`/admin/requests/${request.id}`}
+                            className="inline-flex items-center justify-center px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group-hover:hidden"
+                          >
+                            Review
+                          </Link>
+                        </td>
+                      </motion.tr>
+                    );
+                  })
                 )}
               </AnimatePresence>
             </tbody>
