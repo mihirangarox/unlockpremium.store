@@ -139,6 +139,22 @@ export function InventoryManager() {
     }
   };
 
+  const updateItemSettings = async (item: InventoryItem, updates: Partial<InventoryItem>) => {
+    try {
+      const updated = { ...item, ...updates };
+      await db.saveInventoryItem({
+        id: item.id,
+        stockCount: updated.stockCount,
+        lowStockThreshold: updated.lowStockThreshold,
+        costPrice: updated.costPrice
+      });
+      setInventory(inventory.map(i => i.id === item.id ? updated : i));
+      showToast("Inventory settings updated", "success");
+    } catch (err) {
+      showToast("Failed to save changes", "error");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -147,12 +163,20 @@ export function InventoryManager() {
           <p className="text-slate-500 text-sm mt-1">Monitor stock levels, costs, and product availability.</p>
         </div>
         <div className="flex gap-2">
-           <div className="px-4 py-2 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span className="text-xs font-bold text-amber-700">
-                {inventory.filter(i => i.stockCount <= i.lowStockThreshold).length} Low Stock Alerts
-              </span>
-           </div>
+            <button 
+              onClick={loadInventory}
+              disabled={isLoading}
+              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-xl transition"
+              title="Refresh Sync"
+            >
+              <HistoryIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            <div className="px-4 py-2 bg-amber-50 rounded-2xl border border-amber-100 flex items-center gap-2">
+               <AlertTriangle className="w-4 h-4 text-amber-600" />
+               <span className="text-xs font-bold text-amber-700">
+                 {inventory.filter(i => i.stockCount <= i.lowStockThreshold).length} Low Stock Alerts
+               </span>
+            </div>
         </div>
       </div>
 
@@ -218,12 +242,46 @@ export function InventoryManager() {
                           {isLow && <ShieldCheck className="w-4 h-4 text-amber-500" />}
                        </div>
                     </td>
-                    <td className="px-6 py-4">{formatCurrency(item.costPrice)}</td>
+                    <td className="px-6 py-4">
+                      <div className="group/edit relative flex items-center gap-1">
+                        <span className="pb-0.5">{formatCurrency(0).replace(/[0-9.,\s]/g, '')}</span>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          defaultValue={item.costPrice}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val) && val !== item.costPrice) {
+                              updateItemSettings(item, { costPrice: val });
+                            }
+                          }}
+                          className="w-16 bg-transparent border-b border-transparent hover:border-slate-200 focus:border-indigo-500 focus:ring-0 px-1 py-0.5 font-medium text-slate-600 outline-none transition"
+                        />
+                      </div>
+                    </td>
                     <td className="px-6 py-4 font-bold text-slate-900">{formatCurrency(item.price)}</td>
                     <td className="px-6 py-4">
                        <span className="text-emerald-600 font-bold">+{margin.toFixed(1)}%</span>
                     </td>
-                    <td className="px-6 py-4 text-right"></td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button 
+                           onClick={() => quickSale(item)}
+                           disabled={item.stockCount <= 0}
+                           className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors disabled:opacity-30"
+                           title="Quick Deduct (-1)"
+                         >
+                           <Layers className="w-4 h-4 rotate-180" />
+                         </button>
+                         <button 
+                           onClick={() => handleOpenRestock(item)}
+                           className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-1.5"
+                         >
+                           <Plus className="w-3 h-3" />
+                           Restock
+                         </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}

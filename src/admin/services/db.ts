@@ -431,3 +431,27 @@ export const claimCodeForRequest = async (
 
   return updatedCode.code;
 };
+
+/**
+ * Recalculates and updates the summary inventory collection based on live_stock data.
+ * This ensures that other parts of the system (like the storefront) have accurate counts.
+ */
+export const syncInventoryFromLiveStock = async (productId: string): Promise<void> => {
+  const q = query(
+    collection(db, "live_stock"),
+    where("productId", "==", productId),
+    where("status", "==", "Available")
+  );
+  const snap = await getDocs(q);
+  const count = snap.size;
+  const totalCost = snap.docs.reduce((sum, d) => sum + ((d.data() as DigitalCode).costBasisUSDT || 0), 0);
+  const avgCost = count > 0 ? totalCost / count : 0;
+
+  const inventoryRef = doc(db, "inventory", productId);
+  await setDoc(inventoryRef, {
+    id: productId,
+    stockCount: count,
+    costPrice: avgCost,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+};

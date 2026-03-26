@@ -15,6 +15,7 @@ import { SettingsPage } from './pages/Settings/Settings';
 import { USDTPurchases } from './pages/Finance/USDTPurchases';
 import { InventoryManager } from './pages/Inventory/InventoryManager';
 import { LiveStockManager } from './pages/Inventory/LiveStockManager';
+import { ManageStock } from './pages/Inventory/ManageStock';
 import AdminDashboard from '../../components/AdminDashboard';
 import ManageTestimonials from '../../components/ManageTestimonials';
 import { ToastProvider } from './components/ui/Toast';
@@ -46,8 +47,9 @@ export const AdminRoutes: React.FC<AdminRoutesProps> = ({ onLogout }) => {
           <Route path="history" element={<RenewalHistoryPage />} />
           <Route path="reports" element={<Reports />} />
           <Route path="finance/usdt" element={<USDTPurchases />} />
-          <Route path="inventory" element={<InventoryManager />} />
-          <Route path="live-stock" element={<LiveStockManager />} />
+          <Route path="manage-stock" element={<ManageStock />} />
+          <Route path="inventory" element={<ManageStock />} />
+          <Route path="live-stock" element={<ManageStock />} />
           <Route path="vendors" element={<VendorManager />} />
           <Route path="settings" element={<SettingsPage />} />
           

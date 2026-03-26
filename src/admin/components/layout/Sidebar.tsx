@@ -62,8 +62,7 @@ export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen }: SidebarProp
       label: "Store Management",
       items: [
         { name: "Products Catalog", href: "/admin/products", icon: Box },
-        { name: "Inventory", href: "/admin/inventory", icon: Package },
-        { name: "Live Stock", href: "/admin/live-stock", icon: Zap },
+        { name: "Manage Stock", href: "/admin/manage-stock", icon: Package },
         { name: "Vendors", href: "/admin/vendors", icon: Users },
       ],
     },
