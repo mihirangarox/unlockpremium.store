@@ -277,19 +277,25 @@ export const saveUSDTTransaction = async (transaction: USDTTransaction): Promise
   await setDoc(doc(db, "usdt_transactions", tx.id), tx);
 };
 
+export const deleteUSDTTransaction = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "usdt_transactions", id));
+};
+
 /**
  * Gets unspent USDT batches in FIFO order (oldest first).
  */
 export const getAvailableUSDTBatches = async (): Promise<USDTTransaction[]> => {
-  const q = query(
-    collection(db, "usdt_transactions"),
-    where("type", "==", "Inbound"),
-    where("isFullyUtilized", "==", false),
-    where("status", "==", "Completed"),
-    orderBy("date", "asc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map(d => d.data() as USDTTransaction);
+  // Fetch all to avoid complex composite index requirements
+  const snap = await getDocs(collection(db, "usdt_transactions"));
+  const all = snap.docs.map(d => d.data() as USDTTransaction);
+  
+  return all
+    .filter(tx => 
+      tx.type === 'Inbound' && 
+      tx.isFullyUtilized === false && 
+      tx.status === 'Completed'
+    )
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 };
 
 /**
