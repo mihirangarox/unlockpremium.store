@@ -4,16 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocalization } from '../../../context/LocalizationContext';
 import { useToast } from '../../components/ui/Toast';
 import * as db from "../../services/db";
-
-interface USDTTransaction {
-  id: string;
-  type: 'Inbound' | 'Outbound';
-  amount: number;
-  usdtRate: number; // USDT to Local Currency rate
-  date: string;
-  note: string;
-  status: 'Completed' | 'Pending';
-}
+import { USDTTransaction } from "../../types";
 
 export function USDTPurchases() {
   const { formatCurrency, formatDate } = useLocalization();
@@ -129,9 +120,10 @@ export function USDTPurchases() {
             <thead>
               <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 <th className="px-6 py-4">Type</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Rate</th>
-                <th className="px-6 py-4">Est. Value</th>
+                <th className="px-6 py-4">Total Amount</th>
+                <th className="px-6 py-4">Remaining</th>
+                <th className="px-6 py-4">Rate (GBP)</th>
+                <th className="px-6 py-4">GBP Spent</th>
                 <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4">Note</th>
                 <th className="px-6 py-4">Status</th>
@@ -139,7 +131,7 @@ export function USDTPurchases() {
             </thead>
             <tbody className="divide-y divide-slate-50 text-sm font-medium text-slate-600">
               {transactions.map(tx => (
-                <tr key={tx.id} className="hover:bg-slate-50/30 transition-colors">
+                <tr key={tx.id} className={`hover:bg-slate-50/30 transition-colors ${tx.isFullyUtilized ? 'opacity-50' : ''}`}>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
                       tx.type === 'Inbound' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
@@ -149,14 +141,23 @@ export function USDTPurchases() {
                     </span>
                   </td>
                   <td className="px-6 py-4 font-bold text-slate-900">{tx.amount.toFixed(2)} USDT</td>
+                  <td className="px-6 py-4">
+                    {tx.type === 'Inbound' ? (
+                      <span className={`font-bold ${tx.isFullyUtilized ? 'text-slate-400' : 'text-emerald-600'}`}>
+                        {tx.remainingAmount?.toFixed(2)} USDT
+                      </span>
+                    ) : '-'}
+                  </td>
                   <td className="px-6 py-4">1 USDT = {formatCurrency(tx.usdtRate)}</td>
-                  <td className="px-6 py-4 font-bold text-indigo-600">{formatCurrency(tx.amount * tx.usdtRate)}</td>
+                  <td className="px-6 py-4 font-bold text-indigo-600">
+                    {tx.type === 'Inbound' ? formatCurrency(tx.gbpTotalSpent || (tx.amount * tx.usdtRate)) : '-'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">{formatDate(tx.date)}</td>
                   <td className="px-6 py-4 max-w-[200px] truncate">{tx.note}</td>
                   <td className="px-6 py-4">
                     <span className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      {tx.status}
+                      <div className={`w-1.5 h-1.5 rounded-full ${tx.isFullyUtilized ? 'bg-slate-300' : 'bg-emerald-500'}`} />
+                      {tx.isFullyUtilized ? 'Fully Utilized' : tx.status}
                     </span>
                   </td>
                 </tr>

@@ -29,7 +29,8 @@ import type {
   Testimonial,
   Vendor,
   InventoryLog,
-  DigitalCode
+  DigitalCode,
+  USDTTransaction
 } from "../types/index";
 
 // ─── Products ───────────────────────────────────────────────────────────────
@@ -257,13 +258,94 @@ export const deleteTestimonial = async (id: string): Promise<void> => {
 
 // ─── Finance (USDT) ──────────────────────────────────────────────────────────
 
-export const getUSDTTransactions = async (): Promise<any[]> => {
+export const getUSDTTransactions = async (): Promise<USDTTransaction[]> => {
   const snap = await getDocs(query(collection(db, "usdt_transactions"), orderBy("date", "desc")));
-  return snap.docs.map(d => d.data());
+  return snap.docs.map(d => d.data() as USDTTransaction);
 };
 
-export const saveUSDTTransaction = async (transaction: any): Promise<void> => {
-  await setDoc(doc(db, "usdt_transactions", transaction.id), transaction);
+export const saveUSDTTransaction = async (transaction: USDTTransaction): Promise<void> => {
+  // Ensure FIFO fields are initialized for Inbound
+  const tx = { ...transaction };
+  if (tx.type === 'Inbound' && tx.remainingAmount === undefined) {
+    tx.remainingAmount = tx.amount;
+    tx.gbpTotalSpent = tx.amount * tx.usdtRate;
+    tx.isFullyUtilized = false;
+  }
+  if (tx.createdAt === undefined) {
+    tx.createdAt = new Date().toISOString();
+  }
+  await setDoc(doc(db, "usdt_transactions", tx.id), tx);
+};
+
+/**
+ * Gets unspent USDT batches in FIFO order (oldest first).
+ */
+export const getAvailableUSDTBatches = async (): Promise<USDTTransaction[]> => {
+  const q = query(
+    collection(db, "usdt_transactions"),
+    where("type", "==", "Inbound"),
+    where("isFullyUtilized", "==", false),
+    where("status", "==", "Completed"),
+    orderBy("date", "asc")
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map(d => d.data() as USDTTransaction);
+};
+
+/**
+ * Consumes USDT from available batches using FIFO logic.
+ * Returns an array of allocations showing which batches were used and at what rate.
+ */
+export const consumeUSDT = async (totalAmount: number, note: string): Promise<{batchId: string, amount: number, rate: number}[]> => {
+  const batches = await getAvailableUSDTBatches();
+  let remainingToConsume = totalAmount;
+  const allocations: {batchId: string, amount: number, rate: number}[] = [];
+  
+  const batch = writeBatch(db);
+  
+  for (const utx of batches) {
+    if (remainingToConsume <= 0) break;
+    
+    const availableInBatch = utx.remainingAmount;
+    const toConsumeFromThisBatch = Math.min(availableInBatch, remainingToConsume);
+    
+    allocations.push({
+      batchId: utx.id,
+      amount: toConsumeFromThisBatch,
+      rate: utx.usdtRate
+    });
+    
+    const updatedRemaining = availableInBatch - toConsumeFromThisBatch;
+    batch.update(doc(db, "usdt_transactions", utx.id), {
+      remainingAmount: updatedRemaining,
+      isFullyUtilized: updatedRemaining <= 0.001 // Floating point safety
+    });
+    
+    remainingToConsume -= toConsumeFromThisBatch;
+  }
+  
+  if (remainingToConsume > 0.001) {
+    throw new Error(`Insufficient USDT balance. Missing: ${remainingToConsume.toFixed(2)} USDT`);
+  }
+  
+  // Also create any auto-generated Outbound transaction to keep the balance correct
+  const outboundTx: USDTTransaction = {
+    id: `auto_out_${Date.now()}`,
+    type: 'Outbound',
+    amount: totalAmount,
+    usdtRate: 0, // Not applicable for outbound consumption itself
+    remainingAmount: 0,
+    gbpTotalSpent: 0,
+    date: new Date().toISOString().split('T')[0],
+    note: `Auto-deduction: ${note}`,
+    status: 'Completed',
+    isFullyUtilized: true,
+    createdAt: new Date().toISOString()
+  };
+  batch.set(doc(db, "usdt_transactions", outboundTx.id), outboundTx);
+  
+  await batch.commit();
+  return allocations;
 };
 
 // ─── Inventory ───────────────────────────────────────────────────────────────

@@ -47,6 +47,7 @@ export function ManageStock() {
     costType: 'unit' as 'unit' | 'total'
   });
   const [isAdding, setIsAdding] = useState(false);
+  const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
     loadAllData();
@@ -55,14 +56,21 @@ export function ManageStock() {
   const loadAllData = async () => {
     setIsLoading(true);
     try {
-      const [allProducts, allStock, allVendors] = await Promise.all([
+      const [allProducts, allStock, allVendors, allTxs] = await Promise.all([
         db.getProducts(),
         db.getLiveStock(),
-        db.getVendors()
+        db.getVendors(),
+        db.getUSDTTransactions()
       ]);
       setProducts(allProducts);
       setStock(allStock);
       setVendors(allVendors);
+
+      // Calc wallet balance
+      const balance = allTxs.reduce((sum, tx) => 
+        tx.type === 'Inbound' ? sum + tx.amount : sum - tx.amount, 0
+      );
+      setWalletBalance(balance);
       
       // Select first product by default if none selected
       if (!selectedProductId && allProducts.length > 0) {
@@ -90,17 +98,20 @@ export function ManageStock() {
     return products.map(product => {
       const productCodes = stock.filter(s => s.productId === product.id && s.status === 'Available');
       const inStockCount = productCodes.length;
-      const totalInventoryValue = productCodes.reduce((sum, s) => sum + (s.costBasisUSDT || 0), 0);
-      const avgCost = inStockCount > 0 ? totalInventoryValue / inStockCount : 0;
+      
+      // GBP Profit Tracking
+      const totalGBPCost = productCodes.reduce((sum, s) => sum + (s.gbpPurchaseCost || 0), 0);
+      const avgGBPCost = inStockCount > 0 ? totalGBPCost / inStockCount : 0;
       
       const sellingPrice = product.price || 0;
-      const margin = sellingPrice > 0 ? ((sellingPrice - avgCost) / sellingPrice) * 100 : 0;
+      // Margin calculated in GBP for accurate P2P reflection
+      const margin = sellingPrice > 0 ? ((sellingPrice - avgGBPCost) / sellingPrice) * 100 : 0;
       
       return {
         ...product,
         inStockCount,
-        totalInventoryValue,
-        avgCost,
+        totalInventoryValue: totalGBPCost, // Show in GBP
+        avgCost: avgGBPCost,
         margin,
         isLowStock: inStockCount <= 5 // Threshold
       };
@@ -148,30 +159,47 @@ export function ManageStock() {
         .filter(line => line.length > 0);
 
       const inputCost = parseFloat(formData.cost) || 0;
-      const unitCost = formData.costType === 'unit' ? inputCost : (inputCost / codes.length);
+      const totalUSDTBatchCost = formData.costType === 'unit' ? (inputCost * codes.length) : inputCost;
 
+      if (totalUSDTBatchCost > walletBalance) {
+        showToast(`Insufficient USDT balance. Needed: ${totalUSDTBatchCost.toFixed(2)}`, "error");
+        setIsAdding(false);
+        return;
+      }
+
+      // 1. Consume USDT using FIFO
+      const allocations = await db.consumeUSDT(totalUSDTBatchCost, `Purchase of ${codes.length} x ${selectedProduct?.name}`);
+      
+      // 2. Calculate average GBP cost for this batch
+      const totalGBPCost = allocations.reduce((sum, a) => sum + (a.amount * a.rate), 0);
+      const unitCostGBP = totalGBPCost / codes.length;
+      const unitCostUSDT = totalUSDTBatchCost / codes.length;
+
+      // 3. Create Codes
       const newCodes: DigitalCode[] = codes.map(codeString => ({
         id: `code_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         productId: formData.productId,
         productName: selectedProduct?.name || 'Unknown',
         code: codeString,
         duration: formData.duration as PlanDuration,
-        costBasisUSDT: unitCost,
+        costBasisUSDT: unitCostUSDT,
+        gbpPurchaseCost: unitCostGBP, // Anchored GBP cost
         vendorId: formData.vendorId,
         status: 'Available',
         createdAt: new Date().toISOString()
       }));
 
       await db.saveLiveStockBatch(newCodes);
-      // Sync inventory count for this product
+      
+      // 4. Sync inventory count and avg cost (including GBP)
       await db.syncInventoryFromLiveStock(formData.productId);
       
-      showToast(`Added ${codes.length} codes`, "success");
+      showToast(`Added ${codes.length} codes. Cost: ${formatCurrency(totalGBPCost)}`, "success");
       setIsAddModalOpen(false);
       setFormData({ productId: '', duration: '', codesText: '', vendorId: '', cost: '', costType: 'unit' });
       loadAllData();
-    } catch (err) {
-      showToast("Failed to add stock", "error");
+    } catch (err: any) {
+      showToast(err.message || "Failed to add stock", "error");
     } finally {
       setIsAdding(false);
     }
@@ -294,10 +322,10 @@ export function ManageStock() {
               <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
                 <th className="px-8 py-4">Product</th>
                 <th className="px-6 py-4">Category</th>
-                <th className="px-6 py-4">In Stock</th>
-                <th className="px-6 py-4">Avg Unit Cost</th>
+                <th className="px-6 py-4 text-center">In Stock</th>
+                <th className="px-6 py-4">Avg Cost (GBP)</th>
                 <th className="px-6 py-4">Selling Price</th>
-                <th className="px-6 py-4">Expected Margin</th>
+                <th className="px-6 py-4">Margin (GBP)</th>
                 <th className="px-6 py-4 text-right"></th>
               </tr>
             </thead>
@@ -462,7 +490,8 @@ export function ManageStock() {
                 <th className="px-6 py-4">Activation Code/Link</th>
                 <th className="px-6 py-4">Duration</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Buying Price</th>
+                <th className="px-6 py-4 text-slate-400">USDT Cost</th>
+                <th className="px-6 py-4">GBP Cost</th>
                 <th className="px-6 py-4">Vendor</th>
                 <th className="px-6 py-4">Added On</th>
                 <th className="px-6 py-4 text-right"></th>
@@ -514,8 +543,11 @@ export function ManageStock() {
                       {item.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 font-bold text-slate-900">
-                    {formatCurrency(item.costBasisUSDT)}
+                  <td className="px-6 py-4 font-bold text-slate-400">
+                    {item.costBasisUSDT?.toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 font-bold text-indigo-600">
+                    {formatCurrency(item.gbpPurchaseCost || 0)}
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-xs text-slate-500 uppercase font-bold">
@@ -678,28 +710,40 @@ export function ManageStock() {
                   </div>
                 </div>
 
-                <div className="flex gap-4 pt-6">
-                  <button 
-                    type="button" 
-                    onClick={() => setIsAddModalOpen(false)} 
-                    className="flex-1 py-5 text-slate-400 font-bold hover:text-slate-600 transition-colors"
-                  >
-                    Discard
-                  </button>
-                  <button 
-                    type="submit" 
-                    disabled={isAdding}
-                    className="flex-[2] py-5 px-10 bg-slate-900 text-white rounded-2xl font-black shadow-2xl shadow-slate-200 flex items-center justify-center gap-3 hover:translate-y-[-2px] transition-all active:translate-y-[0px]"
-                  >
-                    {isAdding ? (
-                      <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Save className="w-5 h-5" />
-                        Complete Upload
-                      </>
-                    )}
-                  </button>
+                <div className="flex flex-col gap-4 pt-4">
+                  <div className="flex items-center justify-between p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
+                    <div className="flex items-center gap-2">
+                      <Wallet className="w-4 h-4 text-indigo-600" />
+                      <span className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Available Wallet Balance</span>
+                    </div>
+                    <span className={`text-sm font-black ${walletBalance <= 0 ? 'text-rose-600' : 'text-indigo-600'}`}>
+                      {walletBalance.toFixed(2)} USDT
+                    </span>
+                  </div>
+
+                  <div className="flex gap-4 pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setIsAddModalOpen(false)} 
+                      className="flex-1 py-5 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+                    >
+                      Discard
+                    </button>
+                    <button 
+                      type="submit" 
+                      disabled={isAdding || walletBalance <= 0 || (formData.costType === 'unit' ? parseFloat(formData.cost) * formData.codesText.split('\n').filter(l => l.trim()).length : parseFloat(formData.cost)) > walletBalance}
+                      className="flex-[2] py-5 px-10 bg-slate-900 text-white rounded-2xl font-black shadow-2xl shadow-slate-200 flex items-center justify-center gap-3 hover:translate-y-[-2px] transition-all active:translate-y-[0px] disabled:bg-slate-200 disabled:translate-y-0 disabled:shadow-none"
+                    >
+                      {isAdding ? (
+                        <div className="w-6 h-6 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <Save className="w-5 h-5" />
+                          Complete Upload
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </form>
             </motion.div>

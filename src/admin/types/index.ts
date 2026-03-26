@@ -237,10 +237,26 @@ export interface DigitalCode {
   code: string;
   duration: PlanDuration;
   costBasisUSDT: number;
+  gbpPurchaseCost?: number; // New: Locked GBP cost at time of purchase
+  usdtBatchId?: string; // New: Reference to the source USDT batch
   vendorId?: string;
   status: 'Available' | 'Assigned' | 'Expired';
   assignedToRequestId?: string;
   assignedToSubscriptionId?: string; // New: For direct subscription renewal
   assignedAt?: string;
+  createdAt: string;
+}
+
+export interface USDTTransaction {
+  id: string;
+  type: 'Inbound' | 'Outbound';
+  amount: number;
+  usdtRate: number; // USDT to Local Currency rate
+  remainingAmount: number; // For FIFO consumption tracking
+  gbpTotalSpent: number; // amount * usdtRate
+  date: string;
+  note: string;
+  status: 'Completed' | 'Pending';
+  isFullyUtilized: boolean; // True when remainingAmount == 0
   createdAt: string;
 }
