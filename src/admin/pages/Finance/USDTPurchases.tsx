@@ -24,6 +24,21 @@ export function USDTPurchases() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<USDTTransaction | null>(null);
   
+  // Confirmation Modal
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false
+  });
+  
   // Add Modal (Legacy or quick add)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   
@@ -62,14 +77,14 @@ export function USDTPurchases() {
     const sorted = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     sorted.forEach(tx => {
-      const date = tx.date.split('T')[0];
-      let label = formatDate(date);
+      const dateStr = tx.date?.split('T')[0] || new Date().toISOString().split('T')[0];
+      let label = formatDate(dateStr);
       
       const today = new Date().toISOString().split('T')[0];
       const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
       
-      if (date === today) label = "Today";
-      else if (date === yesterday) label = "Yesterday";
+      if (dateStr === today) label = "Today";
+      else if (dateStr === yesterday) label = "Yesterday";
       
       if (!groups[label]) groups[label] = [];
       groups[label].push(tx);
@@ -197,20 +212,64 @@ export function USDTPurchases() {
               
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={async () => {
-                    if (confirm(`Delete ${selectedIds.length} transactions?`)) {
-                      await Promise.all(selectedIds.map(id => db.deleteUSDTTransaction(id)));
-                      setTransactions(transactions.filter(t => !selectedIds.includes(t.id)));
-                      setSelectedIds([]);
-                      showToast("Bulk delete successful", "success");
-                    }
+                  onClick={() => {
+                    setConfirmModal({
+                      isOpen: true,
+                      title: 'Delete Transactions',
+                      message: `Are you sure you want to delete ${selectedIds.length} transactions? This action cannot be undone.`,
+                      isDanger: true,
+                      onConfirm: async () => {
+                        try {
+                          await Promise.all(selectedIds.map(id => db.deleteUSDTTransaction(id)));
+                          setTransactions(prev => prev.filter(t => !selectedIds.includes(t.id)));
+                          setSelectedIds([]);
+                          showToast(`Successfully deleted ${selectedIds.length} transactions`, "success");
+                        } catch (error) {
+                          console.error("Bulk delete failed:", error);
+                          showToast("Failed to delete some transactions", "error");
+                        }
+                        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                      }
+                    });
                   }}
                   className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   Delete Selected
                 </button>
-                <button className="px-4 py-2 bg-white text-indigo-600 rounded-xl text-xs font-bold transition-all shadow-sm">
+                <button 
+                  onClick={() => {
+                    const selectedRows = transactions.filter(t => selectedIds.includes(t.id));
+                    const headers = ["ID", "Type", "Amount", "Rate", "GBP Spent", "Date", "Status", "Note"];
+                    const rows = selectedRows.map(t => [
+                      t.id, 
+                      t.type, 
+                      t.amount.toFixed(2), 
+                      t.usdtRate.toFixed(2), 
+                      t.type === 'Inbound' ? (t.gbpTotalSpent || t.amount * t.usdtRate).toFixed(2) : '-',
+                      t.date, 
+                      t.status, 
+                      t.note || ''
+                    ]);
+                    
+                    const csvContent = [
+                      headers,
+                      ...rows
+                    ].map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(",")).join("\n");
+                    
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement("a");
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute("href", url);
+                    link.setAttribute("download", `usdt_transactions_${new Date().toISOString().split('T')[0]}.csv`);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showToast("Exported to CSV", "success");
+                  }}
+                  className="px-4 py-2 bg-white text-indigo-600 rounded-xl text-xs font-bold transition-all shadow-sm hover:bg-indigo-50"
+                >
                   Export Selected
                 </button>
               </div>
@@ -354,12 +413,23 @@ export function USDTPurchases() {
                             <button 
                               className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                               title="Delete"
-                              onClick={async () => {
-                                if (confirm("Delete this transaction?")) {
-                                  await db.deleteUSDTTransaction(tx.id);
-                                  setTransactions(transactions.filter(t => t.id !== tx.id));
-                                  showToast("Transaction deleted", "success");
-                                }
+                              onClick={() => {
+                                setConfirmModal({
+                                  isOpen: true,
+                                  title: 'Delete Transaction',
+                                  message: 'Are you sure you want to delete this transaction?',
+                                  isDanger: true,
+                                  onConfirm: async () => {
+                                    try {
+                                      await db.deleteUSDTTransaction(tx.id);
+                                      setTransactions(prev => prev.filter(t => t.id !== tx.id));
+                                      showToast("Transaction deleted", "success");
+                                    } catch (error) {
+                                      showToast("Delete failed", "error");
+                                    }
+                                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                                  }
+                                });
                               }}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -591,6 +661,42 @@ export function USDTPurchases() {
                     Confirm Transaction
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8 text-center"
+            >
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${confirmModal.isDanger ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">{confirmModal.title}</h3>
+              <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+                {confirmModal.message}
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="flex-1 py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmModal.onConfirm}
+                  className={`flex-1 py-4 text-white rounded-2xl font-black shadow-lg transition-all hover:translate-y-[-2px] ${confirmModal.isDanger ? 'bg-rose-600 shadow-rose-200 hover:bg-rose-700' : 'bg-indigo-600 shadow-indigo-200 hover:bg-indigo-700'}`}
+                >
+                  Confirm
+                </button>
               </div>
             </motion.div>
           </div>
