@@ -252,11 +252,15 @@ export interface USDTTransaction {
   type: 'Inbound' | 'Outbound';
   amount: number;
   usdtRate: number; // USDT to Local Currency rate
+  gbpPaid?: number; // Total GBP paid for this Inbound batch
+  usdtReceived?: number; // Total USDT received for this Inbound batch
+  binanceId?: string; // Optional Binance P2P Transaction ID
+  parentId?: string; // For Outbound: reference to the Inbound batch it consumed
   remainingAmount: number; // For FIFO consumption tracking
-  gbpTotalSpent: number; // amount * usdtRate
+  gbpTotalSpent: number; // For Inbound: amount * usdtRate
   date: string;
   note: string;
-  status: 'Completed' | 'Pending';
+  status: 'Completed' | 'Pending' | 'Failed';
   isFullyUtilized: boolean; // True when remainingAmount == 0
   createdAt: string;
 }

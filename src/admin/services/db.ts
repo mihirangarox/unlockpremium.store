@@ -327,28 +327,29 @@ export const consumeUSDT = async (totalAmount: number, note: string): Promise<{b
       isFullyUtilized: updatedRemaining <= 0.001 // Floating point safety
     });
     
+    // Create an individual Outbound transaction for this specific batch allocation
+    const outboundTx: USDTTransaction = {
+      id: `out_${Date.now()}_${utx.id}`,
+      type: 'Outbound',
+      amount: toConsumeFromThisBatch,
+      usdtRate: utx.usdtRate, // Record the rate of the source batch
+      parentId: utx.id, // Link to the parent batch
+      remainingAmount: 0,
+      gbpTotalSpent: toConsumeFromThisBatch * utx.usdtRate,
+      date: new Date().toISOString(),
+      note: note,
+      status: 'Completed',
+      isFullyUtilized: true,
+      createdAt: new Date().toISOString()
+    };
+    batch.set(doc(db, "usdt_transactions", outboundTx.id), outboundTx);
+    
     remainingToConsume -= toConsumeFromThisBatch;
   }
   
   if (remainingToConsume > 0.001) {
     throw new Error(`Insufficient USDT balance. Missing: ${remainingToConsume.toFixed(2)} USDT`);
   }
-  
-  // Also create any auto-generated Outbound transaction to keep the balance correct
-  const outboundTx: USDTTransaction = {
-    id: `auto_out_${Date.now()}`,
-    type: 'Outbound',
-    amount: totalAmount,
-    usdtRate: 0, // Not applicable for outbound consumption itself
-    remainingAmount: 0,
-    gbpTotalSpent: 0,
-    date: new Date().toISOString().split('T')[0],
-    note: `Auto-deduction: ${note}`,
-    status: 'Completed',
-    isFullyUtilized: true,
-    createdAt: new Date().toISOString()
-  };
-  batch.set(doc(db, "usdt_transactions", outboundTx.id), outboundTx);
   
   await batch.commit();
   return allocations;

@@ -67,31 +67,37 @@ export function USDTPurchases() {
     }
   };
 
-  const totalBalance = transactions.reduce((sum, tx) => 
-    tx.type === 'Inbound' ? sum + tx.amount : sum - tx.amount, 0
-  );
-
-  // Group transactions by date
-  const groupedTransactions = React.useMemo(() => {
-    const groups: { [key: string]: USDTTransaction[] } = {};
-    const sorted = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const stats = React.useMemo(() => {
+    const inbound = transactions.filter(t => t.type === 'Inbound' && t.status === 'Completed');
+    const outbound = transactions.filter(t => t.type === 'Outbound' && t.status === 'Completed');
     
-    sorted.forEach(tx => {
-      const dateStr = tx.date?.split('T')[0] || new Date().toISOString().split('T')[0];
-      let label = formatDate(dateStr);
-      
-      const today = new Date().toISOString().split('T')[0];
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      
-      if (dateStr === today) label = "Today";
-      else if (dateStr === yesterday) label = "Yesterday";
-      
-      if (!groups[label]) groups[label] = [];
-      groups[label].push(tx);
-    });
+    const totalInbound = inbound.reduce((sum, t) => sum + t.amount, 0);
+    const totalOutbound = outbound.reduce((sum, t) => sum + t.amount, 0);
+    const totalGbpSpent = inbound.reduce((sum, t) => sum + (t.gbpPaid || (t.amount * t.usdtRate)), 0);
+    
+    return {
+      balance: totalInbound - totalOutbound,
+      totalInbound,
+      totalOutbound,
+      totalGbpSpent,
+      avgRate: totalInbound > 0 ? totalGbpSpent / totalInbound : 0
+    };
+  }, [transactions]);
+
+  // Visual FIFO: Separation of active vs fully utilized
+  const groupedTransactions = React.useMemo(() => {
+    const active = transactions.filter(t => !t.isFullyUtilized && t.type === 'Inbound');
+    // Manual Outbounds without parents are also "active" until they are fully consumed (though they have 0 remaining)
+    const activeOutbound = transactions.filter(t => !t.parentId && t.type === 'Outbound');
+    
+    const completed = transactions.filter(t => t.isFullyUtilized && t.type === 'Inbound');
+
+    const groups: { [key: string]: USDTTransaction[] } = {};
+    if ([...active, ...activeOutbound].length > 0) groups['Active Inventory & Batches'] = [...active, ...activeOutbound];
+    if (completed.length > 0) groups['Archived / Fully Utilized'] = completed;
     
     return groups;
-  }, [transactions, formatDate]);
+  }, [transactions]);
 
   const toggleSelectAll = () => {
     if (selectedIds.length === transactions.length) {
@@ -110,49 +116,63 @@ export function USDTPurchases() {
       showToast("Please enter a valid amount", "error");
       return;
     }
+    
     const tx: USDTTransaction = {
       ...newTx as USDTTransaction,
       id: `usdt_${Date.now()}`,
+      status: newTx.status || 'Completed',
+      remainingAmount: newTx.type === 'Inbound' ? (newTx.amount || 0) : 0,
+      gbpPaid: newTx.type === 'Inbound' ? (newTx.gbpPaid || 0) : 0,
+      usdtReceived: newTx.type === 'Inbound' ? (newTx.amount || 0) : 0,
+      gbpTotalSpent: newTx.type === 'Inbound' ? (newTx.gbpPaid || (newTx.amount * newTx.usdtRate)) : 0,
+      isFullyUtilized: false,
+      createdAt: new Date().toISOString(),
     };
     
     try {
       await db.saveUSDTTransaction(tx);
       setTransactions([tx, ...transactions]);
       setIsAddModalOpen(false);
-      showToast("Transaction synced", "success");
+      setNewTx({ type: 'Inbound', amount: 0, usdtRate: 1, status: 'Completed', date: new Date().toISOString().split('T')[0] });
+      showToast("Transaction added successfully", "success");
     } catch (error) {
-      console.error("Failed to save USDT transaction:", error);
-      showToast("Sync error", "error");
+      console.error("Add transaction failed:", error);
+      showToast("Failed to add transaction", "error");
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative min-h-screen pb-24">
+      {/* Floating Add Button */}
+      <motion.button 
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsAddModalOpen(true)}
+        className="fixed bottom-8 right-8 z-[100] w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl shadow-indigo-200 flex items-center justify-center hover:bg-indigo-700 transition-colors group"
+      >
+        <Plus className="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
+      </motion.button>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 leading-tight">USDT Wallet & Purchases</h2>
+          <h2 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">USDT Wallet <span className="text-indigo-600">&</span> Purchases</h2>
           <p className="text-slate-500 text-sm mt-1">Track cryptocurrency transactions and available balances.</p>
         </div>
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all"
-        >
-          <Plus className="w-4 h-4" />
-          Add Transaction
-        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-slate-900 rounded-3xl p-8 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
             <Bitcoin className="w-24 h-24 text-white" />
           </div>
           <div className="relative z-10">
-            <p className="text-indigo-300 text-xs font-black uppercase tracking-widest mb-2">Total Balance</p>
+            <p className="text-indigo-300 text-[10px] font-black uppercase tracking-widest mb-2">Total Balance</p>
             <h3 className="text-4xl font-black text-white flex items-baseline gap-2">
-              {totalBalance.toFixed(2)} <span className="text-xl font-bold text-indigo-400">USDT</span>
+              {stats.balance.toFixed(2)} <span className="text-xl font-bold text-indigo-400">USDT</span>
             </h3>
-            <div className="mt-6 flex items-center gap-2 text-emerald-400 text-sm font-bold">
+            <div className="mt-6 flex items-center gap-2 text-emerald-400 text-[10px] font-black uppercase tracking-widest">
               <TrendingUp className="w-4 h-4" />
               <span>Available for purchases</span>
             </div>
@@ -160,16 +180,28 @@ export function USDTPurchases() {
         </div>
 
         <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col justify-center">
-          <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Total Inbound</p>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Net Value Strategy</p>
+          <div className="space-y-1">
+            <p className="text-slate-500 text-xs font-medium leading-relaxed">
+              You've spent <span className="text-slate-900 font-black">{formatCurrency(stats.totalGbpSpent)}</span> to acquire <span className="text-slate-900 font-black">{stats.totalInbound.toFixed(2)} USDT</span>.
+            </p>
+            <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-2">
+              Avg Rate: {stats.avgRate.toFixed(4)} GBP/USDT
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col justify-center">
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Total Inbound</p>
           <p className="text-3xl font-black text-slate-900">
-            {transactions.filter(t => t.type === 'Inbound').reduce((s, t) => s + t.amount, 0).toFixed(2)} USDT
+            {stats.totalInbound.toFixed(2)} <span className="text-sm font-bold text-slate-400 uppercase">USDT</span>
           </p>
         </div>
 
         <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col justify-center">
-          <p className="text-slate-400 text-xs font-black uppercase tracking-widest mb-1">Total Outbound</p>
+          <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-1">Total Outbound</p>
           <p className="text-3xl font-black text-slate-900">
-            {transactions.filter(t => t.type === 'Outbound').reduce((s, t) => s + t.amount, 0).toFixed(2)} USDT
+            {stats.totalOutbound.toFixed(2)} <span className="text-sm font-bold text-slate-400 uppercase">USDT</span>
           </p>
         </div>
       </div>
@@ -280,167 +312,225 @@ export function USDTPurchases() {
         <div className="responsive-table-container">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <th className="px-6 py-4 w-12">
+              <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                <th className="px-6 py-4 w-12 text-center">
                   <input 
                     type="checkbox" 
                     checked={selectedIds.length === transactions.length && transactions.length > 0}
                     onChange={toggleSelectAll}
-                    className="rounded border-slate-200 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   />
                 </th>
-                <th className="px-6 py-4">Type</th>
-                <th className="px-6 py-4">Total Amount</th>
-                <th className="px-6 py-4">Remaining</th>
-                <th className="px-6 py-4">Rate (GBP)</th>
-                <th className="px-6 py-4">GBP Spent</th>
-                <th className="px-6 py-4">Note</th>
+                <th className="px-6 py-4">Transaction / Batch</th>
+                <th className="px-6 py-4">Investment & Progress</th>
+                <th className="px-6 py-4">Unit Rate</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="text-sm font-medium text-slate-600">
-              {Object.entries(groupedTransactions).map(([label, txs]) => (
-                <React.Fragment key={label}>
-                  <tr className="bg-slate-50/30">
-                    <td colSpan={9} className="px-6 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-50">
-                      {label}
-                    </td>
-                  </tr>
-                  {txs.map(tx => {
-                    const statusConfig = {
-                      'Completed': { bg: 'bg-emerald-500', icon: <CheckCircle2 className="w-3 h-3" /> },
-                      'Pending': { bg: 'bg-amber-500', icon: <Clock className="w-3 h-3" /> },
-                      'Failed': { bg: 'bg-rose-500', icon: <XCircle className="w-3 h-3" /> }
-                    };
-                    const status = tx.isFullyUtilized ? 'Fully Utilized' : tx.status;
-                    const isFullyUtilized = tx.isFullyUtilized;
+              {Object.entries(groupedTransactions).map(([label, txs]) => {
+                // Separate Inbound (Parents) and Outbound-without-parents
+                const parents = txs.filter(t => t.type === 'Inbound');
+                const orphanedOutbound = txs.filter(t => t.type === 'Outbound' && !t.parentId);
 
-                    return (
-                      <tr 
-                        key={tx.id} 
-                        className={`hover:bg-slate-50/30 transition-colors group ${isFullyUtilized ? 'opacity-40' : ''}`}
-                      >
-                        <td className="px-6 py-4">
+                return (
+                  <React.Fragment key={label}>
+                    <tr className="bg-slate-50/30">
+                      <td colSpan={6} className="px-6 py-2 text-[10px] font-black text-slate-400 uppercase tracking-widest border-y border-slate-50">
+                        {label}
+                      </td>
+                    </tr>
+                    
+                    {/* Render Parents and their Children */}
+                    {parents.map(parent => {
+                      const children = transactions.filter(t => t.parentId === parent.id);
+                      const usagePercent = parent.amount > 0 
+                        ? ((parent.amount - (parent.remainingAmount || 0)) / parent.amount) * 100 
+                        : 0;
+                      const isFullyUtilized = parent.isFullyUtilized;
+
+                      return (
+                        <React.Fragment key={parent.id}>
+                          {/* Parent Row */}
+                          <tr className={`hover:bg-slate-50/30 transition-all group border-b border-slate-50 ${isFullyUtilized ? 'opacity-50' : ''}`}>
+                            <td className="px-6 py-6 text-center align-top">
+                              <input 
+                                type="checkbox" 
+                                checked={selectedIds.includes(parent.id)}
+                                onChange={() => toggleSelectRow(parent.id)}
+                                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                            </td>
+                            <td className="px-6 py-6 max-w-xs align-top">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-widest border border-emerald-100">
+                                    <ArrowDownLeft className="w-2.5 h-2.5" />
+                                    Inbound
+                                  </span>
+                                  {parent.binanceId && (
+                                    <span className="text-[10px] font-bold text-slate-400">#{parent.binanceId}</span>
+                                  )}
+                                </div>
+                                <div className="text-lg font-black text-slate-900 leading-tight">
+                                  {parent.amount.toFixed(2)} <span className="text-slate-400 text-xs font-bold uppercase tracking-widest">USDT</span>
+                                </div>
+                                <div className="text-slate-500 text-xs font-medium leading-relaxed italic pr-4">
+                                  "{parent.note || 'No description provided'}"
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 align-top">
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.1em]">
+                                  <span className="text-slate-400">Usage Progress</span>
+                                  <span className={isFullyUtilized ? 'text-indigo-600' : 'text-emerald-600'}>
+                                    {isFullyUtilized ? 'Fully Utilized' : `${(parent.remainingAmount || 0).toFixed(2)} USDT Left`}
+                                  </span>
+                                </div>
+                                <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
+                                  <motion.div 
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${usagePercent}%` }}
+                                    className={`h-full ${isFullyUtilized ? 'bg-indigo-500' : 'bg-emerald-500'} rounded-full transition-all duration-1000`}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] font-bold">
+                                  <span className="text-slate-400">Total Spent</span>
+                                  <span className="text-indigo-600">{formatCurrency(parent.gbpTotalSpent || (parent.amount * parent.usdtRate))}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 align-top">
+                              <div className="space-y-1">
+                                <div className="text-xs font-black text-slate-900">
+                                  {formatCurrency(parent.usdtRate)} <span className="text-[10px] text-slate-400 uppercase tracking-widest">/ USDT</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-medium">Locked Cost Basis</p>
+                              </div>
+                            </td>
+                            <td className="px-6 py-6 align-top">
+                              <select
+                                value={parent.status}
+                                onChange={async (e) => {
+                                  const newStatus = e.target.value as any;
+                                  await db.saveUSDTTransaction({ ...parent, status: newStatus });
+                                  setTransactions(transactions.map(t => t.id === parent.id ? { ...t, status: newStatus } : t));
+                                  showToast(`Batch marked as ${newStatus}`, "success");
+                                }}
+                                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase text-white shadow-sm border-none cursor-pointer focus:ring-4 focus:ring-slate-100 ${
+                                  isFullyUtilized ? 'bg-indigo-600' : (parent.status === 'Completed' ? 'bg-emerald-600' : 'bg-slate-500')
+                                }`}
+                              >
+                                <option value="Completed">Completed</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Failed">Failed</option>
+                              </select>
+                            </td>
+                            <td className="px-6 py-6 text-right align-top">
+                              <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit3 className="w-4 h-4" /></button>
+                                <button className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Children (Outbound consumption) */}
+                          {children.map(child => (
+                            <tr key={child.id} className="bg-slate-50/20 group border-b border-slate-50/50">
+                              <td className="px-6 py-4 text-center">
+                                <span className="text-slate-300">└─</span>
+                              </td>
+                              <td className="px-6 py-4 pl-0" colSpan={4}>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-4">
+                                    <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest bg-rose-50 text-rose-600 border border-rose-100">
+                                      <ArrowUpRight className="w-2.5 h-2.5" />
+                                      Outbound
+                                    </span>
+                                    <div className="text-xs font-bold text-slate-600">
+                                      {child.note.replace('Auto-deduction: ', '')}
+                                    </div>
+                                    <div className="text-xs font-black text-rose-600">
+                                      -{child.amount.toFixed(2)} USDT
+                                    </div>
+                                  </div>
+                                  
+                                  <button 
+                                    onClick={() => {
+                                      const search = child.note.includes(': ') ? child.note.split(': ')[1] : '';
+                                      window.location.href = `/admin/manage-stock?search=${encodeURIComponent(search)}`;
+                                    }}
+                                    className="px-4 py-2 bg-white text-indigo-600 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2 group/btn"
+                                  >
+                                    <Eye className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
+                                    View Source Codes
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <button 
+                                  onClick={() => {
+                                    setConfirmModal({
+                                      isOpen: true,
+                                      title: 'Delete Allocation',
+                                      message: 'This will remove the transaction log but won\'t restore balance to the batch. Use with caution.',
+                                      isDanger: true,
+                                      onConfirm: async () => {
+                                        await db.deleteUSDTTransaction(child.id);
+                                        setTransactions(prev => prev.filter(t => t.id !== child.id));
+                                        setConfirmModal(p => ({ ...p, isOpen: false }));
+                                        showToast("Allocation log removed", "success");
+                                      }
+                                    });
+                                  }}
+                                  className="p-2 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {/* Render Orphaned Outbounds */}
+                    {orphanedOutbound.map(tx => (
+                      <tr key={tx.id} className="hover:bg-slate-50/30 transition-all group border-b border-slate-50">
+                        <td className="px-6 py-4 text-center">
                           <input 
                             type="checkbox" 
                             checked={selectedIds.includes(tx.id)}
                             onChange={() => toggleSelectRow(tx.id)}
-                            className="rounded border-slate-200 text-indigo-600 focus:ring-indigo-500"
+                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                           />
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
-                            tx.type === 'Inbound' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
-                          }`}>
-                            {tx.type === 'Inbound' ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
-                            {tx.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 font-bold text-slate-900">{tx.amount.toFixed(2)} USDT</td>
-                        <td className="px-6 py-4">
-                          {tx.type === 'Inbound' ? (
-                            <span className={`font-bold ${isFullyUtilized ? 'text-slate-400' : 'text-emerald-600'}`}>
-                              {tx.remainingAmount?.toFixed(2)} USDT
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">
+                              <ArrowUpRight className="w-2.5 h-2.5" />
+                              Manual Outbound
                             </span>
-                          ) : '-'}
+                          </div>
+                          <div className="text-sm font-black text-slate-900">{tx.amount.toFixed(2)} USDT</div>
+                          <div className="text-slate-500 text-[10px] font-medium truncate max-w-[200px] mt-1">{tx.note}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {tx.usdtRate > 10 ? (
-                            <div className="flex items-center gap-1 text-amber-600 hover:text-amber-700 cursor-help" title="Unusually high exchange rate">
-                              <AlertCircle className="w-3 h-3" />
-                              1 USDT = {formatCurrency(tx.usdtRate)}
-                            </div>
-                          ) : (
-                            `1 USDT = ${formatCurrency(tx.usdtRate)}`
-                          )}
-                        </td>
-                        <td className="px-6 py-4 font-bold text-indigo-600">
-                          {tx.type === 'Inbound' ? formatCurrency(tx.gbpTotalSpent || (tx.amount * tx.usdtRate)) : '-'}
-                        </td>
-                        <td className="px-6 py-4 max-w-[200px]">
-                          {tx.note?.startsWith('Restock cost:') ? (
-                            <a 
-                              href={`/admin/manage-stock?search=${tx.note.split(': ')[1]}`}
-                              className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 font-bold transition-colors group/link"
-                            >
-                              <span className="truncate">{tx.note}</span>
-                              <ExternalLink className="w-3 h-3 shrink-0 opacity-0 group-hover/link:opacity-100 transition-opacity" />
-                            </a>
-                          ) : (
-                            <div 
-                              onClick={() => {
-                                setEditingTx(tx);
-                                setIsDrawerOpen(true);
-                              }}
-                              className="flex items-center gap-2 group/note cursor-pointer hover:text-indigo-600 transition-colors"
-                            >
-                              <span className="truncate">{tx.note || '(No note)'}</span>
-                              <Edit3 className="w-3 h-3 opacity-0 group-hover/note:opacity-100 transition-opacity" />
-                            </div>
-                          )}
+                        <td colSpan={2} className="px-6 py-4">
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">General Deduction</div>
                         </td>
                         <td className="px-6 py-4">
-                          <select
-                            value={tx.status}
-                            onChange={async (e) => {
-                              const newStatus = e.target.value as any;
-                              await db.saveUSDTTransaction({ ...tx, status: newStatus });
-                              setTransactions(transactions.map(t => t.id === tx.id ? { ...t, status: newStatus } : t));
-                              showToast(`Status updated to ${newStatus}`, "success");
-                            }}
-                            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase text-white shadow-sm border-none cursor-pointer focus:ring-2 focus:ring-offset-1 focus:ring-slate-400 ${
-                              isFullyUtilized ? 'bg-slate-400' : (statusConfig[tx.status as keyof typeof statusConfig]?.bg || 'bg-slate-500')
-                            }`}
-                          >
-                            <option value="Completed" className="bg-white text-slate-900">Completed</option>
-                            <option value="Pending" className="bg-white text-slate-900">Pending</option>
-                            <option value="Failed" className="bg-white text-slate-900">Failed</option>
-                          </select>
+                           <span className="px-3 py-1 bg-slate-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">{tx.status}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button 
-                              onClick={() => {
-                                setEditingTx(tx);
-                                setIsDrawerOpen(true);
-                              }}
-                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
-                              title="Edit Transaction"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                            </button>
-                            <button 
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
-                              title="Delete"
-                              onClick={() => {
-                                setConfirmModal({
-                                  isOpen: true,
-                                  title: 'Delete Transaction',
-                                  message: 'Are you sure you want to delete this transaction?',
-                                  isDanger: true,
-                                  onConfirm: async () => {
-                                    try {
-                                      await db.deleteUSDTTransaction(tx.id);
-                                      setTransactions(prev => prev.filter(t => t.id !== tx.id));
-                                      showToast("Transaction deleted", "success");
-                                    } catch (error) {
-                                      showToast("Delete failed", "error");
-                                    }
-                                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                                  }
-                                });
-                              }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
+                          <button onClick={() => db.deleteUSDTTransaction(tx.id)} className="p-2 text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
                         </td>
                       </tr>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+                    ))}
+                  </React.Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -588,77 +678,161 @@ export function USDTPurchases() {
       {/* Add Transaction Modal */}
       <AnimatePresence>
         {isAddModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-8"
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-xl shadow-2xl overflow-hidden"
             >
-              <h3 className="text-xl font-bold text-slate-900 mb-6">Add USDT Transaction</h3>
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => setNewTx({ ...newTx, type: 'Inbound' })}
-                    className={`flex-1 py-3 rounded-2xl text-xs font-black uppercase tracking-widest border-2 transition-all ${
-                      newTx.type === 'Inbound' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-400 hover:border-slate-200'
-                    }`}
-                  >
-                    Inbound
-                  </button>
-                  <button 
-                    onClick={() => setNewTx({ ...newTx, type: 'Outbound' })}
-                    className={`flex-1 py-3 rounded-2xl text-xs font-black uppercase tracking-widest border-2 transition-all ${
-                      newTx.type === 'Outbound' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-100 text-slate-400 hover:border-slate-200'
-                    }`}
-                  >
-                    Outbound
-                  </button>
-                </div>
+              <div className={`p-8 flex items-center justify-between ${newTx.type === 'Inbound' ? 'bg-emerald-600' : 'bg-rose-600'} text-white`}>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Amount (USDT)</label>
-                  <input 
-                    type="number" 
-                    value={newTx.amount}
-                    onChange={(e) => setNewTx({ ...newTx, amount: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
-                  />
+                  <h3 className="text-2xl font-black tracking-tight">Add Transaction</h3>
+                  <p className="text-white/70 text-xs font-bold uppercase tracking-widest mt-1">Manual Entry & FIFO Log</p>
                 </div>
+                <button 
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-all"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-8">
+                {/* Type Toggle */}
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Exchange Rate (Local)</label>
-                  <div className="relative">
-                    <input 
-                      type="number" 
-                      value={newTx.usdtRate}
-                      onChange={(e) => setNewTx({ ...newTx, usdtRate: parseFloat(e.target.value) })}
-                      className={`w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900 ${(newTx.usdtRate || 0) > 10 ? 'ring-2 ring-amber-500' : ''}`}
-                    />
-                    {(newTx.usdtRate || 0) > 10 && (
-                      <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500" />
-                    )}
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 block text-center">Transaction Direction</label>
+                  <div className="flex p-1.5 bg-slate-100 rounded-3xl gap-2">
+                    <button 
+                      onClick={() => setNewTx({ ...newTx, type: 'Inbound' })}
+                      className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                        newTx.type === 'Inbound' ? 'bg-emerald-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      Inbound (Replenish)
+                    </button>
+                    <button 
+                      onClick={() => setNewTx({ ...newTx, type: 'Outbound' })}
+                      className={`flex-1 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                        newTx.type === 'Outbound' ? 'bg-rose-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      Outbound (Usage)
+                    </button>
                   </div>
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Note</label>
-                  <input 
-                    type="text" 
-                    value={newTx.note}
+
+                {newTx.type === 'Inbound' ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Amount Paid (GBP)</label>
+                        <div className="relative group">
+                          <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold">£</div>
+                          <input 
+                            type="number" 
+                            placeholder="0.00"
+                            value={newTx.gbpPaid || ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const rate = newTx.amount ? val / newTx.amount : 0;
+                              setNewTx({ ...newTx, gbpPaid: val, usdtRate: rate });
+                            }}
+                            className="w-full pl-12 pr-6 py-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500/20 focus:bg-white rounded-3xl font-black text-2xl text-slate-900 transition-all outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Amount Received (USDT)</label>
+                        <div className="relative group">
+                          <input 
+                            type="number" 
+                            placeholder="0.00"
+                            value={newTx.amount || ''}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value) || 0;
+                              const rate = val > 0 ? (newTx.gbpPaid || 0) / val : 0;
+                              setNewTx({ ...newTx, amount: val, usdtRate: rate });
+                            }}
+                            className="w-full px-6 py-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500/20 focus:bg-white rounded-3xl font-black text-2xl text-slate-900 transition-all outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Auto-rate Message */}
+                    <div className="p-4 bg-indigo-50/50 rounded-2xl flex items-center justify-between border border-indigo-100/50">
+                      <div className="flex items-center gap-2 text-indigo-600">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest">Effective Rate</span>
+                      </div>
+                      <div className="text-indigo-900 font-black">
+                        1 USDT = {formatCurrency(newTx.usdtRate || 0)}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Amount to Deduct (USDT)</label>
+                    <div className="relative group">
+                      <input 
+                        type="number" 
+                        placeholder="0.00"
+                        value={newTx.amount || ''}
+                        onChange={(e) => setNewTx({ ...newTx, amount: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-6 py-5 bg-slate-50 border-2 border-transparent focus:border-rose-500/20 focus:bg-white rounded-3xl font-black text-2xl text-slate-900 transition-all outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Binance P2P ID (Optional)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. 20421394..."
+                      value={newTx.binanceId || ''}
+                      onChange={(e) => setNewTx({ ...newTx, binanceId: e.target.value })}
+                      className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-slate-200 focus:bg-white rounded-2xl font-bold text-slate-900 transition-all outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Date</label>
+                    <input 
+                      type="date" 
+                      value={newTx.date}
+                      onChange={(e) => setNewTx({ ...newTx, date: e.target.value })}
+                      className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-slate-200 focus:bg-white rounded-2xl font-bold text-slate-900 transition-all outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] block">Internal Note</label>
+                  <textarea 
+                    placeholder="Describe this transaction..."
+                    value={newTx.note || ''}
                     onChange={(e) => setNewTx({ ...newTx, note: e.target.value })}
-                    className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-900"
+                    rows={2}
+                    className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-slate-200 focus:bg-white rounded-2xl font-bold text-slate-900 transition-all outline-none resize-none"
                   />
                 </div>
-                <div className="flex gap-3 mt-8">
+
+                <div className="flex gap-4 pt-4">
                   <button 
                     onClick={() => setIsAddModalOpen(false)}
-                    className="flex-1 py-4 text-slate-400 font-bold hover:text-slate-600"
+                    className="flex-1 py-5 text-slate-400 font-black uppercase tracking-widest text-[10px] hover:text-slate-600 transition-colors"
                   >
                     Cancel
                   </button>
                   <button 
                     onClick={handleAddTransaction}
-                    className="flex-2 py-4 px-8 bg-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all"
+                    className={`flex-[2] py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-xs text-white shadow-xl transition-all hover:translate-y-[-2px] ${
+                      newTx.type === 'Inbound' ? 'bg-emerald-600 shadow-emerald-200' : 'bg-rose-600 shadow-rose-200'
+                    }`}
                   >
-                    Confirm Transaction
+                    Complete Transaction
                   </button>
                 </div>
               </div>
