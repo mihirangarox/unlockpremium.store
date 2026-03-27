@@ -19,7 +19,11 @@ export interface Customer {
   linkedinUrl: string;
   country: string;
   leadSource: string;
-  notes: string | CustomerNote[]; // Supporting both temporarily for migration
+  notes: string | CustomerNote[]; // Historical notes/activity
+  internalNotes?: string; // Admin-only private notes
+  discountTier?: 'Bronze' | 'Silver' | 'Gold' | 'Platinum';
+  fixedPrice?: number; // Special locked price for loyal customers
+  orderCount?: number; // Cached count for performance
   reminderPreferences?: {
     days: number[];
     channel: 'WhatsApp' | 'Email' | 'SMS';

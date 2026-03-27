@@ -69,6 +69,26 @@ export const saveCustomer = async (customer: Customer): Promise<void> => {
   await setDoc(doc(db, "customers", customer.id), customer);
 };
 
+export const findCustomerByIdentity = async (whatsapp?: string, email?: string): Promise<Customer | undefined> => {
+  if (!whatsapp && !email) return undefined;
+  
+  // Try WhatsApp first
+  if (whatsapp) {
+    const q = query(collection(db, "customers"), where("whatsappNumber", "==", whatsapp), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) return snap.docs[0].data() as Customer;
+  }
+  
+  // Then try Email
+  if (email) {
+    const q = query(collection(db, "customers"), where("email", "==", email), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) return snap.docs[0].data() as Customer;
+  }
+  
+  return undefined;
+};
+
 export const deleteCustomer = async (id: string): Promise<void> => {
   const batch = writeBatch(db);
 
@@ -94,7 +114,43 @@ export const deleteCustomer = async (id: string): Promise<void> => {
   await batch.commit();
 };
 
-// ─── Subscriptions ────────────────────────────────────────────────────────────
+/**
+ * Merges two customer profiles. 
+ * Moves all subscriptions, requests, and history from sourceId to targetId.
+ */
+export const mergeCustomers = async (sourceId: string, targetId: string): Promise<void> => {
+  const batch = writeBatch(db);
+  
+  // 1. Get all subscriptions for source
+  const subs = await getCustomerSubscriptions(sourceId);
+  subs.forEach(sub => {
+    batch.update(doc(db, "subscriptions", sub.id), { customerId: targetId });
+  });
+
+  // 2. Get all renewal history for source
+  const historySnap = await getDocs(
+    query(collection(db, "renewal_history"), where("customerId", "==", sourceId))
+  );
+  historySnap.docs.forEach(d => {
+    batch.update(doc(db, "renewal_history", d.id), { customerId: targetId });
+  });
+
+  // 3. Move activity logs
+  const logsSnap = await getDocs(
+    query(collection(db, "activity_logs"), where("customerId", "==", sourceId))
+  );
+  logsSnap.docs.forEach(d => {
+    batch.update(doc(db, "activity_logs", d.id), { customerId: targetId });
+  });
+
+  // 4. Delete the source customer
+  batch.delete(doc(db, "customers", sourceId));
+  
+  await batch.commit();
+
+  // 5. Update the target customer's order count
+  await updateCustomerOrderCount(targetId);
+};
 
 export const getSubscriptions = async (): Promise<Subscription[]> => {
   const snap = await getDocs(collection(db, "subscriptions"));
@@ -192,11 +248,30 @@ export const getCustomerValue = async (customerId: string): Promise<number> => {
   return snap.docs.reduce((sum, d) => sum + (d.data() as RenewalHistory).amount, 0);
 };
 
+/**
+ * Updates the order count for a customer by checking all subscriptions.
+ */
+export const updateCustomerOrderCount = async (customerId: string): Promise<number> => {
+  const subs = await getCustomerSubscriptions(customerId);
+  const count = subs.length;
+  await setDoc(doc(db, "customers", customerId), { orderCount: count }, { merge: true });
+  return count;
+};
+
 // ─── Requests (Intake) ────────────────────────────────────────────────────────
 
 export const getRequests = async (): Promise<IntakeRequest[]> => {
   const snap = await getDocs(query(collection(db, "requests"), orderBy("createdAt", "desc")));
   return snap.docs.map(d => d.data() as IntakeRequest);
+};
+
+export const getRequestsByContact = async (whatsapp?: string, email?: string): Promise<IntakeRequest[]> => {
+  if (!whatsapp && !email) return [];
+  const all = await getRequests();
+  return all.filter(r => 
+    (whatsapp && r.whatsappNumber === whatsapp) || 
+    (email && r.email === email)
+  );
 };
 
 export const getRequest = async (id: string): Promise<IntakeRequest | undefined> => {
@@ -401,6 +476,16 @@ export const saveInventoryLog = async (log: InventoryLog): Promise<void> => {
 export const getLiveStock = async (): Promise<DigitalCode[]> => {
   const snap = await getDocs(query(collection(db, "live_stock"), orderBy("createdAt", "desc")));
   return snap.docs.map(d => d.data() as DigitalCode);
+};
+
+export const getCustomerDigitalCodes = async (whatsapp?: string, email?: string): Promise<DigitalCode[]> => {
+  const requests = await getRequestsByContact(whatsapp, email);
+  const requestIds = requests.map(r => r.id);
+  
+  if (requestIds.length === 0) return [];
+  
+  const allCodes = await getLiveStock();
+  return allCodes.filter(c => c.assignedToRequestId && requestIds.includes(c.assignedToRequestId));
 };
 
 export const getAvailableLiveStock = async (): Promise<DigitalCode[]> => {

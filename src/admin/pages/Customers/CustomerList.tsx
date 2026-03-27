@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Filter, Plus, User, Mail, Phone, MoreHorizontal, Trash2, Calendar, MessageCircle, ExternalLink, Check, X, Download, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Search, Filter, Plus, User, Mail, Phone, MoreHorizontal, Trash2, Calendar, MessageCircle, ExternalLink, Check, X, Download, AlertCircle, CheckCircle2, ShieldCheck, Star, GitMerge } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import * as db from "../../services/db";
 import { useToast } from "../../components/ui/Toast";
@@ -24,6 +24,12 @@ export function CustomerList() {
   // Modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<{id: string, name: string} | null>(null);
+  
+  // Merge state
+  const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
+  const [mergeSource, setMergeSource] = useState<Customer | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<Customer | null>(null);
+  const [isMerging, setIsMerging] = useState(false);
 
   // Search persistence with debounce
   useEffect(() => {
@@ -173,12 +179,29 @@ export function CustomerList() {
   };
 
   const isPotentialDuplicate = (customer: Customer) => {
-    return customers.some(c => 
+    return customers.find(c => 
       c.id !== customer.id && 
       (c.fullName.toLowerCase() === customer.fullName.toLowerCase() || 
        c.email.toLowerCase() === customer.email.toLowerCase() && c.email !== '' ||
        c.whatsappNumber === customer.whatsappNumber && c.whatsappNumber !== '')
     );
+  };
+
+  const handleMerge = async () => {
+    if (!mergeSource || !mergeTarget) return;
+    setIsMerging(true);
+    try {
+      await db.mergeCustomers(mergeSource.id, mergeTarget.id);
+      setCustomers(prev => prev.filter(c => c.id !== mergeSource.id));
+      showToast(`${mergeSource.fullName} merged into ${mergeTarget.fullName}`, "success");
+      setIsMergeModalOpen(false);
+    } catch (error) {
+      showToast("Merge failed", "error");
+    } finally {
+      setIsMerging(false);
+      setMergeSource(null);
+      setMergeTarget(null);
+    }
   };
 
   return (
@@ -311,8 +334,27 @@ export function CustomerList() {
                                   {customer.fullName}
                                 </Link>
                                 {isDuplicate && (
-                                  <span title="Potential duplicate entry">
-                                    <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                                  <button 
+                                    onClick={() => {
+                                      setMergeSource(customer);
+                                      setMergeTarget(isDuplicate);
+                                      setIsMergeModalOpen(true);
+                                    }}
+                                    className="p-1 hover:bg-amber-100 rounded-md transition-colors"
+                                    title={`Merge duplicate with ${isDuplicate.fullName}`}
+                                  >
+                                    <GitMerge className="w-3.5 h-3.5 text-amber-600" />
+                                  </button>
+                                )}
+                                {customer.orderCount && customer.orderCount > 1 && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black" title={`${customer.orderCount} Orders`}>
+                                    <ShieldCheck className="w-3 h-3" />
+                                    {customer.orderCount}
+                                  </span>
+                                )}
+                                {customer.orderCount && customer.orderCount >= 5 && (
+                                  <span title="VIP Customer (5+ Orders)">
+                                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 animate-pulse" />
                                   </span>
                                 )}
                               </div>
@@ -448,6 +490,20 @@ export function CustomerList() {
           )}
         </AnimatePresence>
       </div>
+
+      <ConfirmDialog
+        isOpen={isMergeModalOpen}
+        onClose={() => {
+          setIsMergeModalOpen(false);
+          setMergeSource(null);
+          setMergeTarget(null);
+        }}
+        onConfirm={handleMerge}
+        title="Merge Customer Profiles"
+        message={mergeSource && mergeTarget ? `Are you sure you want to merge ${mergeSource.fullName} into ${mergeTarget.fullName}? All history will be moved and ${mergeSource.fullName} will be deleted.` : ""}
+        confirmLabel={isMerging ? "Merging..." : "Merge Records"}
+        isDestructive={false}
+      />
 
       <ConfirmDialog
         isOpen={isDeleteModalOpen}

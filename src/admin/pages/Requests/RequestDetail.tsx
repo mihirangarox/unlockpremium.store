@@ -139,22 +139,41 @@ export function RequestDetail() {
     setIsProcessing(true);
     try {
       const now = new Date().toISOString();
-      const customerId = `cu_${Date.now()}`;
       
-      // 1. Create Customer
-      const customer: Customer = {
-        id: customerId,
-        fullName: request.fullName,
-        whatsappNumber: request.whatsappNumber || "",
-        email: request.email || "",
-        linkedinUrl: request.linkedinUrl || "",
-        country: "Unknown", 
-        leadSource: request.preferredContact === 'Reddit' ? 'Reddit' : 'Organic',
-        notes: request.notes,
-        status: "Active",
-        createdAt: now,
-        updatedAt: now
-      };
+      // IDENTITY-BASED DEDUPLICATION
+      // Check if customer already exists by WhatsApp or Email
+      const existingCustomer = await db.findCustomerByIdentity(
+        request.whatsappNumber || undefined, 
+        request.email || undefined
+      );
+
+      let customerId = existingCustomer?.id;
+      
+      if (existingCustomer) {
+        // Update existing customer metadata if needed
+        const updatedCustomer: Customer = {
+          ...existingCustomer,
+          updatedAt: now
+        };
+        await db.saveCustomer(updatedCustomer);
+      } else {
+        // Create New Customer
+        customerId = `cu_${Date.now()}`;
+        const customer: Customer = {
+          id: customerId,
+          fullName: request.fullName,
+          whatsappNumber: request.whatsappNumber || "",
+          email: request.email || "",
+          linkedinUrl: request.linkedinUrl || "",
+          country: "Unknown", 
+          leadSource: request.preferredContact === 'Reddit' ? 'Reddit' : 'Organic',
+          notes: request.notes,
+          status: "Active",
+          createdAt: now,
+          updatedAt: now
+        };
+        await db.saveCustomer(customer);
+      }
 
       // 2. Create Subscription
       const subId = `su_${Date.now()}`;
@@ -200,11 +219,15 @@ export function RequestDetail() {
       };
 
       // Save everything
-      await db.saveCustomer(customer);
       await db.saveSubscription(subscription);
       await db.saveRequest(updatedRequest);
       
       await db.logTransaction(subscription);
+      
+      // Update order count for the "Loyalty" system
+      if (customerId) {
+        await db.updateCustomerOrderCount(customerId);
+      }
       
       setRequest(updatedRequest);
       

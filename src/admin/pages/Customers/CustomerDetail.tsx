@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Phone, Mail, Globe, Clock, Edit, Trash2, Shield, MessageSquare, TrendingUp, Linkedin, Activity, Plus, Hash } from "lucide-react";
+import { ArrowLeft, Phone, Mail, Globe, Clock, Edit, Trash2, Shield, MessageSquare, TrendingUp, Linkedin, Activity, Plus, Hash, ShieldCheck, Star, Tag, DollarSign, ClipboardList, Save, X } from "lucide-react";
 import * as db from "../../services/db";
 import { useToast } from "../../components/ui/Toast";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
-import type { Customer, Subscription, CustomerNote } from "../../types/index";
+import type { Customer, Subscription, CustomerNote, DigitalCode } from "../../types/index";
 import { getDaysLeft, formatDaysLeft, getDaysLeftColorClass } from "../../utils/dateUtils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export function CustomerDetail() {
   const { showToast } = useToast();
@@ -14,12 +14,19 @@ export function CustomerDetail() {
   const navigate = useNavigate();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [assignedCodes, setAssignedCodes] = useState<DigitalCode[]>([]);
   const [lifetimeValue, setLifetimeValue] = useState(0);
   
   // Modal & Input state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [newNote, setNewNote] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
+  
+  // Admin Settings Editing
+  const [isEditingAdmin, setIsEditingAdmin] = useState(false);
+  const [internalNotes, setInternalNotes] = useState("");
+  const [discountTier, setDiscountTier] = useState<Customer['discountTier']>('Bronze');
+  const [fixedPrice, setFixedPrice] = useState("");
 
   useEffect(() => {
     if (id) {
@@ -27,12 +34,18 @@ export function CustomerDetail() {
         const foundCustomer = await db.getCustomer(id);
         if (foundCustomer) {
           setCustomer(foundCustomer);
-          const [subs, value] = await Promise.all([
+          setInternalNotes(foundCustomer.internalNotes || "");
+          setDiscountTier(foundCustomer.discountTier || "Bronze");
+          setFixedPrice(foundCustomer.fixedPrice?.toString() || "");
+
+          const [subs, value, codes] = await Promise.all([
             db.getCustomerSubscriptions(id),
-            db.getCustomerValue(id)
+            db.getCustomerValue(id),
+            db.getCustomerDigitalCodes(foundCustomer.whatsappNumber, foundCustomer.email)
           ]);
           setSubscriptions(subs);
           setLifetimeValue(value);
+          setAssignedCodes(codes);
         }
       })();
     }
@@ -54,7 +67,7 @@ export function CustomerDetail() {
       text: newNote.trim()
     };
 
-    const updatedCustomer = {
+    const updatedCustomer: Customer = {
       ...customer,
       notes: Array.isArray(customer.notes) ? [note, ...customer.notes] : [note],
       updatedAt: new Date().toISOString()
@@ -65,6 +78,57 @@ export function CustomerDetail() {
     setNewNote("");
     setIsAddingNote(false);
     showToast("Note added to timeline", "success");
+  };
+
+  const handleSaveAdminSettings = async () => {
+    if (!customer) return;
+
+    const updatedCustomer: Customer = {
+      ...customer,
+      internalNotes,
+      discountTier,
+      fixedPrice: fixedPrice ? parseFloat(fixedPrice) : undefined,
+      updatedAt: new Date().toISOString()
+    };
+
+    await db.saveCustomer(updatedCustomer);
+    setCustomer(updatedCustomer);
+    setIsEditingAdmin(false);
+    showToast("Admin settings updated", "success");
+  };
+
+  const handleQuickRenew = async (sub: Subscription) => {
+    if (!customer) return;
+    
+    // Logic: Create a new renewal record using fixedPrice if available, otherwise market price
+    const renewalPrice = customer.fixedPrice || sub.price;
+    const daysToAdd = sub.planDuration === '1M' ? 30 : 365; // Corrected from '1 Month' to '1M'
+    const newRenewalDate = new Date(new Date(sub.renewalDate).getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
+
+    const updatedSub: Subscription = {
+      ...sub,
+      renewalDate: newRenewalDate,
+      price: renewalPrice,
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      await db.saveSubscription(updatedSub);
+      setSubscriptions(prev => prev.map(s => s.id === sub.id ? updatedSub : s));
+      
+      // Auto-log the activity
+      await db.logActivity({
+        id: `log_${Date.now()}`,
+        activityType: 'subscription_renewal',
+        customerId: customer.id,
+        description: `Quick Renewal processed for ${sub.subscriptionType} (£${renewalPrice})`,
+        createdAt: new Date().toISOString()
+      });
+
+      showToast(`Renewed until ${new Date(newRenewalDate).toLocaleDateString()}`, "success");
+    } catch (error) {
+       showToast("Quick renewal failed", "error");
+    }
   };
 
   if (!customer) return <div className="p-8 text-center text-slate-500">Loading customer profile...</div>;
@@ -137,6 +201,12 @@ export function CustomerDetail() {
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
                 <h1 className="text-3xl font-bold text-slate-900">{customer.fullName}</h1>
                 <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-bold uppercase tracking-widest border border-indigo-100">{customer.leadSource}</span>
+                {customer.orderCount && customer.orderCount > 1 && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest border border-amber-100 shadow-sm animate-pulse">
+                    <Star className="w-3 h-3 fill-amber-500" />
+                    Repeat Client ({customer.orderCount} Orders)
+                  </span>
+                )}
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-6 mt-6">
                 <div className="flex items-center gap-3">
@@ -190,22 +260,66 @@ export function CustomerDetail() {
                 subscriptions.map(sub => (
                   <div key={sub.id} className="flex items-center justify-between p-6 rounded-2xl bg-slate-50 border border-slate-100 hover:border-indigo-100 transition-colors group">
                     <div className="flex items-center gap-5">
-            <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-bold group-hover:text-indigo-600 transition-colors shadow-sm">
-              £
-            </div>
+                      <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-bold group-hover:text-indigo-600 transition-colors shadow-sm">
+                        £
+                      </div>
                       <div>
                         <div className="font-bold text-slate-900 text-lg">{sub.subscriptionType || `${sub.planDuration} Plan`}</div>
                         <div className="text-xs text-slate-500 font-medium">{sub.subscriptionType ? `${sub.planDuration} plan • ` : ''}Renewal: {new Date(sub.renewalDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}</div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-black text-slate-900 text-xl">£{sub.price}</div>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">{sub.status}</span>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right mr-4">
+                        <div className="font-black text-slate-900 text-xl">£{sub.price}</div>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100">{sub.status}</span>
+                      </div>
+                      <button 
+                        onClick={() => handleQuickRenew(sub)}
+                        className="p-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                        title="One-Click Quick Renewal"
+                      >
+                         <Plus className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
                 ))
               )}
             </div>
+          </div>
+
+          {/* Product History Section */}
+          <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm">
+             <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
+                <ClipboardList className="w-4 h-4 text-indigo-500" />
+                Digital Product History
+             </h2>
+             
+             {assignedCodes.length === 0 ? (
+               <div className="p-10 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-100">
+                  <Tag className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                  <p className="text-sm text-slate-400 font-medium italic">No historical digital codes found for this user contact info.</p>
+               </div>
+             ) : (
+               <div className="space-y-4">
+                 {assignedCodes.map(code => (
+                   <div key={code.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-indigo-600">
+                           <ShieldCheck className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-900">{code.productName}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{code.duration} Plan • Claimed {new Date(code.assignedAt || code.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="bg-white px-3 py-2 rounded-xl border border-slate-100">
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mb-0.5">Activation Key</p>
+                         <code className="text-xs font-bold text-indigo-600 break-all">{code.code}</code>
+                      </div>
+                   </div>
+                 ))}
+               </div>
+             )}
           </div>
 
           {/* Contact details with quick action */}
@@ -252,8 +366,97 @@ export function CustomerDetail() {
           </div>
         </div>
 
-        {/* Timeline Notes */}
+        {/* Admin Settings & Timeline */}
         <div className="space-y-8">
+          {/* Admin Loyalty Settings */}
+          <div className="bg-slate-900 text-white rounded-3xl p-8 shadow-2xl shadow-indigo-500/10 border border-white/5 relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-8 opacity-10">
+                <ShieldCheck className="w-24 h-24 text-indigo-400" />
+             </div>
+             
+             <div className="flex items-center justify-between mb-8 relative z-10">
+                <h2 className="text-sm font-black text-white/40 uppercase tracking-[0.2em] flex items-center gap-2">
+                   <Shield className="w-4 h-4 text-indigo-400" />
+                   Loyalty Settings
+                </h2>
+                <button 
+                  onClick={() => setIsEditingAdmin(!isEditingAdmin)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                >
+                  {isEditingAdmin ? <X className="w-5 h-5" /> : <Edit className="w-5 h-5" />}
+                </button>
+             </div>
+
+             <div className="space-y-8 relative z-10">
+                {isEditingAdmin ? (
+                  <div className="space-y-6">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 block mb-2">Internal Admin Notes</label>
+                      <textarea 
+                        value={internalNotes}
+                        onChange={(e) => setInternalNotes(e.target.value)}
+                        placeholder="Private notes about negotiations..."
+                        className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm focus:ring-2 focus:ring-indigo-500 min-h-[100px] outline-none"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 block mb-2">Discount Tier</label>
+                        <select 
+                          value={discountTier}
+                          onChange={(e) => setDiscountTier(e.target.value as any)}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        >
+                          <option value="Bronze" className="text-slate-900">Bronze</option>
+                          <option value="Silver" className="text-slate-900">Silver</option>
+                          <option value="Gold" className="text-slate-900">Gold</option>
+                          <option value="Platinum" className="text-slate-900">Platinum</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-indigo-400 block mb-2">Fixed Price (£)</label>
+                        <input 
+                          type="number"
+                          value={fixedPrice}
+                          onChange={(e) => setFixedPrice(e.target.value)}
+                          placeholder="e.g. 45"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button 
+                      onClick={handleSaveAdminSettings}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+                    >
+                      <Save className="w-4 h-4" />
+                      Apply VIP Settings
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-8">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-2">Private Context</p>
+                      <p className="text-sm font-medium text-slate-300 italic leading-relaxed">
+                        {customer.internalNotes || "No internal admin notes saved for this client."}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
+                          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Tier</p>
+                          <p className="text-lg font-black text-indigo-400 capitalize">{customer.discountTier || 'Standard'}</p>
+                       </div>
+                       <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-center">
+                          <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-1">Legacy Price</p>
+                          <p className="text-lg font-black text-emerald-400">
+                             {customer.fixedPrice ? `£${customer.fixedPrice.toFixed(2)}` : 'Market'}
+                          </p>
+                       </div>
+                    </div>
+                  </div>
+                )}
+             </div>
+          </div>
+
           <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col h-full max-h-[800px]">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
