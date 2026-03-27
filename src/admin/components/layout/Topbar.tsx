@@ -77,17 +77,6 @@ export function Topbar({ onMenuClick }: TopbarProps) {
       </form>
 
       <div className="flex items-center gap-2">
-        {/* View Public Form shortcut */}
-        <Link
-          to="/intake"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 py-1.5 px-3 rounded-xl transition-all"
-        >
-          <ExternalLink className="w-3.5 h-3.5" />
-          <span>Public Form</span>
-        </Link>
-
         {/* Notifications */}
         <button className="relative p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all">
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white" />
