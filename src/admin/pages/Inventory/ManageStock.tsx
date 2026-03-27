@@ -49,6 +49,20 @@ export function ManageStock() {
   const [isAdding, setIsAdding] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
 
+  // New: Custom Modals
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    isDanger: false,
+    onConfirm: () => {}
+  });
+
+  const [assignModal, setAssignModal] = useState({
+    isOpen: false,
+    userId: ''
+  });
+
   useEffect(() => {
     loadAllData();
   }, []);
@@ -205,47 +219,64 @@ export function ManageStock() {
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (!window.confirm(`Delete ${selectedStockIds.length} codes?`)) return;
-    try {
-      await Promise.all(selectedStockIds.map(id => db.deleteLiveStockCode(id)));
-      
-      // Sync all affected products (though usually it's just the selected one)
-      if (selectedProductId) {
-        await db.syncInventoryFromLiveStock(selectedProductId);
+  const handleBulkDelete = () => {
+    if (selectedStockIds.length === 0) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Bulk Delete Codes',
+      message: `Are you sure you want to permanently delete ${selectedStockIds.length} codes? This will update the inventory counts in the master table.`,
+      isDanger: true,
+      onConfirm: async () => {
+        try {
+          await Promise.all(selectedStockIds.map(id => db.deleteLiveStockCode(id)));
+          
+          // Sync all affected products
+          if (selectedProductId) {
+            await db.syncInventoryFromLiveStock(selectedProductId);
+          }
+          
+          setStock(prev => prev.filter(s => !selectedStockIds.includes(s.id)));
+          setSelectedStockIds([]);
+          showToast("Bulk deletion completed", "success");
+        } catch (err) {
+          showToast("Bulk delete failed", "error");
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
-      
-      setStock(stock.filter(s => !selectedStockIds.includes(s.id)));
-      setSelectedStockIds([]);
-      showToast("Deleted successfully", "success");
-    } catch (err) {
-      showToast("Bulk delete failed", "error");
-    }
+    });
   };
 
-  const handleBulkAssign = async () => {
-    const userId = window.prompt("Enter Customer/User ID to assign these codes:");
-    if (!userId) return;
+  const handleBulkAssign = () => {
+    if (selectedStockIds.length === 0) return;
+    setAssignModal({ isOpen: true, userId: '' });
+  };
+
+  const executeBulkAssign = async () => {
+    if (!assignModal.userId.trim()) {
+      showToast("Please enter a User ID", "error");
+      return;
+    }
 
     try {
       await Promise.all(selectedStockIds.map(id => db.updateLiveStockCode(id, { 
         status: 'Assigned',
-        assignedToRequestId: userId, // Reusing field for generic assignment
+        assignedToRequestId: assignModal.userId,
         assignedAt: new Date().toISOString()
       })));
 
-      // Sync inventory count
       if (selectedProductId) {
         await db.syncInventoryFromLiveStock(selectedProductId);
       }
 
-      setStock(stock.map(s => selectedStockIds.includes(s.id) ? { 
+      setStock(prev => prev.map(s => selectedStockIds.includes(s.id) ? { 
         ...s, 
         status: 'Assigned', 
-        assignedToRequestId: userId, 
+        assignedToRequestId: assignModal.userId, 
         assignedAt: new Date().toISOString() 
       } : s));
+      
       setSelectedStockIds([]);
+      setAssignModal({ isOpen: false, userId: '' });
       showToast("Assigned successfully", "success");
     } catch (err) {
       showToast("Bulk assignment failed", "error");
@@ -559,15 +590,24 @@ export function ManageStock() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button 
-                      onClick={async () => {
-                        if (confirm("Delete this code?")) {
-                          await db.deleteLiveStockCode(item.id);
-                          // Sync inventory count
-                          await db.syncInventoryFromLiveStock(item.productId);
-                          
-                          setStock(stock.filter(s => s.id !== item.id));
-                          showToast("Deleted successfully", "success");
-                        }
+                      onClick={() => {
+                        setConfirmModal({
+                          isOpen: true,
+                          title: 'Delete Digital Code',
+                          message: `Delete this code permanently? This will update the inventory count for ${item.productName}.`,
+                          isDanger: true,
+                          onConfirm: async () => {
+                            try {
+                              await db.deleteLiveStockCode(item.id);
+                              await db.syncInventoryFromLiveStock(item.productId);
+                              setStock(prev => prev.filter(s => s.id !== item.id));
+                              showToast("Deleted successfully", "success");
+                            } catch (e) {
+                              showToast("Failed to delete", "error");
+                            }
+                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                          }
+                        });
                       }}
                       className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
                     >
@@ -746,6 +786,95 @@ export function ManageStock() {
                   </div>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {confirmModal.isOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8 text-center"
+            >
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${confirmModal.isDanger ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'}`}>
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">{confirmModal.title}</h3>
+              <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+                {confirmModal.message}
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                  className="flex-1 py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmModal.onConfirm}
+                  className={`flex-1 py-4 text-white rounded-2xl font-black shadow-lg transition-all hover:translate-y-[-2px] ${confirmModal.isDanger ? 'bg-rose-600 shadow-rose-200 hover:bg-rose-700' : 'bg-indigo-600 shadow-indigo-200 hover:bg-indigo-700'}`}
+                >
+                  Confirm
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Assign Modal */}
+      <AnimatePresence>
+        {assignModal.isOpen && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-10"
+            >
+              <div className="flex items-center gap-4 mb-8">
+                <div className="p-3 bg-indigo-50 rounded-xl">
+                  <UserPlus className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Bulk Assign</h3>
+                  <p className="text-xs text-slate-500 font-medium">Link {selectedStockIds.length} codes to a user.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target User/Request ID</label>
+                  <input 
+                    autoFocus
+                    type="text"
+                    placeholder="Enter ID (e.g. req_123 or user_abc)"
+                    value={assignModal.userId}
+                    onChange={(e) => setAssignModal({ ...assignModal, userId: e.target.value })}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all"
+                  />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={() => setAssignModal({ isOpen: false, userId: '' })}
+                    className="flex-1 py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={executeBulkAssign}
+                    className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl font-black shadow-xl hover:translate-y-[-2px] transition-all active:translate-y-0"
+                  >
+                    Assign Now
+                  </button>
+                </div>
+              </div>
             </motion.div>
           </div>
         )}
