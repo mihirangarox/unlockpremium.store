@@ -149,11 +149,13 @@ const App: React.FC = () => {
     }
   }, [location]);
 
+  const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH || '/unlock-world-26';
+
   const handleLogout = () => {
     signOut(auth).then(() => {
       localStorage.removeItem('adminLoginTime');
       // Redirect to secure admin login path after logout
-      window.location.href = '/unlock-world-26';
+      window.location.href = ADMIN_PATH;
     }).catch((error) => {
       console.error('Logout Error:', error);
     });
@@ -241,7 +243,6 @@ const App: React.FC = () => {
     </>
   );
 
-  const ADMIN_PATH = '/unlock-world-26';
   const isAdminRoute = location.pathname.startsWith(ADMIN_PATH);
 
   return (
@@ -270,14 +271,14 @@ const App: React.FC = () => {
               <Route path="/services/:serviceId" element={<ServiceLandingPage />} />
               <Route path="/products/:serviceId" element={<ServiceLandingPage />} />
               <Route 
-                path="/unlock-world-26" 
-                element={currentUser ? <Navigate to="/unlock-world-26/requests" replace /> : <AdminLoginPage />} 
+                path={ADMIN_PATH} 
+                element={currentUser ? <Navigate to={`${ADMIN_PATH}/requests`} replace /> : <AdminLoginPage />} 
               />
               <Route 
-                path="/unlock-world-26/*" 
-                element={currentUser ? <AdminRoutes onLogout={handleLogout} /> : <Navigate to="/unlock-world-26" />} 
+                path={`${ADMIN_PATH}/*`} 
+                element={currentUser ? <AdminRoutes onLogout={handleLogout} /> : <Navigate to={ADMIN_PATH} />} 
               />
-              <Route path="/admin-dashboard" element={<Navigate to="/unlock-world-26" replace />} />
+              <Route path="/admin-dashboard" element={<Navigate to={ADMIN_PATH} replace />} />
               <Route path="/admin" element={<Navigate to="/" replace />} />
               <Route path="/admin-login" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFoundPage />} />

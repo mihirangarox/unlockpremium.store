@@ -6,14 +6,15 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 
 
 // Your web app's Firebase configuration
+// Values are now pulled from the .env file for production security
 const firebaseConfig = {
-  apiKey: "AIzaSyCbnapJyBz6z3JedPYnd1h0zv3AOPwZVAY",
-  authDomain: "unlockpremium-372c9.firebaseapp.com",
-  projectId: "unlockpremium-372c9",
-  storageBucket: "unlockpremium-372c9.firebasestorage.app",
-  messagingSenderId: "43727770212",
-  appId: "1:43727770212:web:e691754175370fbe08c571",
-  measurementId: "G-186HM7Y7F7"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 
