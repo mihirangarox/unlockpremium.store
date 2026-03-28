@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Search, Filter, SearchX, Calendar, ChevronRight, CheckCircle2, XCircle, Clock, ArrowUpDown, Trash2 } from "lucide-react";
+import { Search, Filter, SearchX, Calendar, ChevronRight, CheckCircle2, XCircle, Clock, ArrowUpDown, Trash2, ShoppingBag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as db from "../../services/db";
 import { useLocalization } from "../../../context/LocalizationContext";
@@ -187,6 +187,7 @@ export function RequestList() {
       case 'Rejected': return 'bg-rose-100 text-rose-800 border-rose-300 ring-2 ring-rose-500/10';
       case 'Spam': return 'bg-slate-200 text-slate-700 border-slate-300';
       case 'Archived': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
+      case 'Lead': return 'bg-blue-50 text-blue-700 border-blue-300 ring-2 ring-blue-500/10';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
@@ -196,6 +197,7 @@ export function RequestList() {
       case 'Pending': return <Clock className="w-3.5 h-3.5" />;
       case 'Approved': return <CheckCircle2 className="w-3.5 h-3.5" />;
       case 'Rejected': return <XCircle className="w-3.5 h-3.5" />;
+      case 'Lead': return <ShoppingBag className="w-3.5 h-3.5" />;
     }
   };
 
@@ -266,6 +268,7 @@ export function RequestList() {
                 <option value="All">All Statuses</option>
                 <option value="Pending">Pending</option>
                 <option value="Approved">Approved</option>
+                <option value="Lead">Leads (Started Payment)</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Archived">Archived</option>
                 <option value="Spam">Spam</option>

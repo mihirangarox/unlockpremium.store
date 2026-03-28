@@ -31,6 +31,8 @@ const CheckoutPage: React.FC = () => {
     receiptFile: null as File | null
   });
   
+  const [orderId] = useState<string>(`ord_${Date.now()}`);
+  const [isLeadSaved, setIsLeadSaved] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   
   const copyToClipboard = (text: string, field: string) => {
@@ -50,6 +52,45 @@ const CheckoutPage: React.FC = () => {
     setFormData(prev => ({ ...prev, whatsapp: value || '' }));
   };
 
+  const handleCreateLead = async () => {
+    if (items.length === 0 || isLeadSaved) return;
+    
+    setIsSubmitting(true);
+    try {
+      const orderContent = items.map(item => `${item.name} (${item.durationMonths}Mo)`).join(', ');
+      const gbpEquivalent = items.reduce((sum, item) => {
+        const tier = item.pricing?.find(p => p.durationMonths === item.durationMonths);
+        return sum + (tier?.priceGBP || tier?.priceUSD || 0);
+      }, 0);
+
+      const newLead: IntakeRequest = {
+        id: orderId,
+        fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+        email: formData.email,
+        whatsappNumber: formData.whatsapp,
+        preferredContact: 'WhatsApp',
+        subscriptionType: items[0]?.name || '',
+        subscriptionPeriod: items[0]?.durationMonths === 1 ? '1M' : items[0]?.durationMonths === 3 ? '3M' : items[0]?.durationMonths === 6 ? '6M' : (items[0]?.durationMonths + 'M' as any),
+        linkedinUrl: formData.linkedinUrl,
+        notes: `LEAD CAPTURE (Step 2) \nItems: ${orderContent}\nTotalValue: ${formatCurrency(totalPrice)}\nLedgerValue: £${gbpEquivalent.toFixed(2)}`,
+        status: 'Lead',
+        paymentStatus: 'Pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        currency: userCurrency,
+        amount: totalPrice,
+        gbpEquivalent: gbpEquivalent
+      } as any;
+
+      await saveRequest(newLead);
+      setIsLeadSaved(true);
+    } catch (error) {
+      console.error("Lead capture failed:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleCheckoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
@@ -57,17 +98,17 @@ const CheckoutPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Create an order request mapped to the existing IntakeRequest structure
+      // Update existing lead to Pending (waiting for payment verification)
       const orderContent = items.map(item => `${item.name} (${item.durationMonths}Mo)`).join(', ');
       
       // Calculate GBP Equivalent based on product tiers
       const gbpEquivalent = items.reduce((sum, item) => {
         const tier = item.pricing?.find(p => p.durationMonths === item.durationMonths);
-        return sum + (tier?.priceGBP || tier?.priceUSD || 0); // Use GBP field as the "Ledger Value"
+        return sum + (tier?.priceGBP || tier?.priceUSD || 0); 
       }, 0);
 
-      const newRequest: IntakeRequest = {
-        id: `ord_${Date.now()}`,
+      const updatedRequest: IntakeRequest = {
+        id: orderId,
         fullName: `${formData.firstName} ${formData.lastName}`.trim(),
         email: formData.email,
         whatsappNumber: formData.whatsapp,
@@ -86,7 +127,7 @@ const CheckoutPage: React.FC = () => {
         gbpEquivalent: gbpEquivalent
       } as any;
 
-      await saveRequest(newRequest);
+      await saveRequest(updatedRequest);
       
       // Complete
       clearCart();
@@ -126,10 +167,10 @@ const CheckoutPage: React.FC = () => {
           <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-6 border border-emerald-500/20">
             <CheckCircle className="w-12 h-12 text-emerald-500" />
           </div>
-          <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Order Received!</h2>
+          <h2 className="text-3xl font-black text-white mb-2 tracking-tight">Support Contacted!</h2>
           <p className="text-neutral-400 mb-10 text-pretty">
-            Thank you for your order. We have received your request and will process your activation once the bank transfer is verified. 
-            Our support team will contact you via WhatsApp shortly.
+            Thank you for reaching out. We have received your order request and our support team is now standing by to provide your custom payment link. 
+            Once payment is confirmed, your activation will be processed instantly.
           </p>
           
           {/* Status Tracker */}
@@ -403,7 +444,18 @@ const CheckoutPage: React.FC = () => {
                   <div className="flex flex-col gap-6">
                     <div className="flex justify-between gap-4">
                       <Button type="button" variant="ghost" className="flex-1" onClick={() => setStep(1)}>Back to Details</Button>
-                      <Button type="button" variant="primary" className="flex-1" onClick={() => setStep(3)}>Continue to Payment</Button>
+                      <Button 
+                        type="button" 
+                        variant="primary" 
+                        className="flex-1" 
+                        disabled={isSubmitting}
+                        onClick={async () => {
+                          await handleCreateLead();
+                          setStep(3);
+                        }}
+                      >
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Continue to Payment"}
+                      </Button>
                     </div>
                     
                     {/* Security Badges */}
@@ -428,122 +480,64 @@ const CheckoutPage: React.FC = () => {
               {/* Step 3: Payment */}
               {step === 3 && (
                 <m.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-                  <div className="glass p-8 rounded-3xl border-white/5">
+                  <div className="glass p-8 rounded-3xl border-white/5 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 blur-3xl -z-10" />
+                    
                     <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
                       <CreditCard className="w-5 h-5 text-indigo-400" />
-                      Bank Transfer Instructions
+                      Payment Instructions
                     </h2>
-                    <p className="text-neutral-400 text-sm mb-6">Please transfer the total amount accurately to secure your order.</p>
+                    <p className="text-neutral-400 text-sm mb-8">
+                       To ensure your security and the fastest activation, we process payments manually via our <strong>Premium Concierge</strong>.
+                    </p>
                     
-                    <div className="bg-indigo-950/30 border border-indigo-500/20 rounded-2xl p-6 mb-8 text-indigo-100 space-y-4 font-mono text-sm leading-relaxed">
-                      <div className="flex justify-between items-center border-b border-indigo-500/20 pb-3">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">Bank Name</span>
-                          <span className="font-bold text-white">Example Global Bank</span>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-6 mb-8 text-white space-y-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0">
+                          <CheckCircle className="w-5 h-5 text-indigo-400" />
                         </div>
-                        <button type="button" onClick={() => copyToClipboard("Example Global Bank", "bank")} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-indigo-400">
-                          {copySuccess === "bank" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                        </button>
+                        <div>
+                          <p className="text-sm font-bold text-white">Order Reference Reserved</p>
+                          <p className="text-xs text-neutral-400 mt-1 font-mono">{orderId}</p>
+                        </div>
                       </div>
-                      <div className="flex justify-between items-center border-b border-indigo-500/20 pb-3">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">Account Name</span>
-                          <span className="font-bold text-white">UnlockPremium LLC</span>
-                        </div>
-                        <button type="button" onClick={() => copyToClipboard("UnlockPremium LLC", "name")} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-indigo-400">
-                          {copySuccess === "name" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                        </button>
+
+                      <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/10">
+                        <p className="text-sm font-medium text-indigo-100 flex items-center gap-2">
+                           <ShieldCheck className="w-4 h-4" />
+                           How to Pay:
+                        </p>
+                        <p className="text-xs text-neutral-400 mt-2 leading-relaxed">
+                          We currently accept manual transfers via <strong>Bank (UK/EU/USA), PayPal, Wise, USDT (Crypto), or Credit/Debit Card</strong>. 
+                          Please message our team below to receive the latest payment details.
+                        </p>
                       </div>
-                      <div className="flex justify-between items-center border-b border-indigo-500/20 pb-3">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">Account Number</span>
-                          <span className="font-bold text-white">1234 5678 9012 3456</span>
-                        </div>
-                        <button type="button" onClick={() => copyToClipboard("1234 5678 9012 3456", "account")} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-indigo-400">
-                          {copySuccess === "account" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      <div className="flex justify-between items-center border-b border-indigo-500/20 pb-3">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">SWIFT/BIC Code</span>
-                          <span className="font-bold text-white">EXGBUS33XXX</span>
-                        </div>
-                        <button type="button" onClick={() => copyToClipboard("EXGBUS33XXX", "swift")} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-indigo-400">
-                          {copySuccess === "swift" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      <div className="flex justify-between items-center pt-2">
-                        <div className="flex flex-col">
-                          <span className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">Amount to Transfer</span>
-                          <span className="font-black text-xl text-emerald-400">{formatCurrency(totalPrice)} {userCurrency}</span>
-                        </div>
-                        <button type="button" onClick={() => copyToClipboard(totalPrice.toFixed(2), "amount")} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-indigo-400">
-                          {copySuccess === "amount" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                        </button>
+
+                      <div className="pt-2">
+                        <Button 
+                          type="button" 
+                          variant="primary" 
+                          className="w-full justify-center !bg-emerald-600 hover:!bg-emerald-500 shadow-lg shadow-emerald-500/20 h-14"
+                          onClick={() => {
+                            const waMessage = encodeURIComponent(`Hi, my name is ${formData.firstName} and my Order Reference is ${orderId}. Please send me payment instructions for my ${items[0]?.name} subscription.`);
+                            window.open(`https://wa.me/447534317838?text=${waMessage}`, '_blank');
+                            
+                            // Also trigger final submission to mark as "Pending Payment Verification" if they click
+                            handleCheckoutSubmit({ preventDefault: () => {} } as any);
+                          }}
+                        >
+                          <MessageCircle className="w-5 h-5 mr-3" />
+                          Message Support for Payment Details
+                        </Button>
                       </div>
                     </div>
 
-                    <div className="space-y-6">
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Transaction ID / Reference Number</label>
-                        <input 
-                          type="text" 
-                          name="transactionId" 
-                          value={formData.transactionId} 
-                          onChange={handleInputChange} 
-                          className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors" 
-                          placeholder="e.g. TRN123456789" 
-                        />
-                        <p className="text-[10px] text-neutral-500 mt-2 font-medium">TIP: Please include your **Email** or **Last Name** in the bank transfer reference field if possible.</p>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-400 uppercase tracking-widest mb-2">Upload Payment Receipt (Optional)</label>
-                        <div className="relative group">
-                          <input 
-                            type="file" 
-                            accept="image/*"
-                            onChange={(e) => setFormData(prev => ({ ...prev, receiptFile: e.target.files?.[0] || null }))}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                          />
-                          <div className={`w-full py-4 px-6 border border-dashed rounded-xl flex items-center justify-center gap-3 transition-colors ${formData.receiptFile ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400' : 'bg-white/5 border-white/10 text-neutral-400 group-hover:border-indigo-500/50 group-hover:text-neutral-300'}`}>
-                            {formData.receiptFile ? (
-                              <>
-                                <CheckCircle className="w-5 h-5" />
-                                <span className="text-sm font-medium truncate max-w-[200px]">{formData.receiptFile.name}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-5 h-5" />
-                                <span className="text-sm font-medium">Click to upload screenshot</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <p className="text-[10px] text-neutral-500 mt-2">Uploading a receipt helps us confirm your order immediately.</p>
-                      </div>
+                    <div className="text-center">
+                       <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Secure Concierge Checkout</p>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-start">
                     <Button type="button" variant="ghost" onClick={() => setStep(2)}>Back to Review</Button>
-                    <Button 
-                      type="submit" 
-                      variant="primary" 
-                      disabled={isSubmitting} 
-                      className={`w-full sm:w-auto !bg-indigo-600 hover:!bg-indigo-500 shadow-xl shadow-indigo-600/20 ${isSubmitting ? 'opacity-70' : ''}`}
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          Confirm Order 
-                          <ChevronRight className="w-4 h-4 ml-2" />
-                        </>
-                      )}
-                    </Button>
                   </div>
                 </m.div>
               )}
