@@ -151,12 +151,30 @@ const App: React.FC = () => {
 
   const handleLogout = () => {
     signOut(auth).then(() => {
-      // Redirect to home after logout
-      window.location.href = '/';
+      localStorage.removeItem('adminLoginTime');
+      // Redirect to secure admin login path after logout
+      window.location.href = '/unlock-world-26';
     }).catch((error) => {
       console.error('Logout Error:', error);
     });
   };
+
+  // 24h Session Guard: Forced logout after 24 hours of total session time
+  useEffect(() => {
+    if (currentUser) {
+      const loginTime = localStorage.getItem('adminLoginTime');
+      if (!loginTime) {
+        // First time seeing this admin session
+        localStorage.setItem('adminLoginTime', Date.now().toString());
+      } else {
+        const duration = Date.now() - parseInt(loginTime);
+        const twentyFourHours = 24 * 60 * 60 * 1000;
+        if (duration > twentyFourHours) {
+          handleLogout();
+        }
+      }
+    }
+  }, [currentUser]);
 
   const HomePage = () => (
     <>

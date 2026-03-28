@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { 
   BarChart3, Users, Settings, Package, 
   MessageSquare, LayoutDashboard, Database, 
   ChevronRight, LogOut, Moon, Sun, Monitor,
   Box, CreditCard, HelpCircle, FileText, Zap,
-  BellRing, History, PieChart, ChevronLeft, Inbox, Wallet
+  BellRing, History, PieChart, ChevronLeft, Inbox, Wallet,
+  Shield, User
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { collection, query, where, getCountFromServer } from "firebase/firestore";
@@ -15,6 +16,7 @@ interface SidebarProps {
   isCollapsed: boolean;
   setIsCollapsed: (val: boolean) => void;
   mobileOpen?: boolean;
+  onLogout: () => void;
 }
 
 interface NavGroup {
@@ -22,8 +24,10 @@ interface NavGroup {
   items: { name: string; href: string; icon: any; badge?: number }[];
 }
 
-export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen }: SidebarProps) {
+export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen, onLogout }: SidebarProps) {
   const [pendingCount, setPendingCount] = useState(0);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchPending = async () => {
@@ -175,24 +179,69 @@ export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen }: SidebarProp
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-slate-800/50">
+      <div className="p-4 border-t border-slate-800/50 relative">
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="hidden md:flex w-full items-center justify-center p-2 rounded-xl bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-all mb-4"
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
-        <div className={cn("flex items-center", isCollapsed && "justify-center")}>
-          <div className="w-9 h-9 rounded-xl bg-indigo-500 flex items-center justify-center text-white font-black text-xs shadow-inner shadow-indigo-400 shrink-0">
+
+        {/* Profile Popover Menu */}
+        {showProfileMenu && (
+          <div className={cn(
+            "absolute bottom-full left-4 right-4 mb-2 bg-slate-800 border border-white/5 rounded-2xl shadow-2xl p-2 animate-in slide-in-from-bottom-2 duration-200 z-[100] backdrop-blur-xl",
+            isCollapsed && "left-20 right-auto w-56 bottom-4 mb-0"
+          )}>
+            <div className="px-3 py-2 border-b border-white/5 mb-1">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Admin Control</p>
+            </div>
+            <button 
+              onClick={() => { setShowProfileMenu(false); navigate('/unlock-world-26/settings'); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-all"
+            >
+              <User className="w-4 h-4" /> Edit Profile
+            </button>
+            <button 
+              onClick={() => { setShowProfileMenu(false); navigate('/unlock-world-26/settings'); }}
+              className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-all"
+            >
+              <Shield className="w-4 h-4" /> Security
+            </button>
+            <div className="h-px bg-white/5 my-1 mx-2" />
+            <button 
+              onClick={() => {
+                setShowProfileMenu(false);
+                onLogout();
+              }} 
+              className="w-full flex items-center gap-3 px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
+            >
+              <LogOut className="w-4 h-4" /> Logout
+            </button>
+          </div>
+        )}
+
+        <button 
+          onClick={() => setShowProfileMenu(!showProfileMenu)}
+          className={cn(
+            "flex items-center w-full p-2 rounded-2xl hover:bg-slate-800 transition-all text-left",
+            isCollapsed && "justify-center",
+            showProfileMenu && "bg-slate-800"
+          )}
+        >
+          <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-inner shadow-indigo-400 shrink-0">
             AD
           </div>
           {!isCollapsed && (
             <div className="ml-3 animate-in fade-in duration-300 min-w-0">
-              <p className="text-xs font-bold text-white truncate">Admin User</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-bold text-white truncate">Admin User</p>
+                <ChevronRight className={cn("w-3 h-3 text-slate-600 transition-transform", showProfileMenu && "-rotate-90")} />
+              </div>
               <p className="text-[10px] text-slate-500 font-medium">Strategic Tier</p>
             </div>
           )}
-        </div>
+        </button>
       </div>
     </aside>
   );

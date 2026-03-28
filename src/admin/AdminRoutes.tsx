@@ -31,7 +31,7 @@ export const AdminRoutes: React.FC<AdminRoutesProps> = ({ onLogout }) => {
   return (
     <ToastProvider>
       <Routes>
-        <Route element={<Layout />}>
+        <Route element={<Layout onLogout={onLogout} />}>
           <Route index element={<Dashboard />} />
           <Route path="customers" element={<CustomerList />} />
           <Route path="customers/new" element={<CustomerForm />} />
