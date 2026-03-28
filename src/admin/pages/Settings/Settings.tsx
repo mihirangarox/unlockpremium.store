@@ -3,8 +3,11 @@ import {
   Bell, MessageSquare, Shield, Globe, Save, Download, 
   Database, Link2, CreditCard, Users, Zap, 
   AlertCircle, Trash2, Smartphone, 
-  Mail, Settings as SettingsIcon, LayoutDashboard, ChevronRight
+  Mail, Settings as SettingsIcon, LayoutDashboard, ChevronRight,
+  Eye, EyeOff, Lock, CheckCircle2, XCircle
 } from "lucide-react";
+import { auth } from "../../../firebase";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { storage } from "../../services/storage";
 import * as db from "../../services/db";
 import { useToast } from "../../components/ui/Toast";
@@ -16,7 +19,7 @@ export function SettingsPage() {
   const { showToast } = useToast();
   const { updateSettings: updateLocalization } = useLocalization();
   const [settings, setSettings] = useState<AppSettings>(storage.getSettings());
-  const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Notifications' | 'Integrations' | 'Data' | 'Billing' | 'Team'>('Overview');
+  const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Notifications' | 'Integrations' | 'Security' | 'Data' | 'Billing' | 'Team'>('Overview');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   const handleSave = () => {
@@ -151,7 +154,8 @@ export function SettingsPage() {
           <SettingsTab icon={<Zap className="w-4 h-4" />} label="Automation" active={activeTab === 'Automation'} onClick={() => setActiveTab('Automation')} />
           <SettingsTab icon={<Bell className="w-4 h-4" />} label="Notifications" active={activeTab === 'Notifications'} onClick={() => setActiveTab('Notifications')} />
           <SettingsTab icon={<Link2 className="w-4 h-4" />} label="Integrations" active={activeTab === 'Integrations'} onClick={() => setActiveTab('Integrations')} />
-          <SettingsTab icon={<Shield className="w-4 h-4" />} label="Data & Security" active={activeTab === 'Data'} onClick={() => setActiveTab('Data')} />
+          <SettingsTab icon={<Shield className="w-4 h-4" />} label="Security" active={activeTab === 'Security'} onClick={() => setActiveTab('Security')} />
+          <SettingsTab icon={<Database className="w-4 h-4" />} label="Data" active={activeTab === 'Data'} onClick={() => setActiveTab('Data')} />
           <SettingsTab icon={<CreditCard className="w-4 h-4" />} label="Billing" active={activeTab === 'Billing'} onClick={() => setActiveTab('Billing')} />
           <SettingsTab icon={<Users className="w-4 h-4" />} label="Team" active={activeTab === 'Team'} onClick={() => setActiveTab('Team')} />
         </div>
@@ -163,6 +167,7 @@ export function SettingsPage() {
           {activeTab === 'Automation' && <AutomationSettings settings={settings} setSettings={setSettings} />}
           {activeTab === 'Notifications' && <NotificationSettings settings={settings} setSettings={setSettings} />}
           {activeTab === 'Integrations' && <IntegrationSettings settings={settings} />}
+          {activeTab === 'Security' && <SecuritySettings showToast={showToast} />}
           {activeTab === 'Data' && <DataSettings onBackup={handleBackup} onReset={() => setIsResetConfirmOpen(true)} onExport={handleExportCSV} />}
           {activeTab === 'Billing' && <BillingPlaceholder />}
           {activeTab === 'Team' && <TeamPlaceholder />}
@@ -713,6 +718,198 @@ function TeamRow({ name, email, role }: any) {
           <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-lg text-[10px] font-bold uppercase tracking-tight">{role}</span>
           <button className="text-slate-300 hover:text-rose-500"><Trash2 className="w-4 h-4" /></button>
        </div>
+    </div>
+  );
+}
+
+function SecuritySettings({ showToast }: { showToast: any }) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false, confirm: false });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const passwordValidation = {
+    length: newPassword.length >= 10,
+    uppercase: /[A-Z]/.test(newPassword),
+    lowercase: /[a-z]/.test(newPassword),
+    number: /[0-9]/.test(newPassword),
+    special: /[^A-Za-z0-9]/.test(newPassword)
+  };
+
+  const strengthScore = Object.values(passwordValidation).filter(Boolean).length;
+  const strengthColor = strengthScore <= 2 ? 'bg-rose-500' : strengthScore <= 4 ? 'bg-amber-500' : 'bg-emerald-500';
+  const strengthText = strengthScore <= 2 ? 'Weak' : strengthScore <= 4 ? 'Moderate' : 'Strong';
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      showToast("Passwords do not match.", "error");
+      return;
+    }
+    if (strengthScore < 5) {
+      showToast("Please fix the password requirements.", "error");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user || !user.email) {
+        showToast("User session not found.", "error");
+        return;
+      }
+
+      // 1. Re-authenticate
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      
+      // 2. Update Password
+      await updatePassword(user, newPassword);
+      
+      showToast("Password updated successfully across all devices.", "success");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      console.error(err);
+      if (err.code === 'auth/wrong-password') {
+        showToast("Incorrect current password.", "error");
+      } else {
+        showToast(err.message || "Failed to update password.", "error");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8">
+        <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Security & Account Access</h3>
+        <p className="text-xs text-slate-500 mb-8 font-medium max-w-lg leading-relaxed">
+          Update your administrative password. We recommend using a unique password that you don't use on any other service. 
+          Changing your password will automatically log out all other active sessions.
+        </p>
+
+        <form onSubmit={handleChangePassword} className="space-y-8 max-w-xl">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Current Password</label>
+            <div className="relative">
+              <input 
+                type={showPasswords.current ? "text" : "password"} 
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900 pr-12"
+              />
+              <button 
+                type="button" 
+                onClick={() => setShowPasswords(p => ({ ...p, current: !p.current }))}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showPasswords.current ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-6 pt-4 border-t border-slate-50">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">New Password</label>
+              <div className="relative">
+                <input 
+                  type={showPasswords.new ? "text" : "password"} 
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900 pr-12"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPasswords(p => ({ ...p, new: !p.new }))}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPasswords.new ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {/* Strength Meter */}
+              <div className="mt-4 p-4 bg-slate-50 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Security Score</p>
+                   <p className={`text-[10px] font-black uppercase tracking-widest ${strengthColor.replace('bg-', 'text-')}`}>{strengthText}</p>
+                </div>
+                <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                   <div className={`h-full ${strengthColor} transition-all duration-500`} style={{ width: `${(strengthScore / 5) * 100}%` }} />
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-4">
+                  <Validator label="At least 10 chars" met={passwordValidation.length} />
+                  <Validator label="Uppercase letter" met={passwordValidation.uppercase} />
+                  <Validator label="Lowercase letter" met={passwordValidation.lowercase} />
+                  <Validator label="Contains a number" met={passwordValidation.number} />
+                  <Validator label="Special character" met={passwordValidation.special} />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Confirm New Password</label>
+              <div className="relative">
+                <input 
+                  type={showPasswords.confirm ? "text" : "password"} 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900 pr-12"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPasswords(p => ({ ...p, confirm: !p.confirm }))}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showPasswords.confirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-[10px] text-rose-500 font-bold mt-1">Passwords do not match</p>
+              )}
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={isLoading || strengthScore < 5} 
+            className="w-full py-3.5 bg-indigo-600 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-2xl font-bold text-sm hover:bg-slate-900 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
+          >
+            {isLoading ? "Updating..." : (
+              <>
+                <Lock className="w-4 h-4" />
+                Update Admin Password
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+
+      <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-8 flex items-start gap-4">
+         <div className="p-3 bg-white rounded-2xl shadow-sm"><Shield className="w-6 h-6 text-indigo-600" /></div>
+         <div>
+            <h4 className="text-sm font-bold text-indigo-900">Security Recommendation</h4>
+            <p className="text-xs text-indigo-700/70 mt-1 leading-relaxed max-w-lg">
+               To keep CRM Sync secure, enable 2FA in your Firebase Console and regularly audit your 'Integrations' tab for unauthorized SMTP or WhatsApp API keys.
+            </p>
+         </div>
+      </div>
+    </div>
+  );
+}
+
+function Validator({ label, met }: { label: string, met: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 ${met ? 'text-emerald-600' : 'text-slate-400'}`}>
+      {met ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3 opacity-30" />}
+      <span className="text-[9px] font-black uppercase tracking-tight">{label}</span>
     </div>
   );
 }
