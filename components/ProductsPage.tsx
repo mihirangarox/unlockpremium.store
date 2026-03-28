@@ -4,27 +4,51 @@ import { m } from 'framer-motion';
 import Button from './Button';
 import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
 import { useCart } from '../src/context/CartContext';
+import { useLocalization } from '../src/context/LocalizationContext';
 import type { Product, ProductPricing } from '../src/admin/types/index';
 import { Package, Tag, Check, Loader2, ShoppingCart } from 'lucide-react';
 
 const ProductCard = ({ product, variants }: { product: Product, variants: any }) => {
   const { addToCart } = useCart();
+  const { userCurrency, formatCurrency } = useLocalization();
   
   const pricingTiers = product.pricing && product.pricing.length > 0 
-    ? [...product.pricing].sort((a,b) => a.price - b.price) 
-    : [{ durationMonths: product.durationMonths || 1, price: product.price || 0, oldPrice: product.oldPrice || 0 }];
+    ? [...product.pricing].sort((a,b) => {
+        const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+        const priceA = a[priceField] || a.priceUSD || 0;
+        const priceB = b[priceField] || b.priceUSD || 0;
+        return priceA - priceB;
+      }) 
+    : [];
     
-  const [selectedTier, setSelectedTier] = useState<ProductPricing>(pricingTiers[0]);
-  const isOutOfStock = (variants as any)?.stockCount === 0;
+  // Store selected duration instead of the whole object to ensure responsiveness to currency changes
+  const [selectedDuration, setSelectedDuration] = useState<number>(pricingTiers[0]?.durationMonths || 1);
+
+  // Derive the active tier from the latest pricing tiers on each render
+  const selectedTier = pricingTiers.find(t => t.durationMonths === selectedDuration) || pricingTiers[0];
 
   const handleAddToCart = () => {
+    if (!selectedTier) return;
+    
+    const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+    const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
+
     addToCart({
       ...product,
-      price: selectedTier.price,
-      oldPrice: selectedTier.oldPrice,
-      durationMonths: selectedTier.durationMonths
-    } as Product);
+      price: selectedTier[priceField] || selectedTier.priceUSD || 0,
+      oldPrice: selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0,
+      durationMonths: selectedTier.durationMonths,
+      currency: userCurrency
+    } as any);
   };
+
+  const isOutOfStock = (variants as any)?.stockCount === 0;
+
+  const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+  const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
+
+  const currentPrice = selectedTier ? (selectedTier[priceField] || selectedTier.priceUSD || 0) : (product.price || 0);
+  const currentOldPrice = selectedTier ? (selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0) : (product.oldPrice || 0);
 
   return (
     <m.div
@@ -65,9 +89,9 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
           {pricingTiers.map(tier => (
             <button
               key={tier.durationMonths}
-              onClick={() => setSelectedTier(tier)}
+              onClick={() => setSelectedDuration(tier.durationMonths)}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                selectedTier.durationMonths === tier.durationMonths
+                selectedDuration === tier.durationMonths
                   ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
                   : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
               }`}
@@ -79,10 +103,10 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       </div>
 
       <div className="flex items-end gap-3 mb-8">
-        <span className="text-4xl font-black text-white">${selectedTier.price.toFixed(2)}</span>
-        {selectedTier.oldPrice > 0 && (
+        <span className="text-4xl font-black text-white">{formatCurrency(currentPrice)}</span>
+        {currentOldPrice > 0 && (
           <span className="text-lg text-neutral-500 line-through font-medium mb-1">
-            ${selectedTier.oldPrice.toFixed(2)}
+            {formatCurrency(currentOldPrice)}
           </span>
         )}
       </div>
