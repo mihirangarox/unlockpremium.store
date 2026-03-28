@@ -336,7 +336,7 @@ export function RenewalHistoryPage() {
                         </button>
                         {entry.customerId && (
                           <button
-                            onClick={() => navigate(`/admin/customers/${entry.customerId}`)}
+                            onClick={() => navigate(`/unlock-world-26/customers/${entry.customerId}`)}
                             className="p-2 hover:bg-indigo-50 rounded-xl transition-all"
                             title="View Customer"
                           >
@@ -344,7 +344,7 @@ export function RenewalHistoryPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => navigate(`/admin/subscriptions`)}
+                          onClick={() => navigate(`/unlock-world-26/subscriptions`)}
                           className="p-2 hover:bg-slate-100 rounded-xl transition-all"
                           title="View Subscriptions"
                         >

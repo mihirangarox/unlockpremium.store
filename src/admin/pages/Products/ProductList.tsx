@@ -55,7 +55,7 @@ export function ProductList() {
           <p className="text-sm font-medium text-slate-500 mt-1">Manage the eCommerce product catalog</p>
         </div>
         <Link
-          to="/admin/products/new"
+          to="/unlock-world-26/products/new"
           className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition shadow-sm"
         >
           <Plus className="w-5 h-5 mr-2" />
@@ -133,9 +133,9 @@ export function ProductList() {
                       <td className="px-6 py-4">
                         <div className="text-sm font-bold text-slate-900 flex items-center">
                           <span className="text-xs text-slate-400 mr-1 font-normal">From</span>
-                          <DollarSign className="w-3.5 h-3.5 text-emerald-600 mr-0.5" />
+                          <span className="text-emerald-600 mr-0.5">$</span>
                           {product.pricing && product.pricing.length > 0 
-                            ? Math.min(...product.pricing.map(p => p.price)).toFixed(2)
+                            ? Math.min(...product.pricing.map(p => p.priceUSD || 0)).toFixed(2)
                             : (product.price || 0).toFixed(2)}
                         </div>
                       </td>
@@ -156,7 +156,7 @@ export function ProductList() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                           <Link
-                            to={`/admin/products/${product.id}/edit`}
+                            to={`/unlock-world-26/products/${product.id}/edit`}
                             className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
                             title="Edit Product"
                           >

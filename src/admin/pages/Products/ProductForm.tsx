@@ -22,7 +22,11 @@ export function ProductForm() {
     category: "LinkedIn",
     popular: false,
     isActive: true,
-    pricing: [{ durationMonths: 1, price: 0, oldPrice: 0 }],
+    pricing: [{ 
+      durationMonths: 1, 
+      priceUSD: 0, priceGBP: 0, priceEUR: 0, 
+      oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0 
+    }],
   });
 
   useEffect(() => {
@@ -37,20 +41,28 @@ export function ProductForm() {
       if (product) {
         // Handle migration from legacy single-pricing to array
         let pricing = product.pricing || [];
-        if (pricing.length === 0 && product.price !== undefined) {
+        if (pricing.length === 0 && (product as any).price !== undefined) {
            pricing = [{
-             durationMonths: product.durationMonths || 1,
-             price: product.price || 0,
-             oldPrice: product.oldPrice || 0
+             durationMonths: (product as any).durationMonths || 1,
+             priceUSD: (product as any).price || 0,
+             priceGBP: (product as any).price || 0,
+             priceEUR: (product as any).price || 0,
+             oldPriceUSD: (product as any).oldPrice || 0,
+             oldPriceGBP: (product as any).oldPrice || 0,
+             oldPriceEUR: (product as any).oldPrice || 0
            }];
         }
         if (pricing.length === 0) {
-           pricing = [{ durationMonths: 1, price: 0, oldPrice: 0 }];
+           pricing = [{ 
+             durationMonths: 1, 
+             priceUSD: 0, priceGBP: 0, priceEUR: 0, 
+             oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0 
+           }];
         }
         setFormData({ ...product, pricing });
       } else {
         alert("Product not found");
-        navigate("/admin/products");
+        navigate("/unlock-world-26/products");
       }
     } catch (error) {
       console.error("Failed to load product:", error);
@@ -82,7 +94,11 @@ export function ProductForm() {
   const addPricingTier = () => {
     setFormData(prev => ({
       ...prev,
-      pricing: [...(prev.pricing || []), { durationMonths: 1, price: 0, oldPrice: 0 }]
+      pricing: [...(prev.pricing || []), { 
+        durationMonths: 1, 
+        priceUSD: 0, priceGBP: 0, priceEUR: 0, 
+        oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0 
+      }]
     }));
   };
 
@@ -122,7 +138,7 @@ export function ProductForm() {
       }
 
       // Automatically set lowest price/duration for backward compatibility/quick sorting
-      const sortedPricing = [...formData.pricing].sort((a,b) => a.price - b.price);
+      const sortedPricing = [...formData.pricing].sort((a,b) => a.priceUSD - b.priceUSD);
       const basePricing = sortedPricing[0];
 
       const productToSave: Product = {
@@ -134,14 +150,14 @@ export function ProductForm() {
         popular: formData.popular || false,
         isActive: formData.isActive ?? true,
         pricing: formData.pricing,
-        // Sync legacy fields with the lowest base tier
-        price: basePricing.price,
-        oldPrice: basePricing.oldPrice,
+        // Sync legacy fields with the lowest base tier (using USD as base)
+        price: basePricing.priceUSD,
+        oldPrice: basePricing.oldPriceUSD,
         durationMonths: basePricing.durationMonths,
       };
 
       await db.saveProduct(productToSave);
-      navigate("/admin/products");
+      navigate("/unlock-world-26/products");
     } catch (error) {
       console.error("Failed to save product:", error);
       alert("Failed to save product. Please try again.");
@@ -163,7 +179,7 @@ export function ProductForm() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center gap-4 mb-8">
         <button
-          onClick={() => navigate("/admin/products")}
+          onClick={() => navigate("/unlock-world-26/products")}
           className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -260,30 +276,73 @@ export function ProductForm() {
                     />
                   </div>
                   
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Retail Price ($) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required
-                      value={tier.oldPrice || ''}
-                      onChange={(e) => handlePricingChange(index, 'oldPrice', parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
-                    />
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Price USD ($) *</label>
+                    <div className="space-y-2">
+                       <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Retail"
+                        value={tier.oldPriceUSD || ''}
+                        onChange={(e) => handlePricingChange(index, 'oldPriceUSD', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-medium text-slate-400 line-through"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Sale"
+                        required
+                        value={tier.priceUSD || ''}
+                        onChange={(e) => handlePricingChange(index, 'priceUSD', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-indigo-700 bg-indigo-50/50"
+                      />
+                    </div>
                   </div>
-                  
-                  <div className="flex-1 min-w-[200px]">
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5">Sale Price ($) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required
-                      value={tier.price || ''}
-                      onChange={(e) => handlePricingChange(index, 'price', parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-indigo-700 bg-indigo-50/50"
-                    />
+
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Price GBP (£) *</label>
+                    <div className="space-y-2">
+                       <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Retail"
+                        value={tier.oldPriceGBP || ''}
+                        onChange={(e) => handlePricingChange(index, 'oldPriceGBP', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-medium text-slate-400 line-through"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Sale"
+                        required
+                        value={tier.priceGBP || ''}
+                        onChange={(e) => handlePricingChange(index, 'priceGBP', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-indigo-700 bg-emerald-50/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 min-w-[150px]">
+                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Price EUR (€) *</label>
+                    <div className="space-y-2">
+                       <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Retail"
+                        value={tier.oldPriceEUR || ''}
+                        onChange={(e) => handlePricingChange(index, 'oldPriceEUR', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-medium text-slate-400 line-through"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Sale"
+                        required
+                        value={tier.priceEUR || ''}
+                        onChange={(e) => handlePricingChange(index, 'priceEUR', parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-indigo-700 bg-amber-50/50"
+                      />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -374,7 +433,7 @@ export function ProductForm() {
         <div className="flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => navigate("/admin/products")}
+            onClick={() => navigate("/unlock-world-26/products")}
             className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 transition shadow-sm"
           >
             Cancel

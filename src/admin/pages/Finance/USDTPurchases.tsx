@@ -460,7 +460,7 @@ export function USDTPurchases() {
                                   <button 
                                     onClick={() => {
                                       const search = child.note.includes(': ') ? child.note.split(': ')[1] : '';
-                                      window.location.href = `/admin/manage-stock?search=${encodeURIComponent(search)}`;
+                                      window.location.href = `/unlock-world-26/manage-stock?search=${encodeURIComponent(search)}`;
                                     }}
                                     className="px-4 py-2 bg-white text-indigo-600 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm hover:bg-indigo-50 transition-all flex items-center gap-2 group/btn"
                                   >

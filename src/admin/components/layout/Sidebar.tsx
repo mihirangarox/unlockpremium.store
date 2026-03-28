@@ -42,50 +42,50 @@ export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen }: SidebarProp
     {
       label: "Overview",
       items: [
-        { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
+        { name: "Dashboard", href: "/unlock-world-26", icon: LayoutDashboard },
       ],
     },
     {
       label: "Content",
       items: [
-        { name: "Blog Posts", href: "/admin/posts", icon: FileText },
-        { name: "Testimonials", href: "/admin/testimonials", icon: MessageSquare },
+        { name: "Blog Posts", href: "/unlock-world-26/posts", icon: FileText },
+        { name: "Testimonials", href: "/unlock-world-26/testimonials", icon: MessageSquare },
       ],
     },
     {
       label: "Sales Pipeline",
       items: [
-        { name: "Incoming Requests", href: "/admin/requests", icon: Inbox, badge: pendingCount },
+        { name: "Incoming Requests", href: "/unlock-world-26/requests", icon: Inbox, badge: pendingCount },
       ],
     },
     {
       label: "Store Management",
       items: [
-        { name: "Products Catalog", href: "/admin/products", icon: Box },
-        { name: "Manage Stock", href: "/admin/manage-stock", icon: Package },
-        { name: "Vendors", href: "/admin/vendors", icon: Users },
+        { name: "Products Catalog", href: "/unlock-world-26/products", icon: Box },
+        { name: "Manage Stock", href: "/unlock-world-26/manage-stock", icon: Package },
+        { name: "Vendors", href: "/unlock-world-26/vendors", icon: Users },
       ],
     },
     {
       label: "Finance",
       items: [
-        { name: "USDT Wallet", href: "/admin/finance/usdt", icon: Wallet },
+        { name: "USDT Wallet", href: "/unlock-world-26/finance/usdt", icon: Wallet },
       ],
     },
     {
       label: "CRM",
       items: [
-        { name: "Customers", href: "/admin/customers", icon: Users },
-        { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
-        { name: "Renewal History", href: "/admin/history", icon: History },
-        { name: "Reminders", href: "/admin/reminders", icon: BellRing },
+        { name: "Customers", href: "/unlock-world-26/customers", icon: Users },
+        { name: "Subscriptions", href: "/unlock-world-26/subscriptions", icon: CreditCard },
+        { name: "Renewal History", href: "/unlock-world-26/history", icon: History },
+        { name: "Reminders", href: "/unlock-world-26/reminders", icon: BellRing },
       ],
     },
     {
       label: "System",
       items: [
-        { name: "Reports", href: "/admin/reports", icon: PieChart },
-        { name: "Settings", href: "/admin/settings", icon: Settings },
+        { name: "Reports", href: "/unlock-world-26/reports", icon: PieChart },
+        { name: "Settings", href: "/unlock-world-26/settings", icon: Settings },
       ],
     },
   ];
@@ -134,7 +134,7 @@ export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen }: SidebarProp
                   <NavLink
                     key={item.name}
                     to={item.href}
-                    end={item.href === "/admin"}
+                    end={item.href === "/unlock-world-26"}
                     className={({ isActive }) =>
                       cn(
                         "flex items-center px-3 py-2.5 text-sm font-semibold rounded-xl transition-all group relative",

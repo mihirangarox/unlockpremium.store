@@ -478,7 +478,7 @@ export function RequestList() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Link 
-                              to={`/admin/requests/${request.id}`}
+                              to={`/unlock-world-26/requests/${request.id}`}
                               className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
                               title="Review Details"
                             >
@@ -494,7 +494,7 @@ export function RequestList() {
                           </div>
                           
                           <Link 
-                            to={`/admin/requests/${request.id}`}
+                            to={`/unlock-world-26/requests/${request.id}`}
                             className="inline-flex items-center justify-center px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group-hover:hidden"
                           >
                             Review

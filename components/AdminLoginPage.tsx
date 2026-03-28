@@ -13,7 +13,7 @@ const AdminLoginPage = () => {
     // If already logged in, redirect immediately
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
-            if (user) navigate('/admin');
+            if (user) navigate('/unlock-world-26/requests');
         });
         return unsubscribe;
     }, [navigate]);

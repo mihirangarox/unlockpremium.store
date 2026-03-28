@@ -238,7 +238,7 @@ export function Dashboard() {
                             </button>
                           )}
                           <button 
-                            onClick={() => navigate(`/admin/customers/${item.sub.customerId}`)}
+                            onClick={() => navigate(`/unlock-world-26/customers/${item.sub.customerId}`)}
                             className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all"
                           >
                             <ChevronRight className="w-5 h-5" />

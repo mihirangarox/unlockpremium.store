@@ -602,7 +602,9 @@ Thank you for your business!`;
                       )}
                     </select>
                   ) : (
-                    <div className="font-bold text-indigo-600">{request.subscriptionType || 'N/A'}</div>
+                    <div className="font-bold text-indigo-600">
+                      {request.subscriptionType || 'N/A'}
+                    </div>
                   )}
                 </div>
                 <div>
@@ -623,6 +625,19 @@ Thank you for your business!`;
                   )}
                 </div>
               </div>
+
+              {request.currency && (
+                <div className="pt-4 border-t border-slate-100 flex justify-between">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Payment Received</label>
+                    <div className="text-lg font-black text-slate-900">{formatCurrency(request.amount || 0)} {request.currency}</div>
+                  </div>
+                  <div className="text-right">
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Ledger Value (GBP)</label>
+                    <div className="text-lg font-black text-emerald-600">£{(request.gbpEquivalent || 0).toFixed(2)}</div>
+                  </div>
+                </div>
+              )}
               
               {request.notes && (
                 <div className="pt-4 border-t border-slate-100">

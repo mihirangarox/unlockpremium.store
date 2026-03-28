@@ -330,7 +330,7 @@ export function CustomerList() {
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <Link to={`/admin/customers/${customer.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition-colors">
+                                <Link to={`/unlock-world-26/customers/${customer.id}`} className="font-bold text-slate-900 hover:text-indigo-600 transition-colors">
                                   {customer.fullName}
                                 </Link>
                                 {isDuplicate && (
@@ -383,7 +383,7 @@ export function CustomerList() {
                             </div>
                           ) : (
                             <Link 
-                              to={`/admin/customers/${customer.id}`} 
+                              to={`/unlock-world-26/customers/${customer.id}`} 
                               className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-500 hover:text-indigo-600 transition-colors px-2 py-1 bg-indigo-50 rounded-md ring-1 ring-indigo-100"
                             >
                               <Plus className="w-3.5 h-3.5" />
@@ -414,7 +414,7 @@ export function CustomerList() {
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Link 
-                              to={`/admin/customers/${customer.id}/edit`}
+                              to={`/unlock-world-26/customers/${customer.id}/edit`}
                               className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
                               title="Edit"
                             >

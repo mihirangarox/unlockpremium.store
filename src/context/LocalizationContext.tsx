@@ -4,18 +4,62 @@ import { AppSettings } from '../admin/types';
 
 interface LocalizationContextType {
   currency: string;
+  userCurrency: string;
+  setUserCurrency: (currency: string) => void;
   timezone: string;
   dateFormat: string;
-  formatCurrency: (amount: number) => string;
+  formatCurrency: (amount: number, overrideCurrency?: string) => string;
   formatDate: (date: string | Date) => string;
   formatTime: (date: string | Date) => string;
   updateSettings: (newSettings: Partial<AppSettings>) => void;
+  isLoadingGeoIP: boolean;
 }
 
 const LocalizationContext = createContext<LocalizationContextType | undefined>(undefined);
 
+// Major EU members and EEA countries using EUR
+const EU_COUNTRY_CODES = [
+  'AT', 'BE', 'CY', 'EE', 'FI', 'FR', 'DE', 'GR', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PT', 'SK', 'SI', 'ES', 'AD', 'ME', 'XK'
+];
+
 export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<AppSettings>(storage.getSettings());
+  const [userCurrency, setUserCurrencyState] = useState<string>(localStorage.getItem('user_currency') || '');
+  const [isLoadingGeoIP, setIsLoadingGeoIP] = useState(false);
+
+  const setUserCurrency = (curr: string) => {
+    setUserCurrencyState(curr);
+    localStorage.setItem('user_currency', curr);
+  };
+
+  useEffect(() => {
+    const detectCurrency = async () => {
+      // Skip if already set manually or from previous session
+      if (localStorage.getItem('user_currency')) return;
+
+      setIsLoadingGeoIP(true);
+      try {
+        const response = await fetch('https://ipapi.co/json/');
+        const data = await response.json();
+        const countryCode = data.country_code;
+
+        if (countryCode === 'GB') {
+          setUserCurrency('GBP');
+        } else if (EU_COUNTRY_CODES.includes(countryCode)) {
+          setUserCurrency('EUR');
+        } else {
+          setUserCurrency('USD');
+        }
+      } catch (error) {
+        console.error("Geo-IP detection failed:", error);
+        setUserCurrency('USD'); // Default fallback
+      } finally {
+        setIsLoadingGeoIP(false);
+      }
+    };
+
+    detectCurrency();
+  }, []);
 
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     const updated = { ...settings, ...newSettings };
@@ -23,7 +67,9 @@ export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ childr
     storage.saveSettings(updated);
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number, overrideCurrency?: string) => {
+    const activeCurrency = overrideCurrency || userCurrency || settings.currency;
+    
     const currencyMap: Record<string, { symbol: string, locale: string }> = {
       'GBP': { symbol: '£', locale: 'en-GB' },
       'USD': { symbol: '$', locale: 'en-US' },
@@ -32,11 +78,11 @@ export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ childr
       'NGN': { symbol: '₦', locale: 'en-NG' },
     };
 
-    const config = currencyMap[settings.currency] || { symbol: '$', locale: 'en-US' };
+    const config = currencyMap[activeCurrency] || { symbol: '$', locale: 'en-US' };
     
     return new Intl.NumberFormat(config.locale, {
       style: 'currency',
-      currency: settings.currency,
+      currency: activeCurrency,
       minimumFractionDigits: 2,
     }).format(amount);
   };
@@ -45,8 +91,6 @@ export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ childr
     const d = typeof date === 'string' ? new Date(date) : date;
     if (isNaN(d.getTime())) return '';
 
-    // Simple implementation based on settings.dateFormat
-    // In a real app, we might use date-fns or similar
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
@@ -76,12 +120,15 @@ export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ childr
   return (
     <LocalizationContext.Provider value={{ 
       currency: settings.currency,
+      userCurrency: userCurrency || settings.currency,
+      setUserCurrency,
       timezone: settings.timezone,
       dateFormat: settings.dateFormat,
       formatCurrency,
       formatDate,
       formatTime,
-      updateSettings
+      updateSettings,
+      isLoadingGeoIP
     }}>
       {children}
     </LocalizationContext.Provider>

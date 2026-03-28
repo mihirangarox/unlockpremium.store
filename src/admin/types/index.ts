@@ -39,8 +39,12 @@ export type ProductCategory = 'LinkedIn';
 
 export interface ProductPricing {
   durationMonths: number;
-  price: number;
-  oldPrice: number;
+  priceUSD: number;
+  priceGBP: number;
+  priceEUR: number;
+  oldPriceUSD: number;
+  oldPriceGBP: number;
+  oldPriceEUR: number;
 }
 
 export interface Product {
@@ -133,6 +137,9 @@ export interface IntakeRequest {
   activationCode?: string; // New: Assigned upon approval
   
   status: RequestStatus;
+  currency?: string;
+  amount?: number;
+  gbpEquivalent?: number;
   createdAt: string;
   updatedAt: string;
 }

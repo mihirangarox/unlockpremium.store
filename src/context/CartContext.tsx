@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import type { Product } from '../admin/types/index';
+import type { Product, ProductPricing } from '../admin/types/index';
+import { useLocalization } from './LocalizationContext';
 
 export interface CartItem extends Product {
   cartItemId: string; // Unique ID for the item in the cart
@@ -18,6 +19,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { userCurrency } = useLocalization();
   const [items, setItems] = useState<CartItem[]>(() => {
     // Initialize from localStorage if available
     const savedCart = localStorage.getItem('unlockpremium_cart');
@@ -32,15 +34,13 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [items]);
 
   const addToCart = (product: Product) => {
-    // Only allow one of each product type for simplicity in subscription model,
-    // or allow multiple. Let's allow multiple but give them unique cartItemIds
     const newItem: CartItem = {
       ...product,
       cartItemId: `cart_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
     
     setItems((prevItems) => [...prevItems, newItem]);
-    setIsCartOpen(true); // Auto-open cart when adding an item
+    setIsCartOpen(true); 
   };
 
   const removeFromCart = (cartItemId: string) => {
@@ -51,7 +51,14 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setItems([]);
   };
 
-  const totalPrice = items.reduce((sum, item) => sum + item.price, 0);
+  // Calculate total based on current userCurrency price tiers
+  const totalPrice = items.reduce((sum, item) => {
+    const priceField = `price${userCurrency}` as keyof ProductPricing;
+    // Find the tier that matches the item's duration
+    const tier = item.pricing?.find(p => p.durationMonths === item.durationMonths);
+    const price = tier ? ((tier as any)[priceField] || tier.priceUSD || 0) : (item.price || 0);
+    return sum + price;
+  }, 0);
 
   return (
     <CartContext.Provider

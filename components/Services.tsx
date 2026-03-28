@@ -4,28 +4,51 @@ import { m } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
 import { useCart } from '../src/context/CartContext';
+import { useLocalization } from '../src/context/LocalizationContext';
 import type { Product, ProductPricing } from '../src/admin/types/index';
 import { Loader2, Package, ShoppingCart } from 'lucide-react';
 
 const ProductCard = ({ product, variants }: { product: Product, variants: any }) => {
   const { addToCart } = useCart();
+  const { userCurrency, formatCurrency } = useLocalization();
   
   const pricingTiers = product.pricing && product.pricing.length > 0 
-    ? [...product.pricing].sort((a,b) => a.price - b.price) 
-    : [{ durationMonths: product.durationMonths || 1, price: product.price || 0, oldPrice: product.oldPrice || 0 }];
+    ? [...product.pricing].sort((a,b) => {
+        const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+        const priceA = a[priceField] || a.priceUSD || 0;
+        const priceB = b[priceField] || b.priceUSD || 0;
+        return priceA - priceB;
+      }) 
+    : [];
     
-  const [selectedTier, setSelectedTier] = useState<ProductPricing>(pricingTiers[0]);
+  // Store selected duration instead of the whole object to ensure responsiveness to data changes
+  const [selectedDuration, setSelectedDuration] = useState<number>(pricingTiers[0]?.durationMonths || 1);
+
+  // The active tier is found from the latest pricing array on each render
+  const selectedTier = pricingTiers.find(t => t.durationMonths === selectedDuration) || pricingTiers[0];
 
   const handleAddToCart = () => {
+    if (!selectedTier) return;
+    
+    const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+    const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
+
     addToCart({
       ...product,
-      price: selectedTier.price,
-      oldPrice: selectedTier.oldPrice,
-      durationMonths: selectedTier.durationMonths
-    } as Product);
+      price: selectedTier[priceField] || selectedTier.priceUSD || 0,
+      oldPrice: selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0,
+      durationMonths: selectedTier.durationMonths,
+      currency: userCurrency
+    } as any);
   };
 
   const isOutOfStock = (variants as any)?.stockCount === 0;
+
+  const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+  const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
+
+  const currentPrice = selectedTier ? (selectedTier[priceField] || selectedTier.priceUSD || 0) : (product.price || 0);
+  const currentOldPrice = selectedTier ? (selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0) : (product.oldPrice || 0);
 
   return (
     <m.div
@@ -59,24 +82,26 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       <h3 className="text-2xl font-bold mb-2 text-white">{product.name}</h3>
       <p className="text-neutral-400 text-sm mb-6 flex-1">{product.description}</p>
 
-      <div className="mb-6">
-        <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-3">Duration</h4>
-        <div className="flex flex-wrap gap-2">
-          {pricingTiers.map(tier => (
-            <button
-              key={tier.durationMonths}
-              onClick={() => setSelectedTier(tier)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                selectedTier.durationMonths === tier.durationMonths
-                  ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
-                  : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              {tier.durationMonths} Months
-            </button>
-          ))}
+      {pricingTiers.length > 0 && (
+        <div className="mb-6">
+          <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-3">Duration</h4>
+          <div className="flex flex-wrap gap-2">
+            {pricingTiers.map(tier => (
+              <button
+                key={tier.durationMonths}
+                onClick={() => setSelectedDuration(tier.durationMonths)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                  selectedDuration === tier.durationMonths
+                    ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
+                    : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                {tier.durationMonths} Months
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="space-y-3 mb-8">
         {product.features?.slice(0, 4).map((f: string, i: number) => (
@@ -91,10 +116,10 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
 
       <div className="flex flex-col gap-4 mt-auto pt-6 border-t border-white/5">
         <div className="flex items-end gap-3">
-          <span className="text-3xl font-black text-white">${selectedTier.price.toFixed(2)}</span>
-          {selectedTier.oldPrice > 0 && (
+          <span className="text-3xl font-black text-white">{formatCurrency(currentPrice)}</span>
+          {currentOldPrice > 0 && (
             <span className="text-sm text-neutral-500 line-through font-medium mb-1">
-              ${selectedTier.oldPrice.toFixed(2)}
+              {formatCurrency(currentOldPrice)}
             </span>
           )}
         </div>

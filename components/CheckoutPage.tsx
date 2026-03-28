@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { m } from 'framer-motion';
 import { useCart } from '../src/context/CartContext';
+import { useLocalization } from '../src/context/LocalizationContext';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from './Button';
 import { saveRequest } from '../src/admin/services/db';
@@ -11,6 +12,7 @@ import 'react-phone-number-input/style.css';
 
 const CheckoutPage: React.FC = () => {
   const { items, totalPrice, clearCart } = useCart();
+  const { userCurrency, formatCurrency } = useLocalization();
   const navigate = useNavigate();
   
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -58,6 +60,12 @@ const CheckoutPage: React.FC = () => {
       // Create an order request mapped to the existing IntakeRequest structure
       const orderContent = items.map(item => `${item.name} (${item.durationMonths}Mo)`).join(', ');
       
+      // Calculate GBP Equivalent based on product tiers
+      const gbpEquivalent = items.reduce((sum, item) => {
+        const tier = item.pricing?.find(p => p.durationMonths === item.durationMonths);
+        return sum + (tier?.priceGBP || tier?.priceUSD || 0); // Use GBP field as the "Ledger Value"
+      }, 0);
+
       const newRequest: IntakeRequest = {
         id: `ord_${Date.now()}`,
         fullName: `${formData.firstName} ${formData.lastName}`.trim(),
@@ -67,12 +75,16 @@ const CheckoutPage: React.FC = () => {
         subscriptionType: items[0]?.name || '',
         subscriptionPeriod: items[0]?.durationMonths === 1 ? '1M' : items[0]?.durationMonths === 3 ? '3M' : items[0]?.durationMonths === 6 ? '6M' : (items[0]?.durationMonths + 'M' as any),
         linkedinUrl: formData.linkedinUrl,
-        notes: `E-COMMERCE CHECKOUT \nItems: ${orderContent}\nTotal: $${totalPrice.toFixed(2)}\nTransaction ID: ${formData.transactionId || 'Pending'}`,
+        notes: `E-COMMERCE CHECKOUT \nItems: ${orderContent}\nTotalPaid: ${formatCurrency(totalPrice)}\nLedgerValue: £${gbpEquivalent.toFixed(2)}\nTransaction ID: ${formData.transactionId || 'Pending'}`,
         status: 'Pending',
         paymentStatus: 'Pending',
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+        updatedAt: new Date().toISOString(),
+        // Multi-currency logging
+        currency: userCurrency,
+        amount: totalPrice,
+        gbpEquivalent: gbpEquivalent
+      } as any;
 
       await saveRequest(newRequest);
       
@@ -358,11 +370,11 @@ const CheckoutPage: React.FC = () => {
                                 <p className="font-bold text-white">{item.name}</p>
                                 <p className="text-xs text-neutral-400">{item.durationMonths} Months</p>
                               </div>
-                              <span className="font-black text-white text-lg">${item.price.toFixed(2)}</span>
+                              <span className="font-black text-white text-lg">{formatCurrency(item.price)}</span>
                             </div>
                             <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider">
-                              <span className="text-neutral-500 line-through">${savings.toFixed(2)}</span>
-                              <span className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">SAVE ${itemSavings.toFixed(2)}</span>
+                              <span className="text-neutral-500 line-through">{formatCurrency(savings)}</span>
+                              <span className="text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded">SAVE {formatCurrency(itemSavings)}</span>
                             </div>
                           </div>
                         );
@@ -372,18 +384,18 @@ const CheckoutPage: React.FC = () => {
                     <div className="space-y-3 pt-6 border-t border-white/10">
                       <div className="flex justify-between items-center text-neutral-400 text-sm">
                         <span>Subtotal</span>
-                        <span>${totalPrice.toFixed(2)}</span>
+                        <span>{formatCurrency(totalPrice)}</span>
                       </div>
                       <div className="flex justify-between items-center text-emerald-500 text-sm font-bold">
                         <span>Total Savings</span>
-                        <span>-${items.reduce((acc, item) => {
+                        <span>-{formatCurrency(items.reduce((acc, item) => {
                           const savings = (item.oldPrice || 0) > item.price ? (item.oldPrice || 0) : (item.price / 0.3);
                           return acc + (savings - item.price);
-                        }, 0).toFixed(2)}</span>
+                        }, 0))}</span>
                       </div>
                       <div className="flex justify-between items-center pt-2">
                         <span className="text-lg font-bold text-white">Total to Pay</span>
-                        <span className="text-3xl font-black text-indigo-400">${totalPrice.toFixed(2)}</span>
+                        <span className="text-3xl font-black text-indigo-400">{formatCurrency(totalPrice)}</span>
                       </div>
                     </div>
                   </div>
@@ -463,7 +475,7 @@ const CheckoutPage: React.FC = () => {
                       <div className="flex justify-between items-center pt-2">
                         <div className="flex flex-col">
                           <span className="text-[10px] uppercase tracking-widest text-indigo-400 mb-1">Amount to Transfer</span>
-                          <span className="font-black text-xl text-emerald-400">${totalPrice.toFixed(2)} USD</span>
+                          <span className="font-black text-xl text-emerald-400">{formatCurrency(totalPrice)} {userCurrency}</span>
                         </div>
                         <button type="button" onClick={() => copyToClipboard(totalPrice.toFixed(2), "amount")} className="p-2 hover:bg-white/5 rounded-lg transition-colors text-indigo-400">
                           {copySuccess === "amount" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}

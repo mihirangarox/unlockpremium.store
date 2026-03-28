@@ -495,7 +495,7 @@ export function Subscriptions() {
                       </td>
                       <td className="px-6 py-4">
                         <button 
-                          onClick={() => navigate(`/admin/customers/${item.sub.customerId}`)}
+                          onClick={() => navigate(`/unlock-world-26/customers/${item.sub.customerId}`)}
                           className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity"
                         >
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs ring-1 ${getCustomerColor(item.customer?.fullName)}`}>
@@ -566,7 +566,7 @@ export function Subscriptions() {
                           </button>
                           <div className="h-4 w-px bg-slate-100 mx-1" />
                           <button 
-                            onClick={() => navigate(`/admin/customers/${item.sub.customerId}/edit`)}
+                            onClick={() => navigate(`/unlock-world-26/customers/${item.sub.customerId}/edit`)}
                             className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
                             title="Edit Subscription"
                           >

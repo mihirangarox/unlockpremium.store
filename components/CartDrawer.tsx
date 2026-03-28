@@ -2,11 +2,14 @@ import React from 'react';
 import { m, AnimatePresence } from 'framer-motion';
 import { X, ShoppingBag, Trash2, ArrowRight } from 'lucide-react';
 import { useCart } from '../src/context/CartContext';
+import { useLocalization } from '../src/context/LocalizationContext';
 import { Link } from 'react-router-dom';
 import Button from './Button';
+import type { ProductPricing } from '../src/admin/types/index';
 
 const CartDrawer: React.FC = () => {
   const { items, isCartOpen, setIsCartOpen, removeFromCart, totalPrice } = useCart();
+  const { userCurrency, formatCurrency } = useLocalization();
 
   return (
     <AnimatePresence>
@@ -65,38 +68,44 @@ const CartDrawer: React.FC = () => {
                   </Button>
                 </div>
               ) : (
-                items.map((item) => (
-                  <m.div
-                    key={item.cartItemId}
-                    layout // Animate position changes when items are removed
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="p-4 rounded-2xl bg-white/5 border border-white/5 relative group"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h4 className="text-white font-bold">{item.name}</h4>
-                        <p className="text-xs text-neutral-400 mt-1">
-                          {item.subscriptionType} • {item.durationMonths} Months
-                        </p>
+                items.map((item) => {
+                  const priceField = `price${userCurrency}` as keyof ProductPricing;
+                  const tier = item.pricing?.find(p => p.durationMonths === item.durationMonths);
+                  const currentPrice = tier ? ((tier as any)[priceField] || tier.priceUSD || 0) : (item.price || 0);
+
+                  return (
+                    <m.div
+                      key={item.cartItemId}
+                      layout // Animate position changes when items are removed
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className="p-4 rounded-2xl bg-white/5 border border-white/5 relative group"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="text-white font-bold">{item.name}</h4>
+                          <p className="text-xs text-neutral-400 mt-1">
+                            {item.durationMonths} Months
+                          </p>
+                        </div>
+                        <span className="text-lg font-black text-white ml-4 whitespace-nowrap">
+                          {formatCurrency(currentPrice)}
+                        </span>
                       </div>
-                      <span className="text-lg font-black text-white ml-4 whitespace-nowrap">
-                        ${item.price.toFixed(2)}
-                      </span>
-                    </div>
-                    
-                    <div className="flex justify-end mt-4">
-                      <button
-                        onClick={() => removeFromCart(item.cartItemId)}
-                        className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1.5 transition-colors p-1.5 rounded-lg hover:bg-rose-400/10"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Remove
-                      </button>
-                    </div>
-                  </m.div>
-                ))
+                      
+                      <div className="flex justify-end mt-4">
+                        <button
+                          onClick={() => removeFromCart(item.cartItemId)}
+                          className="text-xs font-bold text-rose-400 hover:text-rose-300 flex items-center gap-1.5 transition-colors p-1.5 rounded-lg hover:bg-rose-400/10"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
+                      </div>
+                    </m.div>
+                  );
+                })
               )}
             </div>
 
@@ -105,7 +114,7 @@ const CartDrawer: React.FC = () => {
               <div className="p-6 border-t border-white/10 bg-zinc-950/80 backdrop-blur-md">
                 <div className="flex justify-between items-center mb-6">
                   <span className="text-neutral-400 font-medium">Subtotal</span>
-                  <span className="text-2xl font-black text-white">${totalPrice.toFixed(2)}</span>
+                  <span className="text-2xl font-black text-white">{formatCurrency(totalPrice)}</span>
                 </div>
                 
                 <Link to="/checkout" onClick={() => setIsCartOpen(false)} className="block w-full">

@@ -4,7 +4,6 @@ User-agent: *
 Allow: /
 
 # Disallow internal and administrative paths
-Disallow: /admin/
 Disallow: /private/
 Disallow: /config/
 Disallow: /api/

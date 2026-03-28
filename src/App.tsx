@@ -223,7 +223,8 @@ const App: React.FC = () => {
     </>
   );
 
-  const isAdminRoute = location.pathname.startsWith('/admin');
+  const ADMIN_PATH = '/unlock-world-26';
+  const isAdminRoute = location.pathname.startsWith(ADMIN_PATH);
 
   return (
     <LocalizationProvider>
@@ -251,11 +252,16 @@ const App: React.FC = () => {
               <Route path="/services/:serviceId" element={<ServiceLandingPage />} />
               <Route path="/products/:serviceId" element={<ServiceLandingPage />} />
               <Route 
-                path="/admin/*" 
-                element={currentUser ? <AdminRoutes onLogout={handleLogout} /> : <Navigate to="/admin-login" />} 
+                path="/unlock-world-26" 
+                element={currentUser ? <Navigate to="/unlock-world-26/requests" replace /> : <AdminLoginPage />} 
               />
-              <Route path="/admin-login" element={<AdminLoginPage />} />
-              <Route path="/admin-dashboard" element={<Navigate to="/admin" replace />} />
+              <Route 
+                path="/unlock-world-26/*" 
+                element={currentUser ? <AdminRoutes onLogout={handleLogout} /> : <Navigate to="/unlock-world-26" />} 
+              />
+              <Route path="/admin-dashboard" element={<Navigate to="/unlock-world-26" replace />} />
+              <Route path="/admin" element={<Navigate to="/" replace />} />
+              <Route path="/admin-login" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
         </main>
