@@ -13,6 +13,7 @@ import * as db from "../../services/db";
 import { useToast } from "../../components/ui/Toast";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { useLocalization } from "../../../context/LocalizationContext";
+import { notifier } from "../../services/notifier";
 import type { AppSettings, AutoSendMode } from "../../types/index";
 
 export function SettingsPage() {
@@ -436,6 +437,32 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
     setSettings({ ...settings, notificationPreferences: prefs });
   };
 
+  const toggleChannel = (channel: 'In-App' | 'Email' | 'WhatsApp') => {
+    const prefs = { ...settings.notificationPreferences };
+    const currentChannels = prefs.channels || [];
+    if (currentChannels.includes(channel)) {
+      prefs.channels = currentChannels.filter(c => c !== channel);
+    } else {
+      prefs.channels = [...currentChannels, channel];
+    }
+    setSettings({ ...settings, notificationPreferences: prefs });
+  };
+
+  const updateAdminPref = (key: 'adminWhatsAppNumber' | 'webhookUrl', value: string) => {
+    const prefs = { ...settings.notificationPreferences };
+    (prefs[key] as any) = value;
+    setSettings({ ...settings, notificationPreferences: prefs });
+  };
+
+  const handleTestNotification = async () => {
+    const success = await notifier.sendTestNotification();
+    if (success) {
+      window.dispatchEvent(new CustomEvent('show-toast', { 
+        detail: { message: "Test notification sent! Check console for simulated output.", type: 'success' } 
+      }));
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8">
@@ -450,17 +477,73 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8">
         <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-6">Delivery Channels</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {['In-App', 'Email', 'WhatsApp'].map(ch => (
-             <button key={ch} className="flex flex-col items-center gap-4 p-6 bg-slate-50 rounded-3xl border-2 border-transparent hover:border-indigo-100 hover:bg-white transition-all">
-                <div className={`p-4 rounded-2xl ${ch === 'In-App' ? 'bg-indigo-100 text-indigo-600' : ch === 'Email' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                  {ch === 'In-App' ? <Bell className="w-6 h-6" /> : ch === 'Email' ? <Mail className="w-6 h-6" /> : <Smartphone className="w-6 h-6" />}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-slate-800">{ch}</span>
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-lg shadow-emerald-200 animate-pulse" />
-                </div>
-             </button>
-          ))}
+          {(['In-App', 'Email', 'WhatsApp'] as const).map(ch => {
+             const isActive = settings.notificationPreferences.channels.includes(ch);
+             return (
+               <button 
+                 key={ch} 
+                 onClick={() => toggleChannel(ch)}
+                 className={`flex flex-col items-center gap-4 p-6 rounded-3xl border-2 transition-all relative group overflow-hidden ${
+                   isActive 
+                     ? 'bg-indigo-50/50 border-indigo-200' 
+                     : 'bg-slate-50 border-transparent hover:border-slate-200'
+                 }`}
+               >
+                  <div className={`p-4 rounded-2xl transition-transform group-hover:scale-110 ${
+                    ch === 'In-App' ? 'bg-indigo-100 text-indigo-600' : 
+                    ch === 'Email' ? 'bg-blue-100 text-blue-600' : 
+                    'bg-emerald-100 text-emerald-600'
+                  }`}>
+                    {ch === 'In-App' ? <Bell className="w-6 h-6" /> : ch === 'Email' ? <Mail className="w-6 h-6" /> : <Smartphone className="w-6 h-6" />}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${isActive ? 'text-indigo-700' : 'text-slate-500'}`}>{ch}</span>
+                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 shadow-lg shadow-emerald-200 animate-pulse' : 'bg-slate-300'}`} />
+                  </div>
+                  {isActive && <div className="absolute top-2 right-2"><CheckCircle2 className="w-4 h-4 text-indigo-500" /></div>}
+               </button>
+             );
+          })}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Admin Contact</h3>
+            <p className="text-[10px] text-slate-400 font-medium mt-1">Configure where automated admin alerts are sent.</p>
+          </div>
+          <button 
+            type="button"
+            onClick={handleTestNotification}
+            className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
+          >
+            <Zap className="w-3.5 h-3.5" />
+            Test Pulse
+          </button>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Admin WhatsApp Number</label>
+            <input 
+              type="text" 
+              placeholder="+447000000000"
+              value={settings.notificationPreferences.adminWhatsAppNumber || ''}
+              onChange={(e) => updateAdminPref('adminWhatsAppNumber', e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900" 
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Webhook URL (Optional)</label>
+            <input 
+              type="url" 
+              placeholder="https://hooks.zapier.com/..."
+              value={settings.notificationPreferences.webhookUrl || ''}
+              onChange={(e) => updateAdminPref('webhookUrl', e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900" 
+            />
+          </div>
         </div>
       </div>
     </div>

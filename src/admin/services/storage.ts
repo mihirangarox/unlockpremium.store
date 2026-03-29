@@ -27,7 +27,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     systemAlerts: true,
     dailySummary: false,
     summaryTime: '09:00',
-    channels: ['In-App', 'Email']
+    channels: ['In-App', 'Email'],
+    adminWhatsAppNumber: '',
+    webhookUrl: ''
   },
   integrations: {
     whatsapp: 'connected',
@@ -181,6 +183,8 @@ export const storage = {
         oldPlan: subscription.planDuration, // For new subs, old and new are the same
         newPlan: subscription.planDuration,
         amount: subscription.price,
+        cost: 0,
+        profit: subscription.price * 0.85,
         renewedOn: subscription.startDate,
         paymentMethod: 'Other',
         notes: `Initial subscription: ${subscription.subscriptionType}`,

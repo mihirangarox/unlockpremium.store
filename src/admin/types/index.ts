@@ -175,6 +175,8 @@ export interface AppSettings {
     dailySummary: boolean;
     summaryTime: string;
     channels: ('In-App' | 'Email' | 'WhatsApp')[];
+    adminWhatsAppNumber?: string;
+    webhookUrl?: string;
   };
   
   // Integrations
