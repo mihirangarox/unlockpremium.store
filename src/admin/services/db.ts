@@ -374,6 +374,18 @@ export const getAvailableUSDTBatches = async (): Promise<USDTTransaction[]> => {
 };
 
 /**
+ * Gets the most recent USDT exchange rate from Inbound transactions.
+ */
+export const getLatestUSDTRate = async (): Promise<number> => {
+  const transactions = await getUSDTTransactions();
+  const inbound = transactions
+    .filter(tx => tx.type === 'Inbound' && tx.status === 'Completed')
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+  return inbound.length > 0 ? inbound[0].usdtRate : 0.78; // Fallback to standard rate if none found
+};
+
+/**
  * Consumes USDT from available batches using FIFO logic.
  * Returns an array of allocations showing which batches were used and at what rate.
  */

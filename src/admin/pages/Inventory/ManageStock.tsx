@@ -44,7 +44,8 @@ export function ManageStock() {
     codesText: '',
     vendorId: '',
     cost: '',
-    costType: 'unit' as 'unit' | 'total'
+    costType: 'unit' as 'unit' | 'total',
+    isExternal: false
   });
   const [isAdding, setIsAdding] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
@@ -175,21 +176,32 @@ export function ManageStock() {
       const inputCost = parseFloat(formData.cost) || 0;
       const totalUSDTBatchCost = formData.costType === 'unit' ? (inputCost * codes.length) : inputCost;
 
-      if (totalUSDTBatchCost > walletBalance) {
-        showToast(`Insufficient USDT balance. Needed: ${totalUSDTBatchCost.toFixed(2)}`, "error");
-        setIsAdding(false);
-        return;
+      let unitCostGBP = 0;
+      let unitCostUSDT = totalUSDTBatchCost / codes.length;
+
+      if (formData.isExternal) {
+        // Bypass wallet - use latest market rate for GBP cost basis
+        const latestRate = await db.getLatestUSDTRate();
+        unitCostGBP = unitCostUSDT * latestRate;
+        
+        // Optional: We could log this as a 'Manual' transaction in the future if needed
+      } else {
+        // Standard Wallet flow
+        if (totalUSDTBatchCost > walletBalance) {
+          showToast(`Insufficient USDT balance. Needed: ${totalUSDTBatchCost.toFixed(2)}`, "error");
+          setIsAdding(false);
+          return;
+        }
+
+        // Consume USDT using FIFO
+        const allocations = await db.consumeUSDT(totalUSDTBatchCost, `Purchase of ${codes.length} x ${selectedProduct?.name}`);
+        
+        // Calculate average GBP cost for this batch
+        const totalGBPCost = allocations.reduce((sum, a) => sum + (a.amount * a.rate), 0);
+        unitCostGBP = totalGBPCost / codes.length;
       }
 
-      // 1. Consume USDT using FIFO
-      const allocations = await db.consumeUSDT(totalUSDTBatchCost, `Purchase of ${codes.length} x ${selectedProduct?.name}`);
-      
-      // 2. Calculate average GBP cost for this batch
-      const totalGBPCost = allocations.reduce((sum, a) => sum + (a.amount * a.rate), 0);
-      const unitCostGBP = totalGBPCost / codes.length;
-      const unitCostUSDT = totalUSDTBatchCost / codes.length;
-
-      // 3. Create Codes
+      // Create Codes
       const newCodes: DigitalCode[] = codes.map(codeString => ({
         id: `code_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         productId: formData.productId,
@@ -208,9 +220,9 @@ export function ManageStock() {
       // 4. Sync inventory count and avg cost (including GBP)
       await db.syncInventoryFromLiveStock(formData.productId);
       
-      showToast(`Added ${codes.length} codes. Cost: ${formatCurrency(totalGBPCost)}`, "success");
+      showToast(`Added ${codes.length} codes successfully`, "success");
       setIsAddModalOpen(false);
-      setFormData({ productId: '', duration: '', codesText: '', vendorId: '', cost: '', costType: 'unit' });
+      setFormData({ productId: '', duration: '', codesText: '', vendorId: '', cost: '', costType: 'unit', isExternal: false });
       loadAllData();
     } catch (err: any) {
       showToast(err.message || "Failed to add stock", "error");
@@ -761,6 +773,29 @@ export function ManageStock() {
                     </span>
                   </div>
 
+                  {/* New: External Purchase Toggle */}
+                  <div 
+                    onClick={() => setFormData(prev => ({ ...prev, isExternal: !prev.isExternal }))}
+                    className={`flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                      formData.isExternal 
+                        ? 'bg-amber-50 border-amber-200 shadow-sm' 
+                        : 'bg-slate-50 border-slate-100 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${formData.isExternal ? 'bg-amber-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                        <ExternalLink className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className={`text-[10px] font-black uppercase tracking-widest ${formData.isExternal ? 'text-amber-900' : 'text-slate-500'}`}>External Purchase</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Bypass CRM wallet balance check</p>
+                      </div>
+                    </div>
+                    <div className={`w-10 h-6 rounded-full relative transition-colors ${formData.isExternal ? 'bg-amber-500' : 'bg-slate-300'}`}>
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.isExternal ? 'right-1' : 'left-1'}`} />
+                    </div>
+                  </div>
+
                   <div className="flex gap-4 pt-2">
                     <button 
                       type="button" 
@@ -771,7 +806,13 @@ export function ManageStock() {
                     </button>
                     <button 
                       type="submit" 
-                      disabled={isAdding || walletBalance <= 0 || (formData.costType === 'unit' ? parseFloat(formData.cost) * formData.codesText.split('\n').filter(l => l.trim()).length : parseFloat(formData.cost)) > walletBalance}
+                      disabled={
+                        isAdding || 
+                        (!formData.isExternal && (
+                          walletBalance <= 0 || 
+                          (formData.costType === 'unit' ? parseFloat(formData.cost) * formData.codesText.split('\n').filter(l => l.trim()).length : parseFloat(formData.cost)) > walletBalance
+                        ))
+                      }
                       className="flex-[2] py-5 px-10 bg-slate-900 text-white rounded-2xl font-black shadow-2xl shadow-slate-200 flex items-center justify-center gap-3 hover:translate-y-[-2px] transition-all active:translate-y-[0px] disabled:bg-slate-200 disabled:translate-y-0 disabled:shadow-none"
                     >
                       {isAdding ? (
