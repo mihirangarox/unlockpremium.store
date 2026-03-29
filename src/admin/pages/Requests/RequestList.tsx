@@ -4,12 +4,15 @@ import { Search, Filter, SearchX, Calendar, ChevronRight, CheckCircle2, XCircle,
 import { motion, AnimatePresence } from "framer-motion";
 import * as db from "../../services/db";
 import { useLocalization } from "../../../context/LocalizationContext";
+import { useToast } from "../../components/ui/Toast";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import type { IntakeRequest, RequestStatus } from "../../types/index";
 
 export function RequestList() {
   const [requests, setRequests] = useState<IntakeRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { formatDate } = useLocalization();
+  const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<RequestStatus | "All">("All");
   const [contactFilter, setContactFilter] = useState<"All" | "WhatsApp" | "Email" | "Reddit">("All");
@@ -22,6 +25,22 @@ export function RequestList() {
   const [ageFilter, setAgeFilter] = useState<"All" | "7d">("All");
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    action: "Reject" | "Spam" | "Archive" | "Delete" | "SingleDelete";
+    isDestructive: boolean;
+    targetId?: string;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    action: "Archive",
+    isDestructive: false
+  });
 
   useEffect(() => {
     loadRequests();
@@ -111,19 +130,32 @@ export function RequestList() {
     }
   };
 
-  const handleBulkAction = async (action: "Reject" | "Spam" | "Archive" | "Delete") => {
+  const handleBulkAction = (action: "Reject" | "Spam" | "Archive" | "Delete") => {
     if (selectedIds.length === 0) return;
     
-    const confirmMsg = action === "Delete" 
-      ? `Permanently delete ${selectedIds.length} requests? This cannot be undone.`
-      : `Mark ${selectedIds.length} requests as ${action}?`;
-      
-    if (!window.confirm(confirmMsg)) return;
+    const isDestructive = action === "Delete" || action === "Reject";
+    const title = action === "Delete" ? "Permanent Deletion" : `${action} Requests`;
+    const message = action === "Delete"
+      ? `Are you sure you want to permanently delete ${selectedIds.length} requests? This action cannot be undone.`
+      : `Mark ${selectedIds.length} selected requests as ${action}?`;
 
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      action,
+      isDestructive
+    });
+  };
+
+  const executeBulkAction = async () => {
+    const { action } = confirmModal;
     setIsProcessingBulk(true);
+    
     try {
       if (action === "Delete") {
         await Promise.all(selectedIds.map(id => db.deleteRequest(id)));
+        showToast(`Successfully deleted ${selectedIds.length} requests`, "success");
       } else {
         const statusMap = { Reject: "Rejected", Spam: "Spam", Archive: "Archived" };
         const newStatus = (statusMap as any)[action] as RequestStatus;
@@ -134,33 +166,48 @@ export function RequestList() {
           return db.saveRequest({ ...req, status: newStatus, updatedAt: new Date().toISOString() });
         });
         await Promise.all(updates);
+        showToast(`Successfully marked ${selectedIds.length} requests as ${action}`, "success");
       }
       await loadRequests();
       setSelectedIds([]);
     } catch (error) {
       console.error(`Bulk ${action} failed:`, error);
+      showToast(`Failed to process bulk ${action}`, "error");
     } finally {
       setIsProcessingBulk(false);
+      setConfirmModal(prev => ({ ...prev, isOpen: false }));
     }
   };
 
-  const handleDeleteRequest = async (id: string, isApproved: boolean) => {
-    if (isApproved) {
-      if (!window.confirm("This request is already APPROVED. Are you sure you want to delete it? This data is important for your sales records.")) {
-        return;
-      }
-    } else {
-      if (!window.confirm("Permanently delete this request?")) return;
-    }
+  const handleDeleteRequest = (id: string, isApproved: boolean) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Confirm Deletion",
+      message: isApproved 
+        ? "This request is already APPROVED. Are you sure you want to delete it? This data is important for your sales records."
+        : "Are you sure you want to permanently delete this request?",
+      action: "SingleDelete",
+      isDestructive: true,
+      targetId: id
+    });
+  };
+
+  const executeSingleDelete = async () => {
+    const id = confirmModal.targetId;
+    if (!id) return;
 
     try {
       await db.deleteRequest(id);
       await loadRequests();
+      showToast("Request deleted permanently", "success");
       if (selectedIds.includes(id)) {
         setSelectedIds(prev => prev.filter(i => i !== id));
       }
     } catch (error) {
       console.error("Delete failed:", error);
+      showToast("Failed to delete request", "error");
+    } finally {
+      setConfirmModal(prev => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -175,7 +222,7 @@ export function RequestList() {
     );
   };
 
-  const totalReqs = requests.length;
+  const totalReqs = requests.filter(r => r.status !== "Archived" && r.status !== "Spam").length;
   const pendingReqs = requests.filter(r => r.status === "Pending").length;
   const approvedReqs = requests.filter(r => r.status === "Approved").length;
   const conversionRate = totalReqs > 0 ? Math.round((approvedReqs / totalReqs) * 100) : 0;
@@ -512,6 +559,16 @@ export function RequestList() {
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.action === "SingleDelete" ? executeSingleDelete : executeBulkAction}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        isDestructive={confirmModal.isDestructive}
+        confirmLabel={isProcessingBulk ? "Processing..." : confirmModal.action === "Delete" || confirmModal.action === "SingleDelete" ? "Delete Forever" : "Confirm"}
+      />
     </div>
   );
 }

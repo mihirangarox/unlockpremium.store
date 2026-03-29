@@ -10,6 +10,7 @@ import { useToast } from "../../components/ui/Toast";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { generateInvoicePDF } from "../../utils/invoiceGenerator";
 import * as db from "../../services/db";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType, Product, RequestStatus } from "../../types/index";
 
 const SUBSCRIPTION_TYPES: SubscriptionType[] = [
@@ -49,6 +50,21 @@ export function RequestDetail() {
   const [editedEmail, setEditedEmail] = useState("");
   const [editedWhatsapp, setEditedWhatsapp] = useState("");
   const [editedLinkedinUrl, setEditedLinkedinUrl] = useState("");
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    action: RequestStatus | null;
+    isDestructive: boolean;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    action: null,
+    isDestructive: false
+  });
 
   useEffect(() => {
     if (id) {
@@ -246,32 +262,34 @@ export function RequestDetail() {
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = () => {
     if (!request) return;
-    if (!window.confirm("Are you sure you want to reject this request?")) return;
-    
-    setIsProcessing(true);
-    try {
-      const updatedRequest: IntakeRequest = {
-        ...request,
-        status: "Rejected",
-        updatedAt: new Date().toISOString()
-      };
-      await db.saveRequest(updatedRequest);
-      setRequest(updatedRequest);
-      showToast("Request rejected.", "success");
-    } catch (error) {
-      showToast("Failed to reject request.", "error");
-    } finally {
-      setIsProcessing(false);
-    }
+    setConfirmModal({
+      isOpen: true,
+      title: "Reject Request",
+      message: "Are you sure you want to reject this request? This will mark it as Rejected in your records.",
+      action: "Rejected",
+      isDestructive: true
+    });
   };
 
-  const handleUpdateStatus = async (newStatus: RequestStatus) => {
+  const handleUpdateStatus = (newStatus: RequestStatus) => {
     if (!request) return;
-    if (!window.confirm(`Mark this request as ${newStatus}?`)) return;
+    setConfirmModal({
+      isOpen: true,
+      title: `Mark as ${newStatus}`,
+      message: `Are you sure you want to mark this request as ${newStatus}?`,
+      action: newStatus,
+      isDestructive: newStatus === "Spam"
+    });
+  };
 
+  const executeStatusUpdate = async () => {
+    if (!request || !confirmModal.action) return;
+    
     setIsProcessing(true);
+    const newStatus = confirmModal.action;
+    
     try {
       const updatedRequest: IntakeRequest = {
         ...request,
@@ -282,9 +300,11 @@ export function RequestDetail() {
       setRequest(updatedRequest);
       showToast(`Request marked as ${newStatus}.`, "success");
     } catch (error) {
+      console.error(`Failed to update status to ${newStatus}:`, error);
       showToast(`Failed to update status to ${newStatus}.`, "error");
     } finally {
       setIsProcessing(false);
+      setConfirmModal(prev => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -388,6 +408,7 @@ Thank you for your business!`;
   };
 
   return (
+    <>
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -857,5 +878,16 @@ Thank you for your business!`;
         </div>
       </div>
     </div>
+
+    <ConfirmDialog
+      isOpen={confirmModal.isOpen}
+      onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      onConfirm={executeStatusUpdate}
+      title={confirmModal.title}
+      message={confirmModal.message}
+      isDestructive={confirmModal.isDestructive}
+      confirmLabel={confirmModal.action === "Rejected" ? "Reject" : confirmModal.action === "Spam" ? "Mark Spam" : "Confirm"}
+    />
+    </>
   );
 }

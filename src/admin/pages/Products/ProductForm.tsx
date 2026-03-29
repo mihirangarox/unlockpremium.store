@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Save, Loader2, Plus, X } from "lucide-react";
+import { useToast } from "../../components/ui/Toast";
 import * as db from "../../services/db";
 import type { Product, ProductPricing } from "../../types/index";
 
 export function ProductForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const isEditing = Boolean(id);
 
   const [isLoading, setIsLoading] = useState(isEditing);
@@ -61,12 +63,12 @@ export function ProductForm() {
         }
         setFormData({ ...product, pricing });
       } else {
-        alert("Product not found");
+        showToast("Product not found", "error");
         navigate("/unlock-world-26/products");
       }
     } catch (error) {
       console.error("Failed to load product:", error);
-      alert("Failed to load product");
+      showToast("Failed to load product", "error");
     } finally {
       setIsLoading(false);
     }
@@ -132,7 +134,7 @@ export function ProductForm() {
 
     try {
       if (!formData.pricing || formData.pricing.length === 0) {
-        alert("Please add at least one pricing tier.");
+        showToast("Please add at least one pricing tier.", "error");
         setIsSaving(false);
         return;
       }
@@ -157,10 +159,11 @@ export function ProductForm() {
       };
 
       await db.saveProduct(productToSave);
+      showToast(isEditing ? "Product updated successfully" : "Product created successfully", "success");
       navigate("/unlock-world-26/products");
     } catch (error) {
       console.error("Failed to save product:", error);
-      alert("Failed to save product. Please try again.");
+      showToast("Failed to save product. Please try again.", "error");
     } finally {
       setIsSaving(false);
     }

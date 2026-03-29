@@ -3,13 +3,25 @@ import { Link } from "react-router-dom";
 import { Plus, Search, Edit2, Trash2, Tag, Box, DollarSign } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as db from "../../services/db";
+import { useToast } from "../../components/ui/Toast";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import type { Product } from "../../types/index";
 
 export function ProductList() {
+  const { showToast } = useToast();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+
+  // Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    product: { id: string, name: string } | null;
+  }>({
+    isOpen: false,
+    product: null
+  });
 
   useEffect(() => {
     loadProducts();
@@ -27,18 +39,28 @@ export function ProductList() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Are you sure you want to delete ${name}?`)) return;
+  const handleDeleteClick = (id: string, name: string) => {
+    setConfirmModal({
+      isOpen: true,
+      product: { id, name }
+    });
+  };
+
+  const executeDelete = async () => {
+    if (!confirmModal.product) return;
+    const { id, name } = confirmModal.product;
     
     setIsDeleting(id);
     try {
       await db.deleteProduct(id);
       await loadProducts();
+      showToast(`${name} deleted permanently`, "success");
     } catch (error) {
       console.error("Failed to delete product:", error);
-      alert("Failed to delete product. Please try again.");
+      showToast("Failed to delete product. Please try again.", "error");
     } finally {
       setIsDeleting(null);
+      setConfirmModal({ isOpen: false, product: null });
     }
   };
 
@@ -163,7 +185,7 @@ export function ProductList() {
                             <Edit2 className="w-4 h-4" />
                           </Link>
                           <button
-                            onClick={() => handleDelete(product.id, product.name)}
+                            onClick={() => handleDeleteClick(product.id, product.name)}
                             disabled={isDeleting === product.id}
                             className={`p-2 rounded-xl transition-colors ${
                               isDeleting === product.id 
@@ -184,6 +206,16 @@ export function ProductList() {
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, product: null })}
+        onConfirm={executeDelete}
+        title="Confirm Product Deletion"
+        message={`Are you sure you want to permanently delete "${confirmModal.product?.name}"? You will lose all pricing and history for this catalog item.`}
+        isDestructive={true}
+        confirmLabel={isDeleting ? "Deleting..." : "Delete Forever"}
+      />
     </div>
   );
 }
