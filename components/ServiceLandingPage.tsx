@@ -5,12 +5,14 @@ import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Package }
 import Button from './Button';
 import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
 import { useCart } from '../src/context/CartContext';
+import { useLocalization } from '../src/context/LocalizationContext';
 import type { Product, ProductPricing } from '../src/admin/types/index';
 
 const ServiceLandingPage: React.FC = () => {
   const { serviceId } = useParams<{ serviceId: string }>();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { userCurrency, formatCurrency } = useLocalization();
   
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,9 +32,17 @@ const ServiceLandingPage: React.FC = () => {
         if (found) {
           const pricingTiers = found.pricing && found.pricing.length > 0 
             ? found.pricing 
-            : [{ durationMonths: found.durationMonths || 1, price: found.price || 0, oldPrice: found.oldPrice || 0 }];
+            : [{ 
+                durationMonths: found.durationMonths || 1, 
+                priceUSD: found.price || 0, 
+                priceGBP: (found.price || 0) * 0.8, // Rough estimate for fallback
+                priceEUR: (found.price || 0) * 0.9, // Rough estimate for fallback
+                oldPriceUSD: found.oldPrice || 0,
+                oldPriceGBP: (found.oldPrice || 0) * 0.8,
+                oldPriceEUR: (found.oldPrice || 0) * 0.9,
+              } as ProductPricing];
             
-          const sortedPricing = [...pricingTiers].sort((a,b) => a.price - b.price);
+          const sortedPricing = [...pricingTiers].sort((a,b) => (a.priceUSD || 0) - (b.priceUSD || 0));
           found.pricing = sortedPricing;
           
           const counts = liveStock
@@ -82,14 +92,19 @@ const ServiceLandingPage: React.FC = () => {
 
   const handleBuyNow = () => {
     if (!product || !selectedTier) return;
+    
+    const priceField = `price${userCurrency}` as keyof ProductPricing;
+    const oldPriceField = `oldPrice${userCurrency}` as keyof ProductPricing;
+
     const cartProduct: Product = {
       ...product,
-      price: selectedTier.price,
-      oldPrice: selectedTier.oldPrice,
-      durationMonths: selectedTier.durationMonths
-    };
+      price: (selectedTier as any)[priceField] || selectedTier.priceUSD || 0,
+      oldPrice: (selectedTier as any)[oldPriceField] || selectedTier.oldPriceUSD || 0,
+      durationMonths: selectedTier.durationMonths,
+      currency: userCurrency
+    } as any;
+    
     addToCart(cartProduct);
-    // The cart drawer opens automatically, user can proceed from there
   };
 
   return (
@@ -165,12 +180,22 @@ const ServiceLandingPage: React.FC = () => {
 
               <div className="p-8 bg-white/5 rounded-3xl border border-white/10">
                 <div className="flex items-end gap-3 mb-6">
-                  <span className="text-5xl font-black text-white">${selectedTier?.price.toFixed(2) || product.price.toFixed(2)}</span>
-                  {selectedTier?.oldPrice ? (
-                    <span className="text-xl text-neutral-500 line-through mb-1">${selectedTier.oldPrice.toFixed(2)}</span>
-                  ) : product.oldPrice > 0 ? (
-                    <span className="text-xl text-neutral-500 line-through mb-1">${product.oldPrice.toFixed(2)}</span>
-                  ) : null}
+                  {(() => {
+                    const priceField = `price${userCurrency}` as keyof ProductPricing;
+                    const oldPriceField = `oldPrice${userCurrency}` as keyof ProductPricing;
+                    
+                    const currentPrice = selectedTier ? ((selectedTier as any)[priceField] || selectedTier.priceUSD || 0) : (product.price || 0);
+                    const currentOldPrice = selectedTier ? ((selectedTier as any)[oldPriceField] || selectedTier.oldPriceUSD || 0) : (product.oldPrice || 0);
+                    
+                    return (
+                      <>
+                        <span className="text-5xl font-black text-white">{formatCurrency(currentPrice)}</span>
+                        {currentOldPrice > 0 && (
+                          <span className="text-xl text-neutral-500 line-through mb-1">{formatCurrency(currentOldPrice)}</span>
+                        )}
+                      </>
+                    );
+                  })()}
                   <span className="ml-auto px-3 py-1 bg-green-500/10 text-green-400 text-xs font-bold rounded-lg border border-green-500/20">
                     70% SAVINGS
                   </span>
