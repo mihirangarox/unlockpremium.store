@@ -68,7 +68,15 @@ export const LocalizationProvider: React.FC<{ children: ReactNode }> = ({ childr
   };
 
   const formatCurrency = (amount: number, overrideCurrency?: string) => {
-    const activeCurrency = overrideCurrency || userCurrency || settings.currency;
+    // Dynamically detect context (Admin vs Public)
+    const ADMIN_PATH = import.meta.env.VITE_ADMIN_PATH || '/unlock-world-26';
+    const isAdmin = window.location.pathname.startsWith(ADMIN_PATH);
+
+    // PRIORITY:
+    // 1. Explicit override (used in special components)
+    // 2. Admin Portal -> Use Organization Base Currency (e.g., GBP)
+    // 3. Public Site -> Use User Selection / Geo-IP
+    const activeCurrency = overrideCurrency || (isAdmin ? settings.currency : userCurrency) || userCurrency || settings.currency;
     
     const currencyMap: Record<string, { symbol: string, locale: string }> = {
       'GBP': { symbol: '£', locale: 'en-GB' },

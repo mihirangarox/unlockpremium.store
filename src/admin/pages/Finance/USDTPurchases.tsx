@@ -10,6 +10,7 @@ import { useLocalization } from '../../../context/LocalizationContext';
 import { useToast } from '../../components/ui/Toast';
 import * as db from "../../services/db";
 import { USDTTransaction } from "../../types";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 
 export function USDTPurchases() {
   const { formatCurrency, formatDate } = useLocalization();
@@ -24,19 +25,16 @@ export function USDTPurchases() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<USDTTransaction | null>(null);
   
-  // Confirmation Modal
-  const [confirmModal, setConfirmModal] = useState<{
-    isOpen: boolean;
+  // Confirmation Dialog
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState<{
     title: string;
     message: string;
     onConfirm: () => void;
-    isDanger?: boolean;
   }>({
-    isOpen: false,
     title: '',
     message: '',
-    onConfirm: () => {},
-    isDanger: false
+    onConfirm: () => {}
   });
   
   // Add Modal (Legacy or quick add)
@@ -141,6 +139,48 @@ export function USDTPurchases() {
     }
   };
 
+  const handleEdit = (tx: USDTTransaction) => {
+    setEditingTx({ ...tx });
+    setIsDrawerOpen(true);
+  };
+
+  const handleDelete = (tx: USDTTransaction) => {
+    setConfirmConfig({
+      title: 'Delete Transaction',
+      message: `Are you sure you want to permanently delete this ${tx.type} transaction of ${tx.amount} USDT? This will affect your total balance.`,
+      onConfirm: async () => {
+        try {
+          await db.deleteUSDTTransaction(tx.id);
+          setTransactions(prev => prev.filter(t => t.id !== tx.id));
+          showToast("Transaction deleted", "success");
+        } catch (error) {
+          console.error("Delete failed:", error);
+          showToast("Failed to delete transaction", "error");
+        }
+      }
+    });
+    setIsConfirmOpen(true);
+  };
+
+  const handleBulkDelete = () => {
+    setConfirmConfig({
+      title: 'Delete Multiple Transactions',
+      message: `Are you sure you want to delete ${selectedIds.length} transactions? This action is permanent and will recalculate your wallet balance.`,
+      onConfirm: async () => {
+        try {
+          await Promise.all(selectedIds.map(id => db.deleteUSDTTransaction(id)));
+          setTransactions(prev => prev.filter(t => !selectedIds.includes(t.id)));
+          setSelectedIds([]);
+          showToast(`Successfully deleted ${selectedIds.length} transactions`, "success");
+        } catch (error) {
+          console.error("Bulk delete failed:", error);
+          showToast("Failed to delete some transactions", "error");
+        }
+      }
+    });
+    setIsConfirmOpen(true);
+  };
+
   return (
     <div className="space-y-6 relative min-h-screen pb-24">
       {/* Floating Add Button */}
@@ -183,7 +223,7 @@ export function USDTPurchases() {
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mb-2">Net Value Strategy</p>
           <div className="space-y-1">
             <p className="text-slate-500 text-xs font-medium leading-relaxed">
-              You've spent <span className="text-slate-900 font-black">{formatCurrency(stats.totalGbpSpent)}</span> to acquire <span className="text-slate-900 font-black">{stats.totalInbound.toFixed(2)} USDT</span>.
+              You've spent <span className="text-slate-900 font-black">{formatCurrency(stats.totalGbpSpent, 'GBP')}</span> to acquire <span className="text-slate-900 font-black">{stats.totalInbound.toFixed(2)} USDT</span>.
             </p>
             <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-2">
               Avg Rate: {stats.avgRate.toFixed(4)} GBP/USDT
@@ -244,26 +284,7 @@ export function USDTPurchases() {
               
               <div className="flex items-center gap-3">
                 <button 
-                  onClick={() => {
-                    setConfirmModal({
-                      isOpen: true,
-                      title: 'Delete Transactions',
-                      message: `Are you sure you want to delete ${selectedIds.length} transactions? This action cannot be undone.`,
-                      isDanger: true,
-                      onConfirm: async () => {
-                        try {
-                          await Promise.all(selectedIds.map(id => db.deleteUSDTTransaction(id)));
-                          setTransactions(prev => prev.filter(t => !selectedIds.includes(t.id)));
-                          setSelectedIds([]);
-                          showToast(`Successfully deleted ${selectedIds.length} transactions`, "success");
-                        } catch (error) {
-                          console.error("Bulk delete failed:", error);
-                          showToast("Failed to delete some transactions", "error");
-                        }
-                        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                      }
-                    });
-                  }}
+                  onClick={handleBulkDelete}
                   className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-2"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -398,14 +419,14 @@ export function USDTPurchases() {
                                 </div>
                                 <div className="flex items-center justify-between text-[10px] font-bold">
                                   <span className="text-slate-400">Total Spent</span>
-                                  <span className="text-indigo-600">{formatCurrency(parent.gbpTotalSpent || (parent.amount * parent.usdtRate))}</span>
+                                  <span className="text-indigo-600">{formatCurrency(parent.gbpTotalSpent || (parent.amount * parent.usdtRate), 'GBP')}</span>
                                 </div>
                               </div>
                             </td>
                             <td className="px-6 py-6 align-top">
                               <div className="space-y-1">
                                 <div className="text-xs font-black text-slate-900">
-                                  {formatCurrency(parent.usdtRate)} <span className="text-[10px] text-slate-400 uppercase tracking-widest">/ USDT</span>
+                                  {formatCurrency(parent.usdtRate, 'GBP')} <span className="text-[10px] text-slate-400 uppercase tracking-widest">/ USDT</span>
                                 </div>
                                 <p className="text-[10px] text-slate-400 font-medium">Locked Cost Basis</p>
                               </div>
@@ -430,8 +451,8 @@ export function USDTPurchases() {
                             </td>
                             <td className="px-6 py-6 text-right align-top">
                               <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit3 className="w-4 h-4" /></button>
-                                <button className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                                <button onClick={() => handleEdit(parent)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit3 className="w-4 h-4" /></button>
+                                <button onClick={() => handleDelete(parent)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
                               </div>
                             </td>
                           </tr>
@@ -472,18 +493,16 @@ export function USDTPurchases() {
                               <td className="px-6 py-4 text-right">
                                 <button 
                                   onClick={() => {
-                                    setConfirmModal({
-                                      isOpen: true,
+                                    setConfirmConfig({
                                       title: 'Delete Allocation',
-                                      message: 'This will remove the transaction log but won\'t restore balance to the batch. Use with caution.',
-                                      isDanger: true,
+                                      message: "This will remove the transaction log but won't restore balance to the batch. Use with caution.",
                                       onConfirm: async () => {
                                         await db.deleteUSDTTransaction(child.id);
                                         setTransactions(prev => prev.filter(t => t.id !== child.id));
-                                        setConfirmModal(p => ({ ...p, isOpen: false }));
                                         showToast("Allocation log removed", "success");
                                       }
                                     });
+                                    setIsConfirmOpen(true);
                                   }}
                                   className="p-2 text-slate-300 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"
                                 >
@@ -524,7 +543,10 @@ export function USDTPurchases() {
                            <span className="px-3 py-1 bg-slate-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">{tx.status}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <button onClick={() => db.deleteUSDTTransaction(tx.id)} className="p-2 text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="w-4 h-4" /></button>
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => handleEdit(tx)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"><Edit3 className="w-4 h-4" /></button>
+                            <button onClick={() => handleDelete(tx)} className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -616,7 +638,7 @@ export function USDTPurchases() {
                     <AlertCircle className="w-4 h-4 shrink-0" />
                     <div>
                       <p className="font-bold">Unusually High Rate</p>
-                      <p className="opacity-80">This rate (1 USDT = {formatCurrency(editingTx.usdtRate)}) is significantly outside the normal range. Please verify.</p>
+                      <p className="opacity-80">This rate (1 USDT = {formatCurrency(editingTx.usdtRate, 'GBP')}) is significantly outside the normal range. Please verify.</p>
                     </div>
                   </div>
                 )}
@@ -767,7 +789,7 @@ export function USDTPurchases() {
                         <span className="text-[10px] font-black uppercase tracking-widest">Effective Rate</span>
                       </div>
                       <div className="text-indigo-900 font-black">
-                        1 USDT = {formatCurrency(newTx.usdtRate || 0)}
+                        1 USDT = {formatCurrency(newTx.usdtRate || 0, 'GBP')}
                       </div>
                     </div>
                   </div>
@@ -842,40 +864,15 @@ export function USDTPurchases() {
       </AnimatePresence>
 
       {/* Confirmation Modal */}
-      <AnimatePresence>
-        {confirmModal.isOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-8 text-center"
-            >
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ${confirmModal.isDanger ? 'bg-rose-100 text-rose-600' : 'bg-indigo-100 text-indigo-600'}`}>
-                <AlertCircle className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 mb-2">{confirmModal.title}</h3>
-              <p className="text-slate-500 text-sm mb-8 leading-relaxed">
-                {confirmModal.message}
-              </p>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
-                  className="flex-1 py-4 text-slate-400 font-bold hover:text-slate-600 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button 
-                  onClick={confirmModal.onConfirm}
-                  className={`flex-1 py-4 text-white rounded-2xl font-black shadow-lg transition-all hover:translate-y-[-2px] ${confirmModal.isDanger ? 'bg-rose-600 shadow-rose-200 hover:bg-rose-700' : 'bg-indigo-600 shadow-indigo-200 hover:bg-indigo-700'}`}
-                >
-                  Confirm
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ConfirmDialog 
+        isOpen={isConfirmOpen}
+        onClose={() => setIsConfirmOpen(false)}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmLabel="Confirm Action"
+        isDestructive={true}
+      />
     </div>
   );
 }
