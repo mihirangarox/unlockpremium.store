@@ -611,7 +611,19 @@ export const claimCodeForRequest = async (
   if (inventorySnap.exists()) {
     const invData = inventorySnap.data();
     if (invData.stockCount > 0) {
-      batch.update(inventoryRef, { stockCount: invData.stockCount - 1 });
+      const newCount = invData.stockCount - 1;
+      batch.update(inventoryRef, { stockCount: newCount });
+      
+      // Hook Low Stock Alert (Threshold: 2 or 0)
+      if (newCount === 2 || newCount === 0) {
+        // We import it inside or use a global reference if possible
+        // To avoid circular dependencies, it's better to ensure notifier is ready
+        setTimeout(() => {
+          import('./notifier').then(({ notifier }) => {
+             notifier.notifyLowStock(codeData.productName, codeData.duration, newCount);
+          });
+        }, 0);
+      }
     }
   }
 
