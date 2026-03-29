@@ -211,14 +211,18 @@ export function RequestDetail() {
       // 3. Claim Digital Activation Code
       const targetProduct = products.find(p => p.subscriptionType === (subscriptionType || request.subscriptionType));
       
-      const claimedCode = await db.claimCodeForRequest(
+      const claimedCodeObj = await db.claimCodeForRequest(
         targetProduct?.id || (subscriptionType as string) || (request.subscriptionType as string) || "",
         (subscriptionPeriod as string) || request.subscriptionPeriod || "",
         request.id
       );
 
-      if (claimedCode) {
-        subscription.activationCode = claimedCode;
+      const activationCode = claimedCodeObj?.code || null;
+      const linkCost = claimedCodeObj?.gbpPurchaseCost || 0;
+      const profit = defaultPrice - linkCost;
+
+      if (activationCode) {
+        subscription.activationCode = activationCode;
       }
 
       // 5. Mark Request as Approved
@@ -229,7 +233,7 @@ export function RequestDetail() {
         renewalDate,
         paymentStatus,
         internalNotes,
-        activationCode: claimedCode || null,
+        activationCode: activationCode,
         status: "Approved",
         updatedAt: now
       };
@@ -238,7 +242,7 @@ export function RequestDetail() {
       await db.saveSubscription(subscription);
       await db.saveRequest(updatedRequest);
       
-      await db.logTransaction(subscription);
+      await db.logTransaction(subscription, linkCost, profit);
       
       // Update order count for the "Loyalty" system
       if (customerId) {
@@ -248,10 +252,10 @@ export function RequestDetail() {
       setRequest(updatedRequest);
       
       showToast(
-        claimedCode 
+        claimedCodeObj 
           ? "Approved & Activation Code Assigned!" 
           : "Approved! (No available codes to assign)", 
-        claimedCode ? "success" : "info"
+        claimedCodeObj ? "success" : "info"
       );
       
     } catch (error) {

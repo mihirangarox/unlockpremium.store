@@ -201,7 +201,7 @@ export const saveRenewalHistory = async (history: RenewalHistory): Promise<void>
   await setDoc(doc(db, "renewal_history", history.id), history);
 };
 
-export const logTransaction = async (subscription: Subscription): Promise<void> => {
+export const logTransaction = async (subscription: Subscription, cost = 0, profit = 0): Promise<void> => {
   // Check if a transaction for this subscription already exists on the same start date
   const snap = await getDocs(
     query(collection(db, "renewal_history"), where("subscriptionId", "==", subscription.id))
@@ -219,6 +219,8 @@ export const logTransaction = async (subscription: Subscription): Promise<void> 
       oldPlan: subscription.planDuration,
       newPlan: subscription.planDuration,
       amount: subscription.price,
+      cost,
+      profit,
       renewedOn: subscription.startDate,
       paymentMethod: "Other",
       notes: `Initial subscription: ${subscription.subscriptionType ?? ""}`,
@@ -548,7 +550,7 @@ export const claimCodeForRequest = async (
   productIdOrType: string, 
   duration: string, 
   requestId: string
-): Promise<string | null> => {
+): Promise<DigitalCode | null> => {
   // 1. Try to find by direct productId first
   let q = query(
     collection(db, "live_stock"),
@@ -615,7 +617,7 @@ export const claimCodeForRequest = async (
 
   await batch.commit();
 
-  return updatedCode.code;
+  return updatedCode;
 };
 
 /**

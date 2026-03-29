@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Users, Activity, AlertCircle, FileText, PoundSterling, Percent, ChevronRight, Send } from "lucide-react";
 import * as db from "../services/db";
-import type { Customer, Subscription } from "../types/index";
+import type { Customer, Subscription, RenewalHistory, USDTTransaction } from "../types/index";
 import { motion } from "framer-motion";
 import { getDaysLeft, formatDaysLeft, getDaysLeftColorClass } from "../utils/dateUtils";
 import { useToast } from "../components/ui/Toast";
@@ -35,7 +35,10 @@ export function Dashboard() {
     dueToday: 0,
     dueThisWeek: 0,
     expired: 0,
-    monthlyRevenue: 0,
+    totalRevenue: 0,
+    netProfit: 0,
+    monthlyMomentum: 0,
+    cashOnHand: 0,
     renewalRate: 0,
   });
 
@@ -43,10 +46,16 @@ export function Dashboard() {
 
   useEffect(() => {
     (async () => {
-      const [customers, subs] = await Promise.all([
+      const [customers, subs, history, usdtTx] = await Promise.all([
         db.getCustomers(),
-        db.getSubscriptions()
+        db.getSubscriptions(),
+        db.getRenewalHistory(),
+        db.getUSDTTransactions()
       ]);
+
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
 
       const getSubStatus = (renewalDate: string): string => {
         const daysLeft = getDaysLeft(renewalDate);
@@ -56,6 +65,30 @@ export function Dashboard() {
         return 'Active';
       };
 
+      // 1. CASH-BASIS METRICS (Renewal History)
+      const totalRevenue = history.reduce((sum, h) => sum + (h.amount || 0), 0);
+      
+      // Fallback for legacy records that don't have the 'profit' field yet
+      const netProfit = history.reduce((sum, h) => {
+        if (h.profit !== undefined) return sum + h.profit;
+        return sum + (h.amount * 0.85); // Estimate 85% for legacy
+      }, 0);
+
+      // 2. CASH ON HAND (Revenue - Outbound USDT Costs)
+      const totalSpentOnUSDT = usdtTx
+        .filter(tx => tx.type === 'Inbound' && tx.status === 'Completed')
+        .reduce((sum, tx) => sum + (tx.gbpPaid || tx.gbpTotalSpent || 0), 0);
+      
+      const cashOnHand = totalRevenue - totalSpentOnUSDT;
+
+      // 3. PROJECTED MRR (Monthly Momentum)
+      const monthlyMomentum = subs
+        .filter(s => getSubStatus(s.renewalDate) !== 'Expired')
+        .reduce((sum, s) => {
+          const months = s.durationMonths || 1;
+          return sum + (s.price / months);
+        }, 0);
+
       const activeCustomers = customers.filter(c => {
         const customerSubs = subs.filter(s => s.customerId === c.id);
         const hasActiveSub = customerSubs.some(s => getSubStatus(s.renewalDate) !== 'Expired');
@@ -64,13 +97,6 @@ export function Dashboard() {
 
       const dueToday = subs.filter(s => getSubStatus(s.renewalDate) === 'Due Today').length;
       const expiredCount = subs.filter(s => getSubStatus(s.renewalDate) === 'Expired').length;
-
-      const monthlyRevenue = subs
-        .filter(s => getSubStatus(s.renewalDate) !== 'Expired')
-        .reduce((sum, s) => {
-          const months = s.durationMonths || 1;
-          return sum + (s.price / months);
-        }, 0);
 
       const activeCount = subs.filter(s => getSubStatus(s.renewalDate) !== 'Expired').length;
       const renewalRateValue = activeCount + expiredCount > 0 
@@ -87,7 +113,10 @@ export function Dashboard() {
         dueToday,
         dueThisWeek,
         expired: expiredCount,
-        monthlyRevenue,
+        totalRevenue,
+        netProfit,
+        monthlyMomentum,
+        cashOnHand,
         renewalRate: renewalRateValue,
       });
 
@@ -129,53 +158,57 @@ export function Dashboard() {
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <StatCard 
-          title="Active Customers" 
-          value={String(stats.activeCustomers)} 
-          icon={<Users className="h-6 w-6" />} 
+          title="Total Revenue" 
+          value={formatCurrency(Math.round(stats.totalRevenue))} 
+          subValue="Total Cash Received"
+          icon={<PoundSterling className="h-6 w-6" />} 
           bgColor="bg-indigo-50" 
           color="text-indigo-600" 
         />
-        
-        <StatCard 
-          title="Due Today" 
-          value={String(stats.dueToday)} 
-          icon={<AlertCircle className="h-6 w-6" />} 
-          bgColor="bg-rose-50" 
-          color="text-rose-600" 
-        />
 
         <StatCard 
-          title="Due in 7 Days" 
-          value={String(stats.dueThisWeek)} 
+          title="Net Profit" 
+          value={formatCurrency(Math.round(stats.netProfit))} 
+          subValue="Immediate Margin"
           icon={<Activity className="h-6 w-6" />} 
-          bgColor="bg-amber-50" 
-          color="text-amber-600" 
-        />
-
-        <StatCard 
-          title="Expired" 
-          value={String(stats.expired)} 
-          icon={<FileText className="h-6 w-6" />} 
-          bgColor="bg-slate-50" 
-          color="text-slate-600" 
-        />
-
-        <StatCard 
-          title="Monthly Revenue" 
-          value={formatCurrency(Math.round(stats.monthlyRevenue))} 
-          subValue="Projected"
-          icon={<PoundSterling className="h-6 w-6" />} 
           bgColor="bg-emerald-50" 
           color="text-emerald-600" 
         />
 
         <StatCard 
-          title="Renewal Rate" 
-          value={`${stats.renewalRate}%`} 
-          subValue="Healthy target: 80%+"
-          icon={<Percent className="h-6 w-6" />} 
+          title="Projected Momentum" 
+          value={formatCurrency(Math.round(stats.monthlyMomentum))} 
+          subValue="MRR / Monthly Growth"
+          icon={<Activity className="h-6 w-6" />} 
           bgColor="bg-blue-50" 
           color="text-blue-600" 
+        />
+
+        <StatCard 
+          title="Cash Balance" 
+          value={formatCurrency(Math.round(stats.cashOnHand))} 
+          subValue="Available for restock"
+          icon={<PoundSterling className="h-6 w-6" />} 
+          bgColor="bg-slate-50" 
+          color="text-slate-600" 
+        />
+        
+        <StatCard 
+          title="Active Customers" 
+          value={String(stats.activeCustomers)} 
+          subValue="Growing Community"
+          icon={<Users className="h-6 w-6" />} 
+          bgColor="bg-slate-50" 
+          color="text-slate-600" 
+        />
+
+        <StatCard 
+          title="Due / Follow-ups" 
+          value={String(stats.dueToday + stats.dueThisWeek)} 
+          subValue={`${stats.dueToday} today, ${stats.dueThisWeek} soon`}
+          icon={<AlertCircle className="h-6 w-6" />} 
+          bgColor="bg-amber-50" 
+          color="text-amber-600" 
         />
       </div>
 

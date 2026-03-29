@@ -108,7 +108,9 @@ export interface RenewalHistory {
   subscriptionId: string;
   oldPlan: PlanDuration | '';
   newPlan: PlanDuration | '';
-  amount: number;
+  amount: number; // Agreed Sales Price
+  cost: number;   // GBP Cost of the link
+  profit: number; // amount - cost
   renewedOn: string;
   paymentMethod: string;
   notes: string;

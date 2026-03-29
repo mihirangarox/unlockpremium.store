@@ -50,12 +50,25 @@ export function Reports() {
     });
 
     const activeSubs = subscriptions.filter(s => s.status === 'Active');
-    const totalRev = filteredHistory.reduce((sum, h) => sum + h.amount, 0);
+    const totalRev = filteredHistory.reduce((sum, h) => sum + (h.amount || 0), 0);
     
+    // Fallback: Use recorded profit if available, otherwise estimate 85% margin for old records
+    const netProfit = filteredHistory.reduce((sum, h) => {
+      if (h.profit !== undefined) return sum + h.profit;
+      return sum + (h.amount * 0.85);
+    }, 0);
+
+    const totalCosts = filteredHistory.reduce((sum, h) => {
+      if (h.cost !== undefined) return sum + h.cost;
+      return sum + (h.amount * 0.15);
+    }, 0);
+
+    const avgMargin = totalRev > 0 ? (netProfit / totalRev) * 100 : 0;
+
     // MRR calculation (simplified)
     const mrr = activeSubs.reduce((sum, s) => {
-      const price = s.price;
-      const months = parseInt(s.planDuration) || 1;
+      const price = (s.price || 0);
+      const months = (s.durationMonths || 1);
       return sum + (price / months);
     }, 0);
 
@@ -106,11 +119,6 @@ export function Reports() {
     const churn = subscriptions.length > 0 ? (expiredCount / subscriptions.length) * 100 : 0;
     const conv = customers.length > 0 ? (activeSubs.length / customers.length) * 100 : 0;
 
-    // Profit calculations (mocked cost basis: 40% of revenue)
-    const totalCosts = totalRev * 0.45;
-    const netProfit = totalRev - totalCosts;
-    const avgMargin = totalRev > 0 ? (netProfit / totalRev) * 100 : 0;
-
     setStats({
       totalCustomers: customers.length,
       activeSubscriptions: activeSubs.length,
@@ -119,7 +127,7 @@ export function Reports() {
       avgSubscriptionLength: avgLength,
       churnRate: Math.round(churn * 10) / 10,
       conversionRate: Math.round(conv * 10) / 10,
-      avgLtv: totalC > 0 ? (history.reduce((sum, h) => sum + h.amount, 0) / totalC) : 0,
+      avgLtv: totalC > 0 ? (totalRev / totalC) : 0,
       totalCosts,
       netProfit,
       avgMargin: Math.round(avgMargin * 10) / 10,
@@ -136,19 +144,20 @@ export function Reports() {
       d.setMonth(d.getMonth() - i);
       const monthStr = monthNames[d.getMonth()] + " " + d.getFullYear().toString().slice(-2);
       
-      const monthlyRev = history
-        .filter(h => {
-          const hDate = new Date(h.renewedOn);
-          return hDate.getMonth() === d.getMonth() && hDate.getFullYear() === d.getFullYear();
-        })
-        .reduce((sum, h) => sum + h.amount, 0);
+      const monthItems = history.filter(h => {
+        const hDate = new Date(h.renewedOn);
+        return hDate.getMonth() === d.getMonth() && hDate.getFullYear() === d.getFullYear();
+      });
+
+      const monthlyRev = monthItems.reduce((sum, h) => sum + (h.amount || 0), 0);
+      const monthlyCost = monthItems.reduce((sum, h) => sum + (h.cost || 0), 0);
+      const monthlyProfit = monthItems.reduce((sum, h) => sum + (h.profit || 0), 0);
       
-      const monthlyCost = monthlyRev * 0.45; // Mock 45% cost
       data.push({ 
         month: monthStr, 
         amount: monthlyRev, 
         cost: monthlyCost, 
-        profit: monthlyRev - monthlyCost 
+        profit: monthlyProfit 
       });
     }
     setChartData(data);

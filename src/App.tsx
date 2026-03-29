@@ -271,12 +271,12 @@ const App: React.FC = () => {
               <Route path="/services/:serviceId" element={<ServiceLandingPage />} />
               <Route path="/products/:serviceId" element={<ServiceLandingPage />} />
               <Route 
-                path={ADMIN_PATH} 
-                element={currentUser ? <Navigate to={`${ADMIN_PATH}/requests`} replace /> : <AdminLoginPage />} 
-              />
-              <Route 
                 path={`${ADMIN_PATH}/*`} 
-                element={currentUser ? <AdminRoutes onLogout={handleLogout} /> : <Navigate to={ADMIN_PATH} />} 
+                element={
+                  loadingAuth ? null : 
+                  currentUser ? <AdminRoutes onLogout={handleLogout} /> 
+                  : <AdminLoginPage />
+                } 
               />
               <Route path="/admin-dashboard" element={<Navigate to={ADMIN_PATH} replace />} />
               <Route path="/admin" element={<Navigate to="/" replace />} />
