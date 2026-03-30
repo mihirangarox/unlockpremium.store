@@ -29,7 +29,10 @@ const DEFAULT_SETTINGS: AppSettings = {
     summaryTime: '09:00',
     channels: ['In-App', 'Email'],
     adminWhatsAppNumber: '',
-    webhookUrl: ''
+    webhookUrl: '',
+    lastSundayReportDate: '',
+    lastDailyReportDate: '',
+    lastMorningReportDate: ''
   },
   integrations: {
     whatsapp: 'connected',

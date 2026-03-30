@@ -1,4 +1,5 @@
 import { storage } from './storage';
+import * as db from './db';
 import type { IntakeRequest } from '../types/index';
 
 /**
@@ -124,7 +125,6 @@ export const notifier = {
    * Sends a manual test notification from the Settings page.
    */
   async sendTestNotification() {
-    const settings = storage.getSettings();
     const mockRequest: any = {
       id: 'test_123',
       fullName: 'Test Customer',
@@ -138,5 +138,282 @@ export const notifier = {
     
     await this.notifyNewRequest(mockRequest);
     return true;
+  },
+
+  /**
+   * Summarizes the "Work to do" for the day.
+   * Includes pending requests, today's renewals, and low stock.
+   */
+  async sendMorningActionReport() {
+    const settings = storage.getSettings();
+    const url = settings.notificationPreferences.webhookUrl;
+    if (!url) return false;
+
+    try {
+      const [requests, subs, stock, history] = await Promise.all([
+        db.getRequests(),
+        db.getSubscriptions(),
+        db.getLiveStock(),
+        db.getRenewalHistory()
+      ]);
+
+      const pendingRequests = requests.filter(r => r.status === 'Pending').length;
+      const today = new Date().toISOString().split('T')[0];
+      const renewalsToday = subs.filter(s => s.renewalDate.split('T')[0] === today).length;
+      const lowStock = stock.filter(s => s.status === 'Available').length; // Simplified stock check
+      
+      const totalRevenue = history.reduce((sum, h) => sum + (h.amount || 0), 0);
+      const totalSpentOnUSDT = (await db.getUSDTTransactions())
+        .filter(tx => tx.type === 'Inbound' && tx.status === 'Completed')
+        .reduce((sum, tx) => sum + (tx.gbpPaid || tx.gbpTotalSpent || 0), 0);
+      const cashOnHand = totalRevenue - totalSpentOnUSDT;
+
+      const embed = {
+        title: "🌅 Morning Action Centre",
+        description: "Here is your task list and business health for today.",
+        color: 0xf59e0b, // Amber
+        fields: [
+          { name: "📥 Pending leads", value: `${pendingRequests} requests`, inline: true },
+          { name: "🔄 Renewals Today", value: `${renewalsToday} plans`, inline: true },
+          { name: "📦 Stock Level", value: `${lowStock} codes`, inline: true },
+          { name: "💳 Cash-on-Hand", value: `£${cashOnHand.toFixed(2)}`, inline: true }
+        ],
+        footer: { text: "CRMSync Automation • Success starts now" },
+        timestamp: new Date().toISOString()
+      };
+
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [embed] })
+      });
+
+      // Update settings
+      const updatedSettings = { ...settings };
+      updatedSettings.notificationPreferences.lastMorningReportDate = today;
+      storage.saveSettings(updatedSettings);
+
+      return true;
+    } catch (error) {
+      console.error("[Notifier] Morning report failed:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Celebrates a new sale with profit data and loyalty flags.
+   */
+  async notifySaleCelebration(request: IntakeRequest, profit: number, customer?: any) {
+    const settings = storage.getSettings();
+    const url = settings.notificationPreferences.webhookUrl;
+    if (!url) return;
+
+    const loyaltyEmoji = customer?.discountTier === 'Platinum' ? '💎' : 
+                         customer?.discountTier === 'Gold' ? '🥇' : '⭐';
+
+    const embed = {
+      title: `🎉 NEW SALE APPROVED ${loyaltyEmoji}`,
+      description: `**${request.fullName}** just started their **${request.subscriptionType}**!`,
+      color: 0x10b981, // Emerald
+      fields: [
+        { name: "💰 Sales Price", value: `£${request.amount?.toFixed(2)}`, inline: true },
+        { name: "💎 Net Profit", value: `£${profit.toFixed(2)}`, inline: true },
+        { name: "👤 Customer Tier", value: customer?.discountTier || 'New Customer', inline: true }
+      ],
+      footer: { text: "CRMSync Pulse • Transaction Logged" },
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [embed] })
+      });
+    } catch (error) {
+      console.error("[Notifier] Sale celebration failed:", error);
+    }
+  },
+
+  /**
+   * Alerts the admin when a USDT batch is nearly empty.
+   */
+  async notifyUSDTEmpty(batchId: string, remainingGbp: number) {
+    const settings = storage.getSettings();
+    const url = settings.notificationPreferences.webhookUrl;
+    if (!url) return;
+
+    const embed = {
+      title: "💸 FUNDING ALERT: USDT LOW",
+      description: `USDT Batch **#${batchId.slice(-6)}** is almost fully consumed.`,
+      color: 0xef4444, // Red
+      fields: [
+        { name: "Remaining Value", value: `£${remainingGbp.toFixed(2)}`, inline: true },
+        { name: "Action", value: "Purchase more USDT on P2P to ensure link cost coverage.", inline: false }
+      ],
+      footer: { text: "CRMSync Finance Guard" },
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [embed] })
+      });
+    } catch (error) {
+      console.error("[Notifier] USDT alert failed:", error);
+    }
+  },
+
+  /**
+   * Generates and dispatches a daily financial summary to Discord.
+   * Calculates Revenue, Link Costs, and Net Profit for the current day.
+   */
+  async sendDailyFinancialReport() {
+    const settings = storage.getSettings();
+    const url = settings.notificationPreferences.webhookUrl;
+    if (!url) return false;
+
+    try {
+      const history = await db.getRenewalHistory();
+      const now = new Date();
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      const dailyTrans = history.filter(h => new Date(h.createdAt) >= startOfToday);
+      
+      const totalRevenue = dailyTrans.reduce((sum, h) => sum + (h.amount || 0), 0);
+      const totalCost = dailyTrans.reduce((sum, h) => sum + (h.cost || 0), 0);
+      const netProfit = dailyTrans.reduce((sum, h) => sum + (h.profit || 0), 0);
+      const orderCount = dailyTrans.length;
+
+      const embed = {
+        title: "☀️ Daily Pulse Report • CRMSync",
+        description: `Financial summary for today, **${now.toLocaleDateString()}**.`,
+        color: 0x6366f1, // Indigo
+        fields: [
+          { name: "💰 Revenue", value: `£${totalRevenue.toFixed(2)}`, inline: true },
+          { name: "📉 Costs", value: `£${totalCost.toFixed(2)}`, inline: true },
+          { name: "💎 Profit", value: `£${netProfit.toFixed(2)}`, inline: true },
+          { name: "📦 Orders", value: `${orderCount}`, inline: true },
+          { name: "📈 Margin", value: totalRevenue > 0 ? `${((netProfit / totalRevenue) * 100).toFixed(1)}%` : '0%', inline: true }
+        ],
+        footer: { text: "CRMSync Automation • Keep Growing" },
+        timestamp: new Date().toISOString()
+      };
+
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [embed] })
+      });
+
+      console.log("[Notifier] Daily Profit Report Dispatched Successfully");
+      
+      // Update last report date in settings
+      const updatedSettings = { ...settings };
+      updatedSettings.notificationPreferences.lastDailyReportDate = now.toISOString().split('T')[0];
+      storage.saveSettings(updatedSettings);
+
+      return true;
+    } catch (error) {
+      console.error("[Notifier] Failed to send daily report:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Generates and dispatches a weekly financial summary to Discord.
+   * Calculates Revenue, Link Costs, and Net Profit for the last 7 days.
+   */
+  async sendWeeklyFinancialReport() {
+    const settings = storage.getSettings();
+    const url = settings.notificationPreferences.webhookUrl;
+    if (!url) return false;
+
+    try {
+      const history = await db.getRenewalHistory();
+      const now = new Date();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(now.getDate() - 7);
+
+      const weeklyTrans = history.filter(h => new Date(h.createdAt) >= sevenDaysAgo);
+      
+      const totalRevenue = weeklyTrans.reduce((sum, h) => sum + (h.amount || 0), 0);
+      const totalCost = weeklyTrans.reduce((sum, h) => sum + (h.cost || 0), 0);
+      const netProfit = weeklyTrans.reduce((sum, h) => sum + (h.profit || 0), 0);
+      const orderCount = weeklyTrans.length;
+
+      // Calculate Product Leaderboard
+      const productStats: Record<string, { count: number, profit: number }> = {};
+      weeklyTrans.forEach(h => {
+        const p = h.newPlan || 'Unknown';
+        if (!productStats[p]) productStats[p] = { count: 0, profit: 0 };
+        productStats[p].count += 1;
+        productStats[p].profit += (h.profit || 0);
+      });
+
+      const bestSeller = Object.entries(productStats).sort((a, b) => b[1].count - a[1].count)[0];
+      const bestProfit = Object.entries(productStats).sort((a, b) => b[1].profit - a[1].profit)[0];
+
+      const embed = {
+        title: "📊 Weekly Profit Compass • CRMSync",
+        description: `Financial performance for the week ending **${now.toLocaleDateString()}**.`,
+        color: 0x10b981, // Emerald
+        fields: [
+          { name: "💰 Total Revenue", value: `£${totalRevenue.toFixed(2)}`, inline: true },
+          { name: "📉 Link Costs", value: `£${totalCost.toFixed(2)}`, inline: true },
+          { name: "💎 Net Profit", value: `£${netProfit.toFixed(2)}`, inline: true },
+          { name: "📦 Total Orders", value: `${orderCount} requests`, inline: true },
+          { name: "🏆 Top Seller", value: bestSeller ? `${bestSeller[0]} (${bestSeller[1].count})` : 'N/A', inline: true },
+          { name: "🥇 Most Profitable", value: bestProfit ? `${bestProfit[0]} (£${bestProfit[1].profit.toFixed(2)})` : 'N/A', inline: true }
+        ],
+        footer: { text: "CRMSync Automation • Delivering Insights" },
+        timestamp: new Date().toISOString()
+      };
+
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [embed] })
+      });
+
+      console.log("[Notifier] Weekly Profit Report Dispatched Successfully");
+      
+      // Update last report date in settings
+      const updatedSettings = { ...settings };
+      updatedSettings.notificationPreferences.lastSundayReportDate = now.toISOString().split('T')[0];
+      storage.saveSettings(updatedSettings);
+
+      return true;
+    } catch (error) {
+      console.error("[Notifier] Failed to send weekly report:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Prepares a WhatsApp fulfillment message for the customer.
+   * Returns a wa.me link that the admin can open.
+   */
+  prepareCustomerFulfillment(request: IntakeRequest, code: string): string {
+    const firstName = request.fullName.split(' ')[0];
+    const cleanNumber = (request.whatsappNumber || '').replace(/[^0-9]/g, '');
+    
+    if (!cleanNumber) {
+       console.warn("[Notifier] Cannot prepare WhatsApp fulfillment: missing number.");
+       return "";
+    }
+
+    const message = `*Activation Successful!* 🎉\n\n` +
+      `Hello ${firstName}, your *${request.subscriptionType}* (${request.subscriptionPeriod}) is now active!\n\n` +
+      `🔑 *Your Activation Key:* \n\`${code}\`\n\n` +
+      `🚀 *How to Apply:*\n` +
+      `1. Visit: https://www.linkedin.com/premium/redeem/\n` +
+      `2. Enter the key above.\n` +
+      `3. Confirm activation.\n\n` +
+      `Thank you for choosing UnlockPremium! If you need help, just reply here.`;
+
+    return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
   }
 };

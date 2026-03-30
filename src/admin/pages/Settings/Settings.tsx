@@ -4,7 +4,7 @@ import {
   Database, Link2, CreditCard, Users, Zap, 
   AlertCircle, Trash2, Smartphone, 
   Mail, Settings as SettingsIcon, LayoutDashboard, ChevronRight,
-  Eye, EyeOff, Lock, CheckCircle2, XCircle
+  Eye, EyeOff, Lock, CheckCircle2, XCircle, Activity
 } from "lucide-react";
 import { auth } from "../../../firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
@@ -463,6 +463,57 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
     }
   };
 
+  const handleTestFinancialReport = async () => {
+    try {
+      const success = await notifier.sendWeeklyFinancialReport();
+      if (success) {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: "Weekly Profit Compass sent to Discord!", type: 'success' } 
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: "Failed to send report. Check Webhook URL.", type: 'error' } 
+        }));
+      }
+    } catch (error) {
+       console.error(error);
+    }
+  };
+
+  const handleTestDailyReport = async () => {
+    try {
+      const success = await notifier.sendDailyFinancialReport();
+      if (success) {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: "Daily Pulse sent to Discord!", type: 'success' } 
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: "Failed to send report. Check Webhook URL.", type: 'error' } 
+        }));
+      }
+    } catch (error) {
+       console.error(error);
+    }
+  };
+
+  const handleTestMorningReport = async () => {
+    try {
+      const success = await notifier.sendMorningActionReport();
+      if (success) {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: "Morning Action Centre sent to Discord!", type: 'success' } 
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent('show-toast', { 
+          detail: { message: "Failed to send report. Check Webhook URL.", type: 'error' } 
+        }));
+      }
+    } catch (error) {
+       console.error(error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8">
@@ -513,14 +564,40 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
             <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Admin Contact</h3>
             <p className="text-[10px] text-slate-400 font-medium mt-1">Configure where automated admin alerts are sent.</p>
           </div>
-          <button 
-            type="button"
-            onClick={handleTestNotification}
-            className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
-          >
-            <Zap className="w-3.5 h-3.5" />
-            Test Pulse
-          </button>
+          <div className="flex gap-2">
+            <button 
+              type="button"
+              onClick={handleTestNotification}
+              className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Test Pulse
+            </button>
+            <button 
+              type="button"
+              onClick={handleTestFinancialReport}
+              className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-xs font-bold hover:bg-emerald-600 hover:text-white transition-all flex items-center gap-2"
+            >
+              <Activity className="w-3.5 h-3.5" />
+              Test Financial Report
+            </button>
+            <button 
+              type="button"
+              onClick={handleTestDailyReport}
+              className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-600 hover:text-white transition-all flex items-center gap-2"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Test Daily Report
+            </button>
+            <button 
+              type="button"
+              onClick={handleTestMorningReport}
+              className="px-4 py-2 bg-amber-50 text-amber-600 rounded-xl text-xs font-bold hover:bg-amber-600 hover:text-white transition-all flex items-center gap-2"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Test Morning Report
+            </button>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

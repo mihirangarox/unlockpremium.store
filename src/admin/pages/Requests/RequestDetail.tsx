@@ -10,6 +10,7 @@ import { useToast } from "../../components/ui/Toast";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { generateInvoicePDF } from "../../utils/invoiceGenerator";
 import * as db from "../../services/db";
+import { notifier } from "../../services/notifier";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType, Product, RequestStatus } from "../../types/index";
 
@@ -244,12 +245,23 @@ export function RequestDetail() {
       
       await db.logTransaction(subscription, linkCost, profit);
       
+      // Phase 2 Automation: Discord Sale Celebration
+      notifier.notifySaleCelebration(updatedRequest, profit, existingCustomer);
+      
       // Update order count for the "Loyalty" system
       if (customerId) {
         await db.updateCustomerOrderCount(customerId);
       }
       
       setRequest(updatedRequest);
+
+      // Phase 1 Automation: Auto-Fulfillment Pop-up
+      if (activationCode && updatedRequest.whatsappNumber) {
+        const waLink = notifier.prepareCustomerFulfillment(updatedRequest, activationCode);
+        if (waLink) {
+          window.open(waLink, '_blank');
+        }
+      }
       
       showToast(
         claimedCodeObj 

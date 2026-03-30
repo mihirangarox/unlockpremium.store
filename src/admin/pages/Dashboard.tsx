@@ -1,23 +1,24 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Users, Activity, AlertCircle, FileText, PoundSterling, Percent, ChevronRight, Send } from "lucide-react";
+import { useNavigate, Link } from "react-router-dom";
+import { Users, Activity, AlertCircle, FileText, PoundSterling, Percent, ChevronRight, Send, Bell } from "lucide-react";
 import * as db from "../services/db";
-import type { Customer, Subscription, RenewalHistory, USDTTransaction } from "../types/index";
+import type { Customer, Subscription, RenewalHistory, USDTTransaction, Reminder } from "../types/index";
 import { motion } from "framer-motion";
 import { getDaysLeft, formatDaysLeft, getDaysLeftColorClass } from "../utils/dateUtils";
 import { useToast } from "../components/ui/Toast";
 import { useLocalization } from "../../context/LocalizationContext";
 
-function StatCard({ title, value, icon, bgColor, color, subValue }: { title: string, value: string, icon: React.ReactNode, bgColor: string, color: string, subValue?: string }) {
+function StatCard({ title, value, icon, bgColor, color, subValue, onClick }: { title: string, value: string, icon: React.ReactNode, bgColor: string, color: string, subValue?: React.ReactNode, onClick?: () => void }) {
   return (
     <motion.div 
       whileHover={{ y: -4 }}
-      className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center justify-between group transition-all"
+      onClick={onClick}
+      className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center justify-between group transition-all ${onClick ? 'cursor-pointer hover:border-indigo-200' : ''}`}
     >
       <div>
         <p className="text-sm font-medium text-slate-500">{title}</p>
         <p className="text-3xl font-bold text-slate-900 mt-2">{value}</p>
-        {subValue && <p className="text-xs text-slate-400 mt-1 font-medium">{subValue}</p>}
+        {subValue && <div className="mt-1">{subValue}</div>}
       </div>
       <div className={`w-14 h-14 rounded-2xl ${bgColor} flex items-center justify-center transition-transform group-hover:scale-110 duration-300`}>
         <div className={color}>{icon}</div>
@@ -43,96 +44,127 @@ export function Dashboard() {
   });
 
   const [upcoming, setUpcoming] = useState<{sub: Subscription, customer: Customer | undefined}[]>([]);
+  const [pendingRemindersCount, setPendingRemindersCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [customers, subs, history, usdtTx] = await Promise.all([
-        db.getCustomers(),
-        db.getSubscriptions(),
-        db.getRenewalHistory(),
-        db.getUSDTTransactions()
-      ]);
+      setLoading(true);
+      try {
+        // Run background automation scan first (silent)
+        const { automation } = await import("../services/automation");
+        await automation.checkAndGenerateReminders();
 
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
+        // Phase 3 Trigger: Sunday Profit Report
+        const now = new Date();
+        const isSunday = now.getDay() === 0;
+        const todayDate = now.toISOString().split('T')[0];
+        const { storage } = await import("../services/storage");
+        const settings = storage.getSettings();
 
-      const getSubStatus = (renewalDate: string): string => {
-        const daysLeft = getDaysLeft(renewalDate);
-        if (daysLeft < 0) return 'Expired';
-        if (daysLeft === 0) return 'Due Today';
-        if (daysLeft <= 7) return 'Due Soon';
-        return 'Active';
-      };
+        if (isSunday && settings.notificationPreferences.lastSundayReportDate !== todayDate) {
+           const { notifier } = await import("../services/notifier");
+           await notifier.sendWeeklyFinancialReport();
+        }
 
-      // 1. CASH-BASIS METRICS (Renewal History)
-      const totalRevenue = history.reduce((sum, h) => sum + (h.amount || 0), 0);
-      
-      // Fallback for legacy records that don't have the 'profit' field yet
-      const netProfit = history.reduce((sum, h) => {
-        if (h.profit !== undefined) return sum + h.profit;
-        return sum + (h.amount * 0.85); // Estimate 85% for legacy
-      }, 0);
+        // Phase 4 Trigger: Daily Profit Pulse
+        if (settings.notificationPreferences.lastDailyReportDate !== todayDate) {
+           const { notifier } = await import("../services/notifier");
+           await notifier.sendDailyFinancialReport();
+        }
 
-      // 2. CASH ON HAND (Revenue - Outbound USDT Costs)
-      const totalSpentOnUSDT = usdtTx
-        .filter(tx => tx.type === 'Inbound' && tx.status === 'Completed')
-        .reduce((sum, tx) => sum + (tx.gbpPaid || tx.gbpTotalSpent || 0), 0);
-      
-      const cashOnHand = totalRevenue - totalSpentOnUSDT;
+        // Phase 5 Trigger: Morning Action Centre
+        if (settings.notificationPreferences.lastMorningReportDate !== todayDate) {
+           const { notifier } = await import("../services/notifier");
+           await notifier.sendMorningActionReport();
+        }
 
-      // 3. PROJECTED MRR (Monthly Momentum)
-      const monthlyMomentum = subs
-        .filter(s => getSubStatus(s.renewalDate) !== 'Expired')
-        .reduce((sum, s) => {
-          const months = s.durationMonths || 1;
-          return sum + (s.price / months);
+        const [customers, subs, history, usdtTx, allReminders] = await Promise.all([
+          db.getCustomers(),
+          db.getSubscriptions(),
+          db.getRenewalHistory(),
+          db.getUSDTTransactions(),
+          db.getReminders()
+        ]);
+
+        const getSubStatus = (renewalDate: string): string => {
+          const daysLeft = getDaysLeft(renewalDate);
+          if (daysLeft < 0) return 'Expired';
+          if (daysLeft === 0) return 'Due Today';
+          if (daysLeft <= 7) return 'Due Soon';
+          return 'Active';
+        };
+
+        // 1. CASH-BASIS METRICS (Renewal History)
+        const totalRevenue = history.reduce((sum, h) => sum + (h.amount || 0), 0);
+        
+        const netProfit = history.reduce((sum, h) => {
+          if (h.profit !== undefined) return sum + h.profit;
+          return sum + (h.amount * 0.85); 
         }, 0);
 
-      const activeCustomers = customers.filter(c => {
-        const customerSubs = subs.filter(s => s.customerId === c.id);
-        const hasActiveSub = customerSubs.some(s => getSubStatus(s.renewalDate) !== 'Expired');
-        return c.status === 'Active' || hasActiveSub;
-      }).length;
+        // 2. CASH ON HAND
+        const totalSpentOnUSDT = usdtTx
+          .filter(tx => tx.type === 'Inbound' && tx.status === 'Completed')
+          .reduce((sum, tx) => sum + (tx.gbpPaid || tx.gbpTotalSpent || 0), 0);
+        
+        const cashOnHand = totalRevenue - totalSpentOnUSDT;
 
-      const dueToday = subs.filter(s => getSubStatus(s.renewalDate) === 'Due Today').length;
-      const expiredCount = subs.filter(s => getSubStatus(s.renewalDate) === 'Expired').length;
+        // 3. PROJECTED MRR
+        const monthlyMomentum = subs
+          .filter(s => getSubStatus(s.renewalDate) !== 'Expired')
+          .reduce((sum, s) => {
+            const months = (s as any).durationMonths || 1;
+            return sum + (s.price / months);
+          }, 0);
 
-      const activeCount = subs.filter(s => getSubStatus(s.renewalDate) !== 'Expired').length;
-      const renewalRateValue = activeCount + expiredCount > 0 
-        ? Math.round((activeCount / (activeCount + expiredCount)) * 100) 
-        : 0;
+        const activeCustomers = customers.filter(c => {
+          const customerSubs = subs.filter(s => s.customerId === c.id);
+          const hasActiveSub = customerSubs.some(s => getSubStatus(s.renewalDate) !== 'Expired');
+          return c.status === 'Active' || hasActiveSub;
+        }).length;
 
-      const dueThisWeek = subs.filter(s => {
-        const status = getSubStatus(s.renewalDate);
-        return status === 'Due Soon';
-      }).length;
+        const dueToday = subs.filter(s => getSubStatus(s.renewalDate) === 'Due Today').length;
+        const expiredCount = subs.filter(s => getSubStatus(s.renewalDate) === 'Expired').length;
+        const activeCount = subs.filter(s => getSubStatus(s.renewalDate) !== 'Expired').length;
+        
+        const renewalRateValue = activeCount + expiredCount > 0 
+          ? Math.round((activeCount / (activeCount + expiredCount)) * 100) 
+          : 0;
 
-      setStats({
-        activeCustomers,
-        dueToday,
-        dueThisWeek,
-        expired: expiredCount,
-        totalRevenue,
-        netProfit,
-        monthlyMomentum,
-        cashOnHand,
-        renewalRate: renewalRateValue,
-      });
+        const dueThisWeek = subs.filter(s => getSubStatus(s.renewalDate) === 'Due Soon').length;
 
-      // Build a quick customer lookup map
-      const customerMap = new Map(customers.map(c => [c.id, c]));
+        setStats({
+          activeCustomers,
+          dueToday,
+          dueThisWeek,
+          expired: expiredCount,
+          totalRevenue,
+          netProfit,
+          monthlyMomentum,
+          cashOnHand,
+          renewalRate: renewalRateValue,
+        });
 
-      const upcomingSubs = subs
-        .filter(s => {
-          const status = getSubStatus(s.renewalDate);
-          return status === 'Due Soon' || status === 'Due Today';
-        })
-        .map(sub => ({ sub, customer: customerMap.get(sub.customerId) }))
-        .sort((a, b) => new Date(a.sub.renewalDate).getTime() - new Date(b.sub.renewalDate).getTime())
-        .slice(0, 5);
+        setPendingRemindersCount(allReminders.filter(r => r.status === 'Pending').length);
 
-      setUpcoming(upcomingSubs);
+        const customerMap = new Map(customers.map(c => [c.id, c]));
+        const upcomingSubs = subs
+          .filter(s => {
+            const status = getSubStatus(s.renewalDate);
+            return status === 'Due Soon' || status === 'Due Today';
+          })
+          .map(sub => ({ sub, customer: customerMap.get(sub.customerId) }))
+          .sort((a, b) => new Date(a.sub.renewalDate).getTime() - new Date(b.sub.renewalDate).getTime())
+          .slice(0, 5);
+
+        setUpcoming(upcomingSubs);
+      } catch (error) {
+        console.error("Dashboard data load failed:", error);
+        showToast("Failed to refresh dashboard items", "error");
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -143,6 +175,14 @@ export function Dashboard() {
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
     showToast(`Reminder sent to ${customer.fullName}`, "success");
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -160,7 +200,7 @@ export function Dashboard() {
         <StatCard 
           title="Total Revenue" 
           value={formatCurrency(Math.round(stats.totalRevenue))} 
-          subValue="Total Cash Received"
+          subValue={<span className="text-xs text-slate-400 font-medium">Total Cash Received</span>}
           icon={<PoundSterling className="h-6 w-6" />} 
           bgColor="bg-indigo-50" 
           color="text-indigo-600" 
@@ -169,7 +209,7 @@ export function Dashboard() {
         <StatCard 
           title="Net Profit" 
           value={formatCurrency(Math.round(stats.netProfit))} 
-          subValue="Immediate Margin"
+          subValue={<span className="text-xs text-slate-400 font-medium">Immediate Margin</span>}
           icon={<Activity className="h-6 w-6" />} 
           bgColor="bg-emerald-50" 
           color="text-emerald-600" 
@@ -178,7 +218,7 @@ export function Dashboard() {
         <StatCard 
           title="Projected Momentum" 
           value={formatCurrency(Math.round(stats.monthlyMomentum))} 
-          subValue="MRR / Monthly Growth"
+          subValue={<span className="text-xs text-slate-400 font-medium">MRR / Growth</span>}
           icon={<Activity className="h-6 w-6" />} 
           bgColor="bg-blue-50" 
           color="text-blue-600" 
@@ -187,7 +227,7 @@ export function Dashboard() {
         <StatCard 
           title="Cash Balance" 
           value={formatCurrency(Math.round(stats.cashOnHand))} 
-          subValue="Available for restock"
+          subValue={<span className="text-xs text-slate-400 font-medium">Available for restock</span>}
           icon={<PoundSterling className="h-6 w-6" />} 
           bgColor="bg-slate-50" 
           color="text-slate-600" 
@@ -196,19 +236,28 @@ export function Dashboard() {
         <StatCard 
           title="Active Customers" 
           value={String(stats.activeCustomers)} 
-          subValue="Growing Community"
+          subValue={<span className="text-xs text-slate-400 font-medium">Growing Community</span>}
           icon={<Users className="h-6 w-6" />} 
           bgColor="bg-slate-50" 
           color="text-slate-600" 
         />
 
         <StatCard 
-          title="Due / Follow-ups" 
+          title="Action Centre" 
           value={String(stats.dueToday + stats.dueThisWeek)} 
-          subValue={`${stats.dueToday} today, ${stats.dueThisWeek} soon`}
+          subValue={
+            pendingRemindersCount > 0 ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                <Bell size={10} /> {pendingRemindersCount} Pending Reminders
+              </span>
+            ) : (
+              <span className="text-xs text-slate-400 font-medium">{stats.dueToday} today, {stats.dueThisWeek} soon</span>
+            )
+          }
+          onClick={() => navigate('/reminders')}
           icon={<AlertCircle className="h-6 w-6" />} 
-          bgColor="bg-amber-50" 
-          color="text-amber-600" 
+          bgColor={pendingRemindersCount > 0 ? "bg-indigo-50" : "bg-amber-50"}
+          color={pendingRemindersCount > 0 ? "text-indigo-600" : "text-amber-600"} 
         />
       </div>
 
@@ -228,7 +277,7 @@ export function Dashboard() {
               <thead className="bg-slate-50/50 text-slate-500">
                 <tr>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Customer</th>
-                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Subscription Type</th>
+                  <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Subscription</th>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Renewal</th>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs">Days Left</th>
                   <th className="px-6 py-4 font-semibold uppercase tracking-wider text-xs text-right">Action</th>
@@ -271,7 +320,7 @@ export function Dashboard() {
                             </button>
                           )}
                           <button 
-                            onClick={() => navigate(`/unlock-world-26/customers/${item.sub.customerId}`)}
+                            onClick={() => navigate(`/customers/${item.sub.customerId}`)}
                             className="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-all"
                           >
                             <ChevronRight className="w-5 h-5" />
@@ -322,15 +371,15 @@ export function Dashboard() {
                 <div className="text-xl font-black text-indigo-600">{stats.renewalRate > 0 ? 'Good' : 'N/A'}</div>
               </div>
               <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100/50">
-                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Follow-ups</div>
-                <div className="text-xl font-black text-amber-600">{stats.dueThisWeek}</div>
+                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Pending Action</div>
+                <div className="text-xl font-black text-amber-600">{pendingRemindersCount}</div>
               </div>
             </div>
           </div>
 
           <div className="mt-6 pt-6 border-t border-slate-50">
-            <p className="text-xs text-slate-400 leading-relaxed italic">
-              * Calculations are based on active and expiring subscriptions in the current month.
+            <p className="text-xs text-slate-400 leading-relaxed italic text-center">
+              * Background Engine synchronized @ {formatTime(new Date())}
             </p>
           </div>
         </div>

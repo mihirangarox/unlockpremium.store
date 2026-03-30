@@ -415,6 +415,15 @@ export const consumeUSDT = async (totalAmount: number, note: string): Promise<{b
       remainingAmount: updatedRemaining,
       isFullyUtilized: updatedRemaining <= 0.001 // Floating point safety
     });
+
+    // Alert if batch drops below 10% original size
+    if (updatedRemaining > 0 && updatedRemaining < (utx.amount * 0.1) && utx.remainingAmount >= (utx.amount * 0.1)) {
+        setTimeout(() => {
+          import('./notifier').then(({ notifier }) => {
+            notifier.notifyUSDTEmpty(utx.id, updatedRemaining * utx.usdtRate);
+          });
+        }, 0);
+    }
     
     // Create an individual Outbound transaction for this specific batch allocation
     const outboundTx: USDTTransaction = {
