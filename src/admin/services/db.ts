@@ -255,8 +255,9 @@ export const findStockCostForTransaction = async (h: RenewalHistory): Promise<{ 
     const codes = await getLiveStock();
     const literalMatch = codes.find(c => {
       const cleanH = h.activationCode?.toLowerCase().trim();
-      const cleanC = c.code.toLowerCase().trim();
-      return cleanC === cleanH || cleanC.includes(cleanH!) || cleanH?.includes(cleanC);
+      const cleanC = c.code?.toLowerCase().trim(); // Safe check added
+      if (!cleanC || !cleanH) return false;
+      return cleanC === cleanH || cleanC.includes(cleanH) || cleanH.includes(cleanC);
     });
     if (literalMatch) {
       const realCost = Number(literalMatch.gbpPurchaseCost || 0);
@@ -284,8 +285,9 @@ export const findStockCostForTransaction = async (h: RenewalHistory): Promise<{ 
         const codes = await getLiveStock();
         const subCodeMatch = codes.find(c => {
           const cleanSub = subData.activationCode?.toLowerCase().trim();
-          const cleanC = c.code.toLowerCase().trim();
-          return cleanC === cleanSub || cleanC.includes(cleanSub!) || cleanSub?.includes(cleanC);
+          const cleanC = c.code?.toLowerCase().trim(); // Safe check added
+          if (!cleanSub || !cleanC) return false;
+          return cleanC === cleanSub || cleanC.includes(cleanSub) || cleanSub.includes(cleanC);
         });
         if (subCodeMatch) {
           const realCost = Number(subCodeMatch.gbpPurchaseCost || 0);
@@ -580,9 +582,20 @@ export const saveInventoryLog = async (log: InventoryLog): Promise<void> => {
 
 // ─── Live Stock ─────────────────────────────────────────────────────────────
 
-export const getLiveStock = async (): Promise<DigitalCode[]> => {
+let liveStockCache: DigitalCode[] | null = null;
+let lastFetchTime = 0;
+const CACHE_DURATION = 60 * 1000; // 1 minute
+
+export const getLiveStock = async (forceRefresh: boolean = false): Promise<DigitalCode[]> => {
+  const now = Date.now();
+  if (!forceRefresh && liveStockCache && (now - lastFetchTime < CACHE_DURATION)) {
+    return liveStockCache;
+  }
+  
   const snap = await getDocs(query(collection(db, "live_stock"), orderBy("createdAt", "desc")));
-  return snap.docs.map(d => d.data() as DigitalCode);
+  liveStockCache = snap.docs.map(d => d.data() as DigitalCode);
+  lastFetchTime = now;
+  return liveStockCache;
 };
 
 export const getCustomerDigitalCodes = async (whatsapp?: string, email?: string): Promise<DigitalCode[]> => {
