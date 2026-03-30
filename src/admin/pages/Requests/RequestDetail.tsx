@@ -10,7 +10,7 @@ import { useToast } from "../../components/ui/Toast";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { generateInvoicePDF } from "../../utils/invoiceGenerator";
 import * as db from "../../services/db";
-import { notifier } from "../../services/notifier";
+import { alertService } from "../../services/alertService";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import type { IntakeRequest, Customer, Subscription, PlanDuration, SubscriptionType, Product, RequestStatus } from "../../types/index";
 
@@ -215,12 +215,13 @@ export function RequestDetail() {
       const claimedCodeObj = await db.claimCodeForRequest(
         targetProduct?.id || (subscriptionType as string) || (request.subscriptionType as string) || "",
         (subscriptionPeriod as string) || request.subscriptionPeriod || "",
-        request.id
+        request.id,
+        subscription.id
       );
 
       const activationCode = claimedCodeObj?.code || null;
-      const linkCost = claimedCodeObj?.gbpPurchaseCost || 0;
-      const profit = defaultPrice - linkCost;
+      const linkCost = Number(claimedCodeObj?.gbpPurchaseCost || 0);
+      const profit = Number(defaultPrice || 0) - linkCost;
 
       if (activationCode) {
         subscription.activationCode = activationCode;
@@ -243,10 +244,10 @@ export function RequestDetail() {
       await db.saveSubscription(subscription);
       await db.saveRequest(updatedRequest);
       
-      await db.logTransaction(subscription, linkCost, profit);
+      await db.logTransaction(subscription, linkCost, profit, claimedCodeObj?.id, request.id, activationCode);
       
       // Phase 2 Automation: Discord Sale Celebration
-      notifier.notifySaleCelebration(updatedRequest, profit, existingCustomer);
+      alertService.notifySaleCelebration(updatedRequest, profit, existingCustomer);
       
       // Update order count for the "Loyalty" system
       if (customerId) {
@@ -257,7 +258,7 @@ export function RequestDetail() {
 
       // Phase 1 Automation: Auto-Fulfillment Pop-up
       if (activationCode && updatedRequest.whatsappNumber) {
-        const waLink = notifier.prepareCustomerFulfillment(updatedRequest, activationCode);
+        const waLink = alertService.prepareCustomerFulfillment(updatedRequest, activationCode);
         if (waLink) {
           window.open(waLink, '_blank');
         }

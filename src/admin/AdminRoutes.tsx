@@ -13,10 +13,10 @@ import { RenewalHistoryPage } from './pages/History/RenewalHistory';
 import { Reports } from './pages/Reports/Reports';
 import { SettingsPage } from './pages/Settings/Settings';
 import { USDTPurchases } from './pages/Finance/USDTPurchases';
-import { InventoryManager } from './pages/Inventory/InventoryManager';
-import { LiveStockManager } from './pages/Inventory/LiveStockManager';
+// import { InventoryManager } from './pages/Inventory/InventoryManager';
+// import { LiveStockManager } from './pages/Inventory/LiveStockManager';
 import { ManageStock } from './pages/Inventory/ManageStock';
-import AdminDashboard from '../../components/AdminDashboard';
+// import AdminDashboard from './components/AdminDashboard';
 import ManageTestimonials from '../../components/ManageTestimonials';
 import { ToastProvider } from './components/ui/Toast';
 import { ProductList } from './pages/Products/ProductList';
@@ -54,7 +54,7 @@ export const AdminRoutes: React.FC<AdminRoutesProps> = ({ onLogout }) => {
           <Route path="settings" element={<SettingsPage />} />
           
           {/* Legacy integrated features */}
-          <Route path="posts" element={<AdminDashboard onLogout={onLogout} />} />
+          {/* <Route path="posts" element={<AdminDashboard onLogout={onLogout} />} /> */}
           <Route path="testimonials" element={<div className="p-4 md:p-6 w-full max-w-7xl mx-auto"><ManageTestimonials /></div>} />
         </Route>
       </Routes>

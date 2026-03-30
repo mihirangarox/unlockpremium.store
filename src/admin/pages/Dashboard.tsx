@@ -63,20 +63,17 @@ export function Dashboard() {
         const settings = storage.getSettings();
 
         if (isSunday && settings.notificationPreferences.lastSundayReportDate !== todayDate) {
-           const { notifier } = await import("../services/notifier");
-           await notifier.sendWeeklyFinancialReport();
+           import("../services/alertService").then(({ alertService }) => alertService.sendWeeklyFinancialReport());
         }
 
         // Phase 4 Trigger: Daily Profit Pulse
         if (settings.notificationPreferences.lastDailyReportDate !== todayDate) {
-           const { notifier } = await import("../services/notifier");
-           await notifier.sendDailyFinancialReport();
+           import("../services/alertService").then(({ alertService }) => alertService.sendDailyFinancialReport());
         }
 
         // Phase 5 Trigger: Morning Action Centre
         if (settings.notificationPreferences.lastMorningReportDate !== todayDate) {
-           const { notifier } = await import("../services/notifier");
-           await notifier.sendMorningActionReport();
+           import("../services/alertService").then(({ alertService }) => alertService.sendMorningActionReport());
         }
 
         const [customers, subs, history, usdtTx, allReminders] = await Promise.all([
@@ -95,13 +92,14 @@ export function Dashboard() {
           return 'Active';
         };
 
-        // 1. CASH-BASIS METRICS (Renewal History)
-        const totalRevenue = history.reduce((sum, h) => sum + (h.amount || 0), 0);
-        
-        const netProfit = history.reduce((sum, h) => {
-          if (h.profit !== undefined) return sum + h.profit;
-          return sum + (h.amount * 0.85); 
-        }, 0);
+        // 1. CASH-BASIS METRICS (Renewal History resolved with real costs)
+        const resolvedHistory = await Promise.all(history.map(async h => {
+          const financials = await db.findStockCostForTransaction(h);
+          return { ...h, resolvedCost: financials.cost, resolvedProfit: financials.profit };
+        }));
+
+        const totalRevenue = resolvedHistory.reduce((sum, h) => sum + (h.amount || 0), 0);
+        const netProfit = resolvedHistory.reduce((sum, h) => sum + h.resolvedProfit, 0);
 
         // 2. CASH ON HAND
         const totalSpentOnUSDT = usdtTx

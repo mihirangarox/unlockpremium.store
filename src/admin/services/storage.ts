@@ -187,7 +187,7 @@ export const storage = {
         newPlan: subscription.planDuration,
         amount: subscription.price,
         cost: 0,
-        profit: subscription.price * 0.85,
+        profit: subscription.price,
         renewedOn: subscription.startDate,
         paymentMethod: 'Other',
         notes: `Initial subscription: ${subscription.subscriptionType}`,

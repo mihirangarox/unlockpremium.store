@@ -50,18 +50,17 @@ export function Reports() {
     });
 
     const activeSubs = subscriptions.filter(s => s.status === 'Active');
-    const totalRev = filteredHistory.reduce((sum, h) => sum + (h.amount || 0), 0);
+    const totalRev = filteredHistory.reduce((sum, h) => sum + Number(h.amount || 0), 0);
     
-    // Fallback: Use recorded profit if available, otherwise estimate 85% margin for old records
-    const netProfit = filteredHistory.reduce((sum, h) => {
-      if (h.profit !== undefined) return sum + h.profit;
-      return sum + (h.amount * 0.85);
-    }, 0);
+    // Cash-Basis Accounting: Resolve real costs from stock ledger
+    const resolvedHistory = await Promise.all(filteredHistory.map(async h => {
+      const financials = await db.findStockCostForTransaction(h);
+      return { ...h, resolvedCost: financials.cost, resolvedProfit: financials.profit };
+    }));
 
-    const totalCosts = filteredHistory.reduce((sum, h) => {
-      if (h.cost !== undefined) return sum + h.cost;
-      return sum + (h.amount * 0.15);
-    }, 0);
+    const netProfit = resolvedHistory.reduce((sum, h) => sum + Number(h.resolvedProfit || 0), 0);
+
+    const totalCosts = resolvedHistory.reduce((sum, h) => sum + Number(h.resolvedCost || 0), 0);
 
     const avgMargin = totalRev > 0 ? (netProfit / totalRev) * 100 : 0;
 
@@ -149,9 +148,14 @@ export function Reports() {
         return hDate.getMonth() === d.getMonth() && hDate.getFullYear() === d.getFullYear();
       });
 
-      const monthlyRev = monthItems.reduce((sum, h) => sum + (h.amount || 0), 0);
-      const monthlyCost = monthItems.reduce((sum, h) => sum + (h.cost || 0), 0);
-      const monthlyProfit = monthItems.reduce((sum, h) => sum + (h.profit || 0), 0);
+      const resolvedMonthItems = await Promise.all(monthItems.map(async h => {
+        const financials = await db.findStockCostForTransaction(h);
+        return { ...h, resolvedCost: financials.cost, resolvedProfit: financials.profit };
+      }));
+
+      const monthlyRev = resolvedMonthItems.reduce((sum, h) => sum + Number(h.amount || 0), 0);
+      const monthlyCost = resolvedMonthItems.reduce((sum, h) => sum + Number(h.resolvedCost || 0), 0);
+      const monthlyProfit = resolvedMonthItems.reduce((sum, h) => sum + Number(h.resolvedProfit || 0), 0);
       
       data.push({ 
         month: monthStr, 

@@ -5,7 +5,7 @@ import { useLocalization } from '../src/context/LocalizationContext';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from './Button';
 import { saveRequest } from '../src/admin/services/db';
-import { notifier } from '../src/admin/services/notifier';
+import { alertService } from '../src/admin/services/alertService';
 import type { IntakeRequest } from '../src/admin/types/index';
 import { CheckCircle, CreditCard, User, ChevronRight, ShieldCheck, ShoppingBag, ArrowLeft, Loader2, Copy, Check, Upload, Zap, MessageCircle } from 'lucide-react';
 import PhoneInput from 'react-phone-number-input';
@@ -87,7 +87,7 @@ const CheckoutPage: React.FC = () => {
       setIsLeadSaved(true);
       
       // Notify Admin
-      notifier.notifyNewRequest(newLead);
+      alertService.notifyNewRequest(newLead);
     } catch (error) {
       console.error("Lead capture failed:", error);
     } finally {
@@ -134,7 +134,7 @@ const CheckoutPage: React.FC = () => {
       await saveRequest(updatedRequest);
       
       // Notify Admin of completed checkout (Success)
-      notifier.notifyNewRequest(updatedRequest);
+      alertService.notifyNewRequest(updatedRequest);
       
       // Complete
       clearCart();

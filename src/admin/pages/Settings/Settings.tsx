@@ -13,7 +13,7 @@ import * as db from "../../services/db";
 import { useToast } from "../../components/ui/Toast";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { useLocalization } from "../../../context/LocalizationContext";
-import { notifier } from "../../services/notifier";
+import { alertService } from "../../services/alertService";
 import type { AppSettings, AutoSendMode } from "../../types/index";
 
 export function SettingsPage() {
@@ -455,7 +455,7 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
   };
 
   const handleTestNotification = async () => {
-    const success = await notifier.sendTestNotification();
+    const success = await alertService.sendTestNotification();
     if (success) {
       window.dispatchEvent(new CustomEvent('show-toast', { 
         detail: { message: "Test notification sent! Check console for simulated output.", type: 'success' } 
@@ -465,7 +465,7 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
 
   const handleTestFinancialReport = async () => {
     try {
-      const success = await notifier.sendWeeklyFinancialReport();
+      const success = await alertService.sendWeeklyFinancialReport();
       if (success) {
         window.dispatchEvent(new CustomEvent('show-toast', { 
           detail: { message: "Weekly Profit Compass sent to Discord!", type: 'success' } 
@@ -482,7 +482,7 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
 
   const handleTestDailyReport = async () => {
     try {
-      const success = await notifier.sendDailyFinancialReport();
+      const success = await alertService.sendDailyFinancialReport();
       if (success) {
         window.dispatchEvent(new CustomEvent('show-toast', { 
           detail: { message: "Daily Pulse sent to Discord!", type: 'success' } 
@@ -499,7 +499,7 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
 
   const handleTestMorningReport = async () => {
     try {
-      const success = await notifier.sendMorningActionReport();
+      const success = await alertService.sendMorningActionReport();
       if (success) {
         window.dispatchEvent(new CustomEvent('show-toast', { 
           detail: { message: "Morning Action Centre sent to Discord!", type: 'success' } 

@@ -193,7 +193,7 @@ export function CustomerForm() {
         };
         
         await db.saveSubscription(subscription);
-        await db.logTransaction(subscription);
+        await db.logTransaction(subscription, 0, subscription.price);
       }
 
       showToast(isEditing ? "Customer updated successfully" : "Customer created successfully", "success");

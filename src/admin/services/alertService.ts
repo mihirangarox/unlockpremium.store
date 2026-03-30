@@ -6,7 +6,7 @@ import type { IntakeRequest } from '../types/index';
  * Notifier Service
  * Handles admin alerts via WhatsApp, Email, and Webhooks.
  */
-export const notifier = {
+export const alertService = {
   /**
    * Sends a notification to the admin when a new request is created.
    */
@@ -31,23 +31,27 @@ export const notifier = {
    * In local testing, this logs to console and simulates the trigger.
    */
   sendWhatsAppAdminAlert(request: IntakeRequest, adminNumber?: string) {
-    if (!adminNumber) {
-      console.warn("[Notifier] WhatsApp channel enabled but no Admin WhatsApp number configured.");
-      return;
+    try {
+      if (!adminNumber) {
+        console.warn("[Notifier] WhatsApp channel enabled but no Admin WhatsApp number configured.");
+        return;
+      }
+
+      const adminPath = "/unlock-world-26"; // Standard admin path
+      const detailLink = `${window.location.origin}${adminPath}/requests/${request.id}`;
+      
+      const message = `🚨 *New CRM Request* 🚨\n\n` +
+        `👤 *Customer:* ${request.fullName}\n` +
+        `🛒 *Product:* ${request.subscriptionType} (${request.subscriptionPeriod})\n` +
+        `💰 *Value:* ${request.currency || 'USD'} ${request.amount?.toFixed(2) || '0.00'}\n\n` +
+        `🔗 *View Details:* ${detailLink}\n` +
+        `📱 *WhatsApp:* wa.me/${request.whatsappNumber.replace(/[^0-9]/g, '')}`;
+
+      console.log("%c[Admin WhatsApp Alert]", "color: #25D366; font-weight: bold; font-size: 14px;");
+      console.log(message);
+    } catch (err) {
+      console.error("[Notifier] WhatsApp alert failed:", err);
     }
-
-    const adminPath = "/unlock-world-26"; // Standard admin path
-    const detailLink = `${window.location.origin}${adminPath}/requests/${request.id}`;
-    
-    const message = `🚨 *New CRM Request* 🚨\n\n` +
-      `👤 *Customer:* ${request.fullName}\n` +
-      `🛒 *Product:* ${request.subscriptionType} (${request.subscriptionPeriod})\n` +
-      `💰 *Value:* ${request.currency || 'USD'} ${request.amount?.toFixed(2) || '0.00'}\n\n` +
-      `🔗 *View Details:* ${detailLink}\n` +
-      `📱 *WhatsApp:* wa.me/${request.whatsappNumber.replace(/[^0-9]/g, '')}`;
-
-    console.log("%c[Admin WhatsApp Alert]", "color: #25D366; font-weight: bold; font-size: 14px;");
-    console.log(message);
   },
 
   /**
@@ -125,19 +129,24 @@ export const notifier = {
    * Sends a manual test notification from the Settings page.
    */
   async sendTestNotification() {
-    const mockRequest: any = {
-      id: 'test_123',
-      fullName: 'Test Customer',
-      subscriptionType: 'LinkedIn Business',
-      subscriptionPeriod: '6M',
-      amount: 149.99,
-      currency: 'GBP',
-      whatsappNumber: '440000000000',
-      status: 'Test'
-    };
-    
-    await this.notifyNewRequest(mockRequest);
-    return true;
+    try {
+      const mockRequest: any = {
+        id: 'test_123',
+        fullName: 'Test Customer',
+        subscriptionType: 'LinkedIn Business',
+        subscriptionPeriod: '6M',
+        amount: 149.99,
+        currency: 'GBP',
+        whatsappNumber: '440000000000',
+        status: 'Test'
+      };
+      
+      await this.notifyNewRequest(mockRequest);
+      return true;
+    } catch (err) {
+      console.error("[Notifier] Test notification failed:", err);
+      return false;
+    }
   },
 
   /**
@@ -145,11 +154,11 @@ export const notifier = {
    * Includes pending requests, today's renewals, and low stock.
    */
   async sendMorningActionReport() {
-    const settings = storage.getSettings();
-    const url = settings.notificationPreferences.webhookUrl;
-    if (!url) return false;
-
     try {
+      const settings = storage.getSettings();
+      const url = settings.notificationPreferences.webhookUrl;
+      if (!url) return false;
+
       const [requests, subs, stock, history] = await Promise.all([
         db.getRequests(),
         db.getSubscriptions(),
@@ -160,10 +169,11 @@ export const notifier = {
       const pendingRequests = requests.filter(r => r.status === 'Pending').length;
       const today = new Date().toISOString().split('T')[0];
       const renewalsToday = subs.filter(s => s.renewalDate.split('T')[0] === today).length;
-      const lowStock = stock.filter(s => s.status === 'Available').length; // Simplified stock check
+      const availableStock = stock.filter(s => s.status === 'Available').length;
       
       const totalRevenue = history.reduce((sum, h) => sum + (h.amount || 0), 0);
-      const totalSpentOnUSDT = (await db.getUSDTTransactions())
+      const utx = await db.getUSDTTransactions();
+      const totalSpentOnUSDT = utx
         .filter(tx => tx.type === 'Inbound' && tx.status === 'Completed')
         .reduce((sum, tx) => sum + (tx.gbpPaid || tx.gbpTotalSpent || 0), 0);
       const cashOnHand = totalRevenue - totalSpentOnUSDT;
@@ -175,23 +185,25 @@ export const notifier = {
         fields: [
           { name: "📥 Pending leads", value: `${pendingRequests} requests`, inline: true },
           { name: "🔄 Renewals Today", value: `${renewalsToday} plans`, inline: true },
-          { name: "📦 Stock Level", value: `${lowStock} codes`, inline: true },
+          { name: "📦 Stock Level", value: `${availableStock} codes`, inline: true },
           { name: "💳 Cash-on-Hand", value: `£${cashOnHand.toFixed(2)}`, inline: true }
         ],
         footer: { text: "CRMSync Automation • Success starts now" },
         timestamp: new Date().toISOString()
       };
 
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ embeds: [embed] })
       });
 
-      // Update settings
-      const updatedSettings = { ...settings };
-      updatedSettings.notificationPreferences.lastMorningReportDate = today;
-      storage.saveSettings(updatedSettings);
+      if (response.ok) {
+        // Update settings
+        const updatedSettings = { ...settings };
+        updatedSettings.notificationPreferences.lastMorningReportDate = today;
+        storage.saveSettings(updatedSettings);
+      }
 
       return true;
     } catch (error) {
@@ -204,27 +216,27 @@ export const notifier = {
    * Celebrates a new sale with profit data and loyalty flags.
    */
   async notifySaleCelebration(request: IntakeRequest, profit: number, customer?: any) {
-    const settings = storage.getSettings();
-    const url = settings.notificationPreferences.webhookUrl;
-    if (!url) return;
-
-    const loyaltyEmoji = customer?.discountTier === 'Platinum' ? '💎' : 
-                         customer?.discountTier === 'Gold' ? '🥇' : '⭐';
-
-    const embed = {
-      title: `🎉 NEW SALE APPROVED ${loyaltyEmoji}`,
-      description: `**${request.fullName}** just started their **${request.subscriptionType}**!`,
-      color: 0x10b981, // Emerald
-      fields: [
-        { name: "💰 Sales Price", value: `£${request.amount?.toFixed(2)}`, inline: true },
-        { name: "💎 Net Profit", value: `£${profit.toFixed(2)}`, inline: true },
-        { name: "👤 Customer Tier", value: customer?.discountTier || 'New Customer', inline: true }
-      ],
-      footer: { text: "CRMSync Pulse • Transaction Logged" },
-      timestamp: new Date().toISOString()
-    };
-
     try {
+      const settings = storage.getSettings();
+      const url = settings.notificationPreferences.webhookUrl;
+      if (!url) return;
+
+      const loyaltyEmoji = customer?.discountTier === 'Platinum' ? '💎' : 
+                           customer?.discountTier === 'Gold' ? '🥇' : '⭐';
+
+      const embed = {
+        title: `🎉 NEW SALE APPROVED ${loyaltyEmoji}`,
+        description: `**${request.fullName}** just started their **${request.subscriptionType}**!`,
+        color: 0x10b981, // Emerald
+        fields: [
+          { name: "💰 Sales Price", value: `£${request.amount?.toFixed(2)}`, inline: true },
+          { name: "💎 Net Profit", value: `£${profit.toFixed(2)}`, inline: true },
+          { name: "👤 Customer Tier", value: customer?.discountTier || 'New Customer', inline: true }
+        ],
+        footer: { text: "CRMSync Pulse • Transaction Logged" },
+        timestamp: new Date().toISOString()
+      };
+
       await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -239,23 +251,23 @@ export const notifier = {
    * Alerts the admin when a USDT batch is nearly empty.
    */
   async notifyUSDTEmpty(batchId: string, remainingGbp: number) {
-    const settings = storage.getSettings();
-    const url = settings.notificationPreferences.webhookUrl;
-    if (!url) return;
-
-    const embed = {
-      title: "💸 FUNDING ALERT: USDT LOW",
-      description: `USDT Batch **#${batchId.slice(-6)}** is almost fully consumed.`,
-      color: 0xef4444, // Red
-      fields: [
-        { name: "Remaining Value", value: `£${remainingGbp.toFixed(2)}`, inline: true },
-        { name: "Action", value: "Purchase more USDT on P2P to ensure link cost coverage.", inline: false }
-      ],
-      footer: { text: "CRMSync Finance Guard" },
-      timestamp: new Date().toISOString()
-    };
-
     try {
+      const settings = storage.getSettings();
+      const url = settings.notificationPreferences.webhookUrl;
+      if (!url) return;
+
+      const embed = {
+        title: "💸 FUNDING ALERT: USDT LOW",
+        description: `USDT Batch **#${batchId.slice(-6)}** is almost fully consumed.`,
+        color: 0xef4444, // Red
+        fields: [
+          { name: "Remaining Value", value: `£${remainingGbp.toFixed(2)}`, inline: true },
+          { name: "Action", value: "Purchase more USDT on P2P to ensure link cost coverage.", inline: false }
+        ],
+        footer: { text: "CRMSync Finance Guard" },
+        timestamp: new Date().toISOString()
+      };
+
       await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -271,21 +283,27 @@ export const notifier = {
    * Calculates Revenue, Link Costs, and Net Profit for the current day.
    */
   async sendDailyFinancialReport() {
-    const settings = storage.getSettings();
-    const url = settings.notificationPreferences.webhookUrl;
-    if (!url) return false;
-
     try {
+      const settings = storage.getSettings();
+      const url = settings.notificationPreferences.webhookUrl;
+      if (!url) return false;
+
       const history = await db.getRenewalHistory();
       const now = new Date();
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      const dailyTrans = history.filter(h => new Date(h.createdAt) >= startOfToday);
+      const dailyTrans = history.filter(h => new Date(h.createdAt || h.renewedOn) >= startOfToday);
       
-      const totalRevenue = dailyTrans.reduce((sum, h) => sum + (h.amount || 0), 0);
-      const totalCost = dailyTrans.reduce((sum, h) => sum + (h.cost || 0), 0);
-      const netProfit = dailyTrans.reduce((sum, h) => sum + (h.profit || 0), 0);
-      const orderCount = dailyTrans.length;
+      // Resolve real costs/profits (no more guessing)
+      const resolvedDaily = await Promise.all(dailyTrans.map(async h => {
+        const financials = await db.findStockCostForTransaction(h);
+        return { ...h, resolvedCost: financials.cost, resolvedProfit: financials.profit };
+      }));
+
+      const totalRevenue = resolvedDaily.reduce((sum, h) => sum + Number(h.amount || 0), 0);
+      const totalCost = resolvedDaily.reduce((sum, h) => sum + Number(h.resolvedCost || 0), 0);
+      const netProfit = resolvedDaily.reduce((sum, h) => sum + Number(h.resolvedProfit || 0), 0);
+      const orderCount = resolvedDaily.length;
 
       const embed = {
         title: "☀️ Daily Pulse Report • CRMSync",
@@ -302,19 +320,20 @@ export const notifier = {
         timestamp: new Date().toISOString()
       };
 
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ embeds: [embed] })
       });
 
-      console.log("[Notifier] Daily Profit Report Dispatched Successfully");
-      
-      // Update last report date in settings
-      const updatedSettings = { ...settings };
-      updatedSettings.notificationPreferences.lastDailyReportDate = now.toISOString().split('T')[0];
-      storage.saveSettings(updatedSettings);
+      if (response.ok) {
+        // Update last report date in settings
+        const updatedSettings = { ...settings };
+        updatedSettings.notificationPreferences.lastDailyReportDate = now.toISOString().split('T')[0];
+        storage.saveSettings(updatedSettings);
+      }
 
+      console.log("[Notifier] Daily Profit Report Dispatched Successfully");
       return true;
     } catch (error) {
       console.error("[Notifier] Failed to send daily report:", error);
@@ -327,30 +346,36 @@ export const notifier = {
    * Calculates Revenue, Link Costs, and Net Profit for the last 7 days.
    */
   async sendWeeklyFinancialReport() {
-    const settings = storage.getSettings();
-    const url = settings.notificationPreferences.webhookUrl;
-    if (!url) return false;
-
     try {
+      const settings = storage.getSettings();
+      const url = settings.notificationPreferences.webhookUrl;
+      if (!url) return false;
+
       const history = await db.getRenewalHistory();
       const now = new Date();
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(now.getDate() - 7);
 
-      const weeklyTrans = history.filter(h => new Date(h.createdAt) >= sevenDaysAgo);
+      const weeklyTrans = history.filter(h => new Date(h.createdAt || h.renewedOn) >= sevenDaysAgo);
       
-      const totalRevenue = weeklyTrans.reduce((sum, h) => sum + (h.amount || 0), 0);
-      const totalCost = weeklyTrans.reduce((sum, h) => sum + (h.cost || 0), 0);
-      const netProfit = weeklyTrans.reduce((sum, h) => sum + (h.profit || 0), 0);
-      const orderCount = weeklyTrans.length;
+      // Resolve real costs/profits (Cash-Basis Accounting)
+      const resolvedWeekly = await Promise.all(weeklyTrans.map(async h => {
+        const financials = await db.findStockCostForTransaction(h);
+        return { ...h, resolvedCost: financials.cost, resolvedProfit: financials.profit };
+      }));
+
+      const totalRevenue = resolvedWeekly.reduce((sum, h) => sum + Number(h.amount || 0), 0);
+      const totalCost = resolvedWeekly.reduce((sum, h) => sum + Number(h.resolvedCost || 0), 0);
+      const netProfit = resolvedWeekly.reduce((sum, h) => sum + Number(h.resolvedProfit || 0), 0);
+      const orderCount = resolvedWeekly.length;
 
       // Calculate Product Leaderboard
       const productStats: Record<string, { count: number, profit: number }> = {};
-      weeklyTrans.forEach(h => {
-        const p = h.newPlan || 'Unknown';
+      resolvedWeekly.forEach(h => {
+        const p = h.newPlan || h.oldPlan || 'Unknown';
         if (!productStats[p]) productStats[p] = { count: 0, profit: 0 };
         productStats[p].count += 1;
-        productStats[p].profit += (h.profit || 0);
+        productStats[p].profit += Number(h.resolvedProfit || 0);
       });
 
       const bestSeller = Object.entries(productStats).sort((a, b) => b[1].count - a[1].count)[0];
@@ -372,19 +397,20 @@ export const notifier = {
         timestamp: new Date().toISOString()
       };
 
-      await fetch(url, {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ embeds: [embed] })
       });
 
-      console.log("[Notifier] Weekly Profit Report Dispatched Successfully");
-      
-      // Update last report date in settings
-      const updatedSettings = { ...settings };
-      updatedSettings.notificationPreferences.lastSundayReportDate = now.toISOString().split('T')[0];
-      storage.saveSettings(updatedSettings);
+      if (response.ok) {
+        // Update last report date in settings
+        const updatedSettings = { ...settings };
+        updatedSettings.notificationPreferences.lastSundayReportDate = now.toISOString().split('T')[0];
+        storage.saveSettings(updatedSettings);
+      }
 
+      console.log("[Notifier] Weekly Profit Report Dispatched Successfully");
       return true;
     } catch (error) {
       console.error("[Notifier] Failed to send weekly report:", error);

@@ -106,6 +106,9 @@ export interface RenewalHistory {
   id: string;
   customerId: string;
   subscriptionId: string;
+  requestId?: string; // New: Link to the original form submission
+  codeId?: string; // New: Link to the specific Stock item (DigitalCode)
+  activationCode?: string; // New: The physical link string for absolute correlation
   oldPlan: PlanDuration | '';
   newPlan: PlanDuration | '';
   amount: number; // Agreed Sales Price

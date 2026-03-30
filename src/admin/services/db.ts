@@ -201,7 +201,7 @@ export const saveRenewalHistory = async (history: RenewalHistory): Promise<void>
   await setDoc(doc(db, "renewal_history", history.id), history);
 };
 
-export const logTransaction = async (subscription: Subscription, cost = 0, profit = 0): Promise<void> => {
+export const logTransaction = async (subscription: Subscription, cost = 0, profit = 0, codeId?: string, requestId?: string, activationCode?: string): Promise<void> => {
   // Check if a transaction for this subscription already exists on the same start date
   const snap = await getDocs(
     query(collection(db, "renewal_history"), where("subscriptionId", "==", subscription.id))
@@ -216,11 +216,14 @@ export const logTransaction = async (subscription: Subscription, cost = 0, profi
       id: `h_${Date.now()}`,
       customerId: subscription.customerId,
       subscriptionId: subscription.id,
+      requestId, // Link to original form submission
+      codeId, // Link to stock item
+      activationCode, // The physical link string for absolute correlation
       oldPlan: subscription.planDuration,
       newPlan: subscription.planDuration,
-      amount: subscription.price,
-      cost,
-      profit,
+      amount: Number(subscription.price || 0),
+      cost: Number(cost || 0),
+      profit: Number(profit || 0),
       renewedOn: subscription.startDate,
       paymentMethod: "Other",
       notes: `Initial subscription: ${subscription.subscriptionType ?? ""}`,
@@ -228,6 +231,87 @@ export const logTransaction = async (subscription: Subscription, cost = 0, profi
     };
     await saveRenewalHistory(history);
   }
+};
+
+/**
+ * Recovers real cost data for a transaction by looking up the assigned DigitalCode.
+ * Used for Cash-Basis Accounting reports when explicit cost is missing.
+ */
+export const findStockCostForTransaction = async (h: RenewalHistory): Promise<{ cost: number, profit: number }> => {
+  const amount = Number(h.amount || 0);
+  
+  // 1. If explicit cost is stored AND is a real positive number, trust it directly
+  // CRITICAL: Do NOT use `h.profit !== 0` — undefined !== 0 is TRUE in JS,
+  // which would short-circuit before we ever reach the stock lookup.
+  if (typeof h.cost === 'number' && h.cost > 0) {
+    const cost = h.cost;
+    const profit = (typeof h.profit === 'number' && h.profit !== 0) ? h.profit : (amount - cost);
+    return { cost, profit };
+  }
+
+  // 2. Try direct literal code match (The "String Match Guarantee")
+  // This is the most reliable way to link a delivered link back to its purchase cost.
+  if (h.activationCode) {
+    const codes = await getLiveStock();
+    const literalMatch = codes.find(c => {
+      const cleanH = h.activationCode?.toLowerCase().trim();
+      const cleanC = c.code.toLowerCase().trim();
+      return cleanC === cleanH || cleanC.includes(cleanH!) || cleanH?.includes(cleanC);
+    });
+    if (literalMatch) {
+      const realCost = Number(literalMatch.gbpPurchaseCost || 0);
+      return { cost: realCost, profit: amount - realCost };
+    }
+  }
+
+  // 3. Try direct lookup by codeId if stored in history
+  if (h.codeId) {
+    const codeSnap = await getDoc(doc(db, "live_stock", h.codeId));
+    if (codeSnap.exists()) {
+      const codeData = codeSnap.data() as DigitalCode;
+      const realCost = Number(codeData.gbpPurchaseCost || 0);
+      return { cost: realCost, profit: amount - realCost };
+    }
+  }
+
+  // 4. Look into the Subscription record as a fallback (Historical Bridge)
+  // This helps recover costs for old records that didn't store the code ID or link string.
+  try {
+    const subSnap = await getDoc(doc(db, "subscriptions", h.subscriptionId));
+    if (subSnap.exists()) {
+      const subData = subSnap.data() as Subscription;
+      if (subData.activationCode) {
+        const codes = await getLiveStock();
+        const subCodeMatch = codes.find(c => {
+          const cleanSub = subData.activationCode?.toLowerCase().trim();
+          const cleanC = c.code.toLowerCase().trim();
+          return cleanC === cleanSub || cleanC.includes(cleanSub!) || cleanSub?.includes(cleanC);
+        });
+        if (subCodeMatch) {
+          const realCost = Number(subCodeMatch.gbpPurchaseCost || 0);
+          return { cost: realCost, profit: amount - realCost };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[Accounting] Subscription bridge failed for: ", h.subscriptionId);
+  }
+
+  // 5. Fallback: Search stock ledger using the multi-ID correlation bridge
+  const codes = await getLiveStock(); // Use cached getter
+  const match = codes.find(c => 
+    (c.assignedToSubscriptionId && c.assignedToSubscriptionId === h.subscriptionId) || 
+    (c.assignedToRequestId && h.requestId && c.assignedToRequestId === h.requestId) ||
+    (c.assignedToRequestId && c.assignedToRequestId === h.subscriptionId) // Legacy pattern fallback
+  );
+
+  if (match) {
+    const realCost = Number(match.gbpPurchaseCost || 0);
+    return { cost: realCost, profit: amount - realCost };
+  }
+
+  // 5. Ultimate Fallback: User requested 0 cost if unknown (Agreed Price - 0)
+  return { cost: 0, profit: amount };
 };
 
 // ─── Activity Logs ────────────────────────────────────────────────────────────
@@ -419,8 +503,8 @@ export const consumeUSDT = async (totalAmount: number, note: string): Promise<{b
     // Alert if batch drops below 10% original size
     if (updatedRemaining > 0 && updatedRemaining < (utx.amount * 0.1) && utx.remainingAmount >= (utx.amount * 0.1)) {
         setTimeout(() => {
-          import('./notifier').then(({ notifier }) => {
-            notifier.notifyUSDTEmpty(utx.id, updatedRemaining * utx.usdtRate);
+          import('./alertService').then(({ alertService }) => {
+            alertService.notifyUSDTEmpty(utx.id, updatedRemaining * utx.usdtRate);
           });
         }, 0);
     }
@@ -558,7 +642,8 @@ export const getAvailableCodesCount = async (productId?: string): Promise<number
 export const claimCodeForRequest = async (
   productIdOrType: string, 
   duration: string, 
-  requestId: string
+  requestId: string,
+  subscriptionId?: string // Link it to the subscription for better financial ledgering
 ): Promise<DigitalCode | null> => {
   // 1. Try to find by direct productId first
   let q = query(
@@ -608,6 +693,7 @@ export const claimCodeForRequest = async (
     ...codeData,
     status: 'Assigned',
     assignedToRequestId: requestId,
+    assignedToSubscriptionId: subscriptionId || null,
     assignedAt: new Date().toISOString()
   };
   
@@ -626,10 +712,10 @@ export const claimCodeForRequest = async (
       // Hook Low Stock Alert (Threshold: 2 or 0)
       if (newCount === 2 || newCount === 0) {
         // We import it inside or use a global reference if possible
-        // To avoid circular dependencies, it's better to ensure notifier is ready
+        // To avoid circular dependencies, it's better to ensure alertService is ready
         setTimeout(() => {
-          import('./notifier').then(({ notifier }) => {
-             notifier.notifyLowStock(codeData.productName, codeData.duration, newCount);
+          import('./alertService').then(({ alertService }) => {
+             alertService.notifyLowStock(codeData.productName, codeData.duration, newCount);
           });
         }, 0);
       }
