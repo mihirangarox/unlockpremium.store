@@ -420,25 +420,149 @@ export const alertService = {
 
   /**
    * Prepares a WhatsApp fulfillment message for the customer.
+   * Selects the correct template based on the subscription period.
    * Returns a wa.me link that the admin can open.
    */
   prepareCustomerFulfillment(request: IntakeRequest, code: string): string {
     const firstName = request.fullName.split(' ')[0];
     const cleanNumber = (request.whatsappNumber || '').replace(/[^0-9]/g, '');
-    
+
     if (!cleanNumber) {
-       console.warn("[Notifier] Cannot prepare WhatsApp fulfillment: missing number.");
-       return "";
+      console.warn("[Notifier] Cannot prepare WhatsApp fulfillment: missing number.");
+      return "";
     }
 
-    const message = `*Activation Successful!* 🎉\n\n` +
-      `Hello ${firstName}, your *${request.subscriptionType}* (${request.subscriptionPeriod}) is now active!\n\n` +
-      `🔑 *Your Activation Key:* \n\`${code}\`\n\n` +
-      `🚀 *How to Apply:*\n` +
-      `1. Visit: https://www.linkedin.com/premium/redeem/\n` +
-      `2. Enter the key above.\n` +
-      `3. Confirm activation.\n\n` +
-      `Thank you for choosing UnlockPremium! If you need help, just reply here.`;
+    const period = (request.subscriptionPeriod || '').toUpperCase();
+    const planName = request.subscriptionType || 'LinkedIn Premium';
+    const activationLink = code; // The code IS the activation link/key
+
+    let message: string;
+
+    if (period === '1M') {
+      message =
+        `🎉 *Activation Confirmed*\n\n` +
+        `Hi ${firstName},\n\n` +
+        `Your *${planName} (1 Month)* is now successfully delivered.\n\n` +
+        `👉 *Click below to activate your subscription:*\n` +
+        `${activationLink}\n\n` +
+        `Thank you for your order — we truly appreciate your trust in *UnlockPremium*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ *Subscription Notice*\n` +
+        `This plan includes *auto-renewal*, and LinkedIn *will charge the full price* at the end of the period unless cancelled.\n\n` +
+        `🚨 *Important — Do NOT cancel immediately*\n` +
+        `Cancelling too early can result in *loss of access before the full duration is completed*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `✅ *Recommended Cancellation Timing*\n\n` +
+        `1️⃣ Set a reminder for *25 days from today*\n` +
+        `2️⃣ Go to *Premium Subscription Settings*\n` +
+        `3️⃣ Cancel your subscription on that day\n\n` +
+        `This ensures you enjoy the *full 1 month* without renewal charges.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `If you need any assistance, just reply here — happy to help 😊`;
+
+    } else if (period === '2M') {
+      message =
+        `🎉 *Activation Confirmed*\n\n` +
+        `Hi ${firstName},\n\n` +
+        `Your *${planName} (2 Months)* is now successfully delivered.\n\n` +
+        `👉 *Click below to activate your subscription:*\n` +
+        `${activationLink}\n\n` +
+        `Thank you for your order — we truly appreciate your trust in *UnlockPremium*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ *Subscription Notice*\n` +
+        `This plan includes *auto-renewal*, and LinkedIn *will charge the full price* at the end of the period unless cancelled.\n\n` +
+        `🚨 *Important — Do NOT cancel immediately*\n` +
+        `Cancelling too early can result in *loss of access before the full duration is completed*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `✅ *Recommended Cancellation Timing*\n\n` +
+        `1️⃣ Set a reminder for *35 days from today*\n` +
+        `2️⃣ Go to *Premium Subscription Settings*\n` +
+        `3️⃣ Cancel your subscription on that day\n\n` +
+        `This ensures you enjoy the *full 2 months* without renewal charges.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `If you need any assistance, just reply here — happy to help 😊`;
+
+    } else if (period === '3M') {
+      message =
+        `🎉 *Activation Confirmed*\n\n` +
+        `Hi ${firstName},\n\n` +
+        `Your *${planName} (3 Months)* is now successfully delivered.\n\n` +
+        `👉 *Click below to activate your subscription:*\n` +
+        `${activationLink}\n\n` +
+        `Thank you for choosing *UnlockPremium*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ *Subscription Notice*\n` +
+        `This plan includes *auto-renewal*, and LinkedIn *will charge the full price* once the 3-month period ends unless cancelled.\n\n` +
+        `🚨 *Important — Do NOT cancel immediately*\n` +
+        `Early cancellation may result in *reduced access duration*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `✅ *Recommended Cancellation Timing*\n\n` +
+        `1️⃣ Set a reminder for *65 days from today*\n` +
+        `2️⃣ Go to *Premium Subscription Settings*\n` +
+        `3️⃣ Cancel your subscription on that day\n\n` +
+        `This guarantees full access for the *entire 3 months* without additional charges.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `We're here if you need any support — just reply anytime 😊`;
+
+    } else if (period === '6M') {
+      message =
+        `🎉 *Activation Confirmed*\n\n` +
+        `Hi ${firstName},\n\n` +
+        `Your *${planName} (6 Months)* is now successfully delivered.\n\n` +
+        `👉 *Click below to activate your subscription:*\n` +
+        `${activationLink}\n\n` +
+        `Thank you for your order — we're delighted to have you with *UnlockPremium*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ *Subscription Notice*\n` +
+        `This plan includes *auto-renewal*, and LinkedIn *will charge the full price* once the 6-month period ends unless cancelled.\n\n` +
+        `🚨 *Important — Do NOT cancel immediately*\n` +
+        `Cancelling too early can result in *loss of access before the full duration is completed*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `✅ *Recommended Cancellation Timing*\n\n` +
+        `1️⃣ Set a reminder for *5 months (~150 days) from today*\n` +
+        `2️⃣ Go to *Premium Subscription Settings*\n` +
+        `3️⃣ Cancel your subscription on that day\n\n` +
+        `This ensures you receive the *full 6-month benefit* without renewal charges.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `If you need any assistance at any stage, simply reply — happy to help 😊`;
+
+    } else if (period === '12M') {
+      message =
+        `🎉 *Activation Confirmed*\n\n` +
+        `Hi ${firstName},\n\n` +
+        `Your *${planName} (12 Months)* is now successfully delivered.\n\n` +
+        `👉 *Click below to activate your subscription:*\n` +
+        `${activationLink}\n\n` +
+        `Thank you for your order — we're delighted to have you with *UnlockPremium*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ *Subscription Notice*\n` +
+        `This plan includes *auto-renewal*, and LinkedIn *will charge the full annual price* at the end of the 12-month period unless cancelled.\n\n` +
+        `🚨 *Important — Do NOT cancel immediately*\n` +
+        `Cancelling too early may lead to *early termination of your subscription benefits*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `✅ *Recommended Cancellation Timing*\n\n` +
+        `1️⃣ Set a reminder for *11 months (~335 days) from today*\n` +
+        `2️⃣ Go to *Premium Subscription Settings*\n` +
+        `3️⃣ Cancel your subscription on that day\n\n` +
+        `This ensures you receive the *full 12-month benefit* without renewal charges.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `If you need any assistance at any stage, simply reply — happy to help 😊`;
+
+    } else {
+      // Fallback for any unrecognised period
+      message =
+        `🎉 *Activation Confirmed*\n\n` +
+        `Hi ${firstName},\n\n` +
+        `Your *${planName}* subscription is now successfully delivered.\n\n` +
+        `👉 *Click below to activate your subscription:*\n` +
+        `${activationLink}\n\n` +
+        `Thank you for choosing *UnlockPremium*.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `⚠️ *Subscription Notice*\n` +
+        `This plan includes *auto-renewal*. Please remember to cancel before the period ends to avoid renewal charges.\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `If you need any assistance, just reply here — happy to help 😊`;
+    }
 
     return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
   }

@@ -30,7 +30,8 @@ import type {
   Vendor,
   InventoryLog,
   DigitalCode,
-  USDTTransaction
+  USDTTransaction,
+  AppSettings
 } from "../types/index";
 
 // ─── Products ───────────────────────────────────────────────────────────────
@@ -762,4 +763,18 @@ export const syncInventoryFromLiveStock = async (productId: string): Promise<voi
     costPrice: avgCost,
     updatedAt: new Date().toISOString()
   }, { merge: true });
+};
+
+// ─── System Settings ─────────────────────────────────────────────────────────
+
+export const getSystemSettings = async (): Promise<AppSettings | null> => {
+  const snap = await getDoc(doc(db, "system_settings", "main_config"));
+  return snap.exists() ? (snap.data() as AppSettings) : null;
+};
+
+export const saveSystemSettings = async (settings: AppSettings): Promise<void> => {
+  await setDoc(doc(db, "system_settings", "main_config"), {
+    ...settings,
+    updatedAt: new Date().toISOString()
+  });
 };

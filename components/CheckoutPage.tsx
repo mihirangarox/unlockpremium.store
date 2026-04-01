@@ -86,8 +86,7 @@ const CheckoutPage: React.FC = () => {
       await saveRequest(newLead);
       setIsLeadSaved(true);
       
-      // Notify Admin
-      alertService.notifyNewRequest(newLead);
+      // Notify Admin (Handled by Cloud Function trigger on Firestore)
     } catch (error) {
       console.error("Lead capture failed:", error);
     } finally {
@@ -133,8 +132,7 @@ const CheckoutPage: React.FC = () => {
 
       await saveRequest(updatedRequest);
       
-      // Notify Admin of completed checkout (Success)
-      alertService.notifyNewRequest(updatedRequest);
+      // Notify Admin of completed checkout (Handled by Cloud Function trigger on Firestore)
       
       // Complete
       clearCart();

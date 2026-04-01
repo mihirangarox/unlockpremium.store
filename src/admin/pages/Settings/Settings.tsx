@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Bell, MessageSquare, Shield, Globe, Save, Download, 
   Database, Link2, CreditCard, Users, Zap, 
@@ -23,10 +23,27 @@ export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Notifications' | 'Integrations' | 'Security' | 'Data' | 'Billing' | 'Team'>('Overview');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
-  const handleSave = () => {
+  useEffect(() => {
+    const loadSettings = async () => {
+      const dbSettings = await db.getSystemSettings();
+      if (dbSettings) {
+        setSettings(dbSettings);
+        // Also sync to local storage for quick access elsewhere
+        storage.saveSettings(dbSettings);
+        updateLocalization(dbSettings);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    // 1. Save to Firestore (Master)
+    await db.saveSystemSettings(settings);
+    // 2. Sync to Local Storage (Cache)
     storage.saveSettings(settings);
+    // 3. Update UI state
     updateLocalization(settings);
-    showToast("Settings saved successfully!", "success");
+    showToast("Settings saved successfully to Cloud!", "success");
   };
 
   const handleResetSystem = () => {
