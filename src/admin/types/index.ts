@@ -157,6 +157,17 @@ export interface ActivityLog {
   createdAt: string;
 }
 
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  type: 'Activation' | 'Reminder';
+  productType: SubscriptionType | 'All';
+  duration: PlanDuration | 'All';
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppSettings {
   // General
   organizationName: string;

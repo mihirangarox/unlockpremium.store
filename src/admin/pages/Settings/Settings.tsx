@@ -4,7 +4,7 @@ import {
   Database, Link2, CreditCard, Users, Zap, 
   AlertCircle, Trash2, Smartphone, 
   Mail, Settings as SettingsIcon, LayoutDashboard, ChevronRight,
-  Eye, EyeOff, Lock, CheckCircle2, XCircle, Activity
+  Eye, EyeOff, Lock, CheckCircle2, XCircle, Activity, Edit
 } from "lucide-react";
 import { auth } from "../../../firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
@@ -14,13 +14,13 @@ import { useToast } from "../../components/ui/Toast";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { alertService } from "../../services/alertService";
-import type { AppSettings, AutoSendMode } from "../../types/index";
+import type { AppSettings, AutoSendMode, MessageTemplate } from "../../types/index";
 
 export function SettingsPage() {
   const { showToast } = useToast();
   const { updateSettings: updateLocalization } = useLocalization();
   const [settings, setSettings] = useState<AppSettings>(storage.getSettings());
-  const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Notifications' | 'Integrations' | 'Security' | 'Data' | 'Billing' | 'Team'>('Overview');
+  const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Templates' | 'Notifications' | 'Integrations' | 'Security' | 'Data' | 'Billing' | 'Team'>('Overview');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -170,6 +170,7 @@ export function SettingsPage() {
           <div className="h-px bg-slate-50 my-2 mx-4" />
           <SettingsTab icon={<Globe className="w-4 h-4" />} label="General" active={activeTab === 'General'} onClick={() => setActiveTab('General')} />
           <SettingsTab icon={<Zap className="w-4 h-4" />} label="Automation" active={activeTab === 'Automation'} onClick={() => setActiveTab('Automation')} />
+          <SettingsTab icon={<MessageSquare className="w-4 h-4" />} label="Templates" active={activeTab === 'Templates'} onClick={() => setActiveTab('Templates')} />
           <SettingsTab icon={<Bell className="w-4 h-4" />} label="Notifications" active={activeTab === 'Notifications'} onClick={() => setActiveTab('Notifications')} />
           <SettingsTab icon={<Link2 className="w-4 h-4" />} label="Integrations" active={activeTab === 'Integrations'} onClick={() => setActiveTab('Integrations')} />
           <SettingsTab icon={<Shield className="w-4 h-4" />} label="Security" active={activeTab === 'Security'} onClick={() => setActiveTab('Security')} />
@@ -183,6 +184,7 @@ export function SettingsPage() {
           {activeTab === 'Overview' && <OverviewDashboard settings={settings} onNavigate={setActiveTab} />}
           {activeTab === 'General' && <GeneralSettings settings={settings} setSettings={setSettings} />}
           {activeTab === 'Automation' && <AutomationSettings settings={settings} setSettings={setSettings} />}
+          {activeTab === 'Templates' && <TemplateSettings />}
           {activeTab === 'Notifications' && <NotificationSettings settings={settings} setSettings={setSettings} />}
           {activeTab === 'Integrations' && <IntegrationSettings settings={settings} />}
           {activeTab === 'Security' && <SecuritySettings showToast={showToast} />}
@@ -1108,3 +1110,142 @@ function ToggleItem({ label, sub, active, onToggle }: any) {
   );
 }
 
+function TemplateSettings() {
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<MessageTemplate>>({});
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    loadTemplates();
+  }, []);
+
+  const loadTemplates = async () => {
+    const dbTemplates = await db.getMessageTemplates();
+    setTemplates(dbTemplates);
+    if (storage.getMessageTemplates().length === 0) {
+       dbTemplates.forEach(storage.saveMessageTemplate);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!editForm.name || !editForm.body) {
+      showToast("Name and Message Body are required", "error");
+      return;
+    }
+    const isNew = !editForm.id;
+    const templateToSave: MessageTemplate = {
+      id: editForm.id || `tmpl_${Date.now()}`,
+      name: editForm.name,
+      type: editForm.type || 'Activation',
+      productType: editForm.productType || 'All',
+      duration: editForm.duration || 'All',
+      body: editForm.body,
+      createdAt: editForm.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await db.saveMessageTemplate(templateToSave);
+    storage.saveMessageTemplate(templateToSave);
+    showToast(`Template ${isNew ? 'created' : 'updated'}`, "success");
+    setEditingId(null);
+    loadTemplates();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this template?")) {
+      await db.deleteMessageTemplate(id);
+      storage.deleteMessageTemplate(id);
+      showToast("Template deleted", "success");
+      loadTemplates();
+    }
+  };
+
+  if (editingId !== null) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-xl font-bold text-slate-900">{editForm.id ? "Edit Template" : "New Template"}</h3>
+            <div className="flex gap-2">
+              <button onClick={() => setEditingId(null)} className="px-4 py-2 hover:bg-slate-100 rounded-xl font-bold text-sm">Cancel</button>
+              <button onClick={handleSave} className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-100">Save</button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Template Name</label>
+              <input type="text" value={editForm.name || ""} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" placeholder="e.g. 12 Months Activation" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Trigger Event</label>
+              <select value={editForm.type || "Activation"} onChange={e => setEditForm({...editForm, type: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-indigo-500/10">
+                <option value="Activation">Activation</option>
+                <option value="Reminder">Reminder</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+               <label className="text-xs font-bold text-slate-400 uppercase">Product Type Match</label>
+              <input type="text" placeholder="e.g. Sales Navigator Core or All" value={editForm.productType || ""} onChange={e => setEditForm({...editForm, productType: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" />
+            </div>
+            <div className="space-y-2">
+               <label className="text-xs font-bold text-slate-400 uppercase">Duration Match</label>
+              <input type="text" placeholder="e.g. 12M or All" value={editForm.duration || ""} onChange={e => setEditForm({...editForm, duration: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" />
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Message Body</label>
+            <textarea value={editForm.body || ""} onChange={e => setEditForm({...editForm, body: e.target.value})} rows={10} className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" />
+             <div className="flex flex-wrap gap-2 mt-2">
+              {['customer_name', 'plan_name', 'activation_link', 'duration', 'days', 'price'].map(tag => (
+                <span key={tag} className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100/50 cursor-pointer hover:bg-indigo-100" onClick={() => setEditForm({...editForm, body: (editForm.body || '') + `{${tag}}`})}>
+                  {`{${tag}}`}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+          <div>
+            <h3 className="text-lg font-bold text-slate-900">Message Templates</h3>
+            <p className="text-xs text-slate-500 mt-1">Manage dynamically injected WhatsApp responses based on product rules</p>
+          </div>
+          <button onClick={() => { setEditForm({ type: 'Activation', productType: 'All', duration: 'All' }); setEditingId(''); }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 flex items-center gap-2">
+             <MessageSquare className="w-4 h-4" />
+             New Template
+          </button>
+        </div>
+        <div className="divide-y divide-slate-100">
+          {templates.map(t => (
+            <div key={t.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50">
+               <div>
+                  <h4 className="font-bold text-slate-900">{t.name}</h4>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase tracking-widest">
+                     <span className={`px-2 py-1 rounded-lg ${t.type === 'Activation' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{t.type}</span>
+                     <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{t.productType}</span>
+                     <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{t.duration}</span>
+                  </div>
+               </div>
+               <div className="flex gap-2">
+                  <button onClick={() => { setEditForm(t); setEditingId(t.id); }} className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-xl"><Edit className="w-4 h-4" /></button>
+                  <button onClick={() => handleDelete(t.id)} className="p-2 hover:bg-rose-50 text-rose-600 rounded-xl"><Trash2 className="w-4 h-4" /></button>
+               </div>
+            </div>
+          ))}
+          {templates.length === 0 && (
+             <div className="p-12 text-center text-slate-400 font-medium">No templates created yet.</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

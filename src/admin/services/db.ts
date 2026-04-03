@@ -31,7 +31,8 @@ import type {
   InventoryLog,
   DigitalCode,
   USDTTransaction,
-  AppSettings
+  AppSettings,
+  MessageTemplate
 } from "../types/index";
 
 // ─── Products ───────────────────────────────────────────────────────────────
@@ -777,4 +778,22 @@ export const saveSystemSettings = async (settings: AppSettings): Promise<void> =
     ...settings,
     updatedAt: new Date().toISOString()
   });
+};
+
+// ─── Message Templates ───────────────────────────────────────────────────────
+
+export const getMessageTemplates = async (): Promise<MessageTemplate[]> => {
+  const snap = await getDocs(query(collection(db, "message_templates"), orderBy("createdAt", "desc")));
+  return snap.docs.map(d => d.data() as MessageTemplate);
+};
+
+export const saveMessageTemplate = async (template: MessageTemplate): Promise<void> => {
+  await setDoc(doc(db, "message_templates", template.id), {
+    ...template,
+    updatedAt: new Date().toISOString()
+  });
+};
+
+export const deleteMessageTemplate = async (id: string): Promise<void> => {
+  await deleteDoc(doc(db, "message_templates", id));
 };

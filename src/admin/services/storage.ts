@@ -1,4 +1,4 @@
-import type { Customer, Subscription, Reminder, RenewalHistory, ActivityLog, AppSettings } from '../types/index';
+import type { Customer, Subscription, Reminder, RenewalHistory, ActivityLog, AppSettings, MessageTemplate } from '../types/index';
 
 // Simple prefix to isolate our app's data in localStorage
 const PREFIX = 'subcrm_';
@@ -219,5 +219,19 @@ export const storage = {
     localStorage.removeItem(PREFIX + 'renewal_history');
     localStorage.removeItem(PREFIX + 'activity_logs');
     localStorage.removeItem(PREFIX + 'settings');
+    localStorage.removeItem(PREFIX + 'message_templates');
+  },
+
+  // Message Templates
+  getMessageTemplates: (): MessageTemplate[] => getItems<MessageTemplate>('message_templates'),
+  saveMessageTemplate: (template: MessageTemplate) => {
+    const templates = storage.getMessageTemplates();
+    const index = templates.findIndex(t => t.id === template.id);
+    if (index >= 0) templates[index] = template;
+    else templates.push(template);
+    setItems('message_templates', templates);
+  },
+  deleteMessageTemplate: (id: string) => {
+    setItems('message_templates', getItems<MessageTemplate>('message_templates').filter(t => t.id !== id));
   }
 };

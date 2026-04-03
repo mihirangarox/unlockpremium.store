@@ -11,6 +11,7 @@ import { useToast } from "../../components/ui/Toast";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { getDaysLeft, formatDaysLeft, getDaysLeftColorClass } from "../../utils/dateUtils";
 import type { Customer, Subscription } from "../../types/index";
+import { alertService } from "../../services/alertService";
 import { motion, AnimatePresence } from "framer-motion";
 import { generateInvoicePDF } from "../../utils/invoiceGenerator";
 import { FileText } from "lucide-react";
@@ -324,9 +325,13 @@ export function Subscriptions() {
     if (!item.customer) return;
     const phone = item.customer.whatsappNumber.replace(/[^0-9]/g, '');
     const daysLeft = getDaysLeft(item.sub.renewalDate);
-    const message = encodeURIComponent(`Hi ${item.customer.fullName}, your ${item.sub.subscriptionType} plan is renewing ${daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`}. Price: ${formatCurrency(item.sub.price)}. Would you like to keep it active?`);
-    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
-    showToast(`Reminder flow opened for ${item.customer.fullName}`, "info");
+    const link = alertService.prepareCustomerReminder(item.customer, item.sub, daysLeft, formatCurrency(item.sub.price));
+    if (link) {
+      window.open(link, '_blank');
+      showToast(`Reminder flow opened for ${item.customer.fullName}`, "info");
+    } else {
+      showToast("Cannot open WhatsApp, check customer number.", "error");
+    }
   };
 
   return (
