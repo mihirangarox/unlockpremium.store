@@ -269,6 +269,8 @@ export function Subscriptions() {
         oldPlan: item.sub.planDuration,
         newPlan: item.sub.planDuration,
         amount: item.sub.price,
+        cost: codeToUse.gbpPurchaseCost || codeToUse.costBasisUSDT || 0,
+        profit: item.sub.price - (codeToUse.gbpPurchaseCost || codeToUse.costBasisUSDT || 0),
         renewedOn: new Date().toISOString(),
         paymentMethod: 'Automatic (Stock)',
         notes: `Quick Renew used code: ${codeToUse.code}`,
