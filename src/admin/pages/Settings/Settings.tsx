@@ -1104,8 +1104,7 @@ function ToggleItem({ label, sub, active, onToggle }: any) {
          onClick={onToggle}
          className={`w-10 h-5 rounded-full transition-all relative ${active ? 'bg-indigo-600' : 'bg-slate-200'}`}
        >
-          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${active ? 'left-6' : 'left-1'}`} />
-       </button>
+        </button>
     </div>
   );
 }
