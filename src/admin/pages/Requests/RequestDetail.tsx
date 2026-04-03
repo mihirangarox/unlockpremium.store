@@ -628,7 +628,19 @@ Thank you for your business!`;
                   {request.status === "Pending" ? (
                     <select
                       value={subscriptionType}
-                      onChange={e => setSubscriptionType(e.target.value as any)}
+                      onChange={e => {
+                        const newType = e.target.value as any;
+                        setSubscriptionType(newType);
+                        // Auto-select first available duration for this type
+                        const firstMatch = products.find(p => p.subscriptionType === newType);
+                        if (firstMatch) {
+                          if (firstMatch.pricing && firstMatch.pricing.length > 0) {
+                            setSubscriptionPeriod((firstMatch.pricing[0].durationMonths + 'M') as any);
+                          } else if (firstMatch.durationMonths) {
+                            setSubscriptionPeriod((firstMatch.durationMonths + 'M') as any);
+                          }
+                        }
+                      }}
                       className="w-full text-sm font-bold text-indigo-600 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-500 text-slate-900"
                     >
                       <option value="">Select Plan...</option>
@@ -648,16 +660,41 @@ Thank you for your business!`;
                 <div>
                   <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Duration</label>
                   {request.status === "Pending" ? (
-                    <select
-                      value={subscriptionPeriod}
-                      onChange={e => setSubscriptionPeriod(e.target.value as any)}
-                      className="w-full text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="1M">1 Month</option>
-                      <option value="3M">3 Months</option>
-                      <option value="6M">6 Months</option>
-                      <option value="12M">12 Months</option>
-                    </select>
+                    (() => {
+                      // Filter durations to only those available in the product catalog
+                      const selectedType = subscriptionType || request.subscriptionType;
+                      const availableDurations = products
+                        .filter(p => !selectedType || p.subscriptionType === selectedType)
+                        .flatMap(p => {
+                          if (p.pricing && p.pricing.length > 0) {
+                            return p.pricing.map(price => price.durationMonths + 'M');
+                          }
+                          return p.durationMonths ? [p.durationMonths + 'M'] : [];
+                        });
+                      const durationLabels: Record<string, string> = {
+                        '1M': '1 Month', '2M': '2 Months', '3M': '3 Months',
+                        '6M': '6 Months', '12M': '12 Months'
+                      };
+                      // Fallback to all standard options if catalog is empty
+                      const options = availableDurations.length > 0
+                        ? availableDurations
+                        : ['1M', '2M', '3M', '6M', '12M'];
+                      
+                      // Remove duplicates from availableDurations in case multiple products have the same duration
+                      const uniqueOptions = Array.from(new Set(options));
+                      
+                      return (
+                        <select
+                          value={subscriptionPeriod}
+                          onChange={e => setSubscriptionPeriod(e.target.value as any)}
+                          className="w-full text-sm font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-indigo-500"
+                        >
+                          {uniqueOptions.map(dur => (
+                            <option key={dur} value={dur}>{durationLabels[dur] || dur}</option>
+                          ))}
+                        </select>
+                      );
+                    })()
                   ) : (
                     <div className="font-medium text-slate-700">{request.subscriptionPeriod || 'N/A'} plan</div>
                   )}

@@ -51,30 +51,14 @@ export function Dashboard() {
     (async () => {
       setLoading(true);
       try {
-        // Run background automation scan first (silent)
+        // Run background automation scan (silent) — generates renewal reminders
         const { automation } = await import("../services/automation");
         await automation.checkAndGenerateReminders();
 
-        // Phase 3 Trigger: Sunday Profit Report
+        // NOTE: Discord reports (Daily Pulse, Morning Action Centre, Weekly Compass)
+        // are now handled exclusively by Firebase Cloud Functions on a fixed schedule.
+        // Do NOT trigger them here to avoid duplicate Discord messages.
         const now = new Date();
-        const isSunday = now.getDay() === 0;
-        const todayDate = now.toISOString().split('T')[0];
-        const { storage } = await import("../services/storage");
-        const settings = storage.getSettings();
-
-        if (isSunday && settings.notificationPreferences.lastSundayReportDate !== todayDate) {
-           import("../services/alertService").then(({ alertService }) => alertService.sendWeeklyFinancialReport());
-        }
-
-        // Phase 4 Trigger: Daily Profit Pulse
-        if (settings.notificationPreferences.lastDailyReportDate !== todayDate) {
-           import("../services/alertService").then(({ alertService }) => alertService.sendDailyFinancialReport());
-        }
-
-        // Phase 5 Trigger: Morning Action Centre
-        if (settings.notificationPreferences.lastMorningReportDate !== todayDate) {
-           import("../services/alertService").then(({ alertService }) => alertService.sendMorningActionReport());
-        }
 
         const [customers, subs, history, usdtTx, allReminders] = await Promise.all([
           db.getCustomers(),
