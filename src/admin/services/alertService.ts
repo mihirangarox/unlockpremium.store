@@ -419,19 +419,11 @@ export const alertService = {
   },
 
   /**
-   * Prepares a WhatsApp fulfillment message for the customer.
-   * Selects the correct template based on the subscription period.
-   * Returns a wa.me link that the admin can open.
+   * Generates the raw message text for customer fulfillment.
+   * Useful for previews before sending.
    */
-  prepareCustomerFulfillment(request: IntakeRequest, code: string): string {
+  prepareFulfillmentMessage(request: IntakeRequest, code: string): string {
     const firstName = request.fullName.split(' ')[0];
-    const cleanNumber = (request.whatsappNumber || '').replace(/[^0-9]/g, '');
-
-    if (!cleanNumber) {
-      console.warn("[Notifier] Cannot prepare WhatsApp fulfillment: missing number.");
-      return "";
-    }
-
     const period = (request.subscriptionPeriod || '').toUpperCase();
     const planName = request.subscriptionType || 'LinkedIn Premium';
     const activationLink = code;
@@ -462,11 +454,38 @@ export const alertService = {
         `━━━━━━━━━━━━━━━━━━\n\n` +
         `If you need any assistance, just reply here — happy to help 😊`;
 
-    message = message
+    // Calculate days if possible
+    let daysDiff = "";
+    if (request.startDate && request.renewalDate) {
+      const start = new Date(request.startDate);
+      const end = new Date(request.renewalDate);
+      const diffTime = Math.abs(end.getTime() - start.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      daysDiff = diffDays.toString();
+    }
+
+    return message
       .replace(/{customer_name}/g, firstName)
       .replace(/{plan_name}/g, planName)
-      .replace(/{activation_link}/g, activationLink);
+      .replace(/{activation_link}/g, activationLink)
+      .replace(/{duration}/g, request.subscriptionPeriod || "")
+      .replace(/{days}/g, daysDiff)
+      .replace(/{price}/g, request.soldPrice?.toFixed(2) || request.amount?.toFixed(2) || "0.00")
+      .replace(/{renewal_date}/g, request.renewalDate?.split('T')[0] || "");
+  },
 
+  /**
+   * Prepares a WhatsApp fulfillment link for the customer.
+   */
+  prepareCustomerFulfillment(request: IntakeRequest, code: string): string {
+    const cleanNumber = (request.whatsappNumber || '').replace(/[^0-9]/g, '');
+
+    if (!cleanNumber) {
+      console.warn("[Notifier] Cannot prepare WhatsApp fulfillment: missing number.");
+      return "";
+    }
+
+    const message = this.prepareFulfillmentMessage(request, code);
     return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
   },
 

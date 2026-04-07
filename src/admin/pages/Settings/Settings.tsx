@@ -14,7 +14,9 @@ import { useToast } from "../../components/ui/Toast";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { alertService } from "../../services/alertService";
+import { DEFAULT_ACTIVATION_TEMPLATES } from "../../services/defaultTemplates";
 import type { AppSettings, AutoSendMode, MessageTemplate } from "../../types/index";
+import { Plus } from "lucide-react";
 
 export function SettingsPage() {
   const { showToast } = useToast();
@@ -1113,6 +1115,7 @@ function TemplateSettings() {
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<MessageTemplate>>({});
+  const [isProcessing, setIsProcessing] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -1124,6 +1127,21 @@ function TemplateSettings() {
     setTemplates(dbTemplates);
     if (storage.getMessageTemplates().length === 0) {
        dbTemplates.forEach(storage.saveMessageTemplate);
+    }
+  };
+
+  const handleMigrateDefaults = async () => {
+    setIsProcessing(true);
+    try {
+      await db.bulkSaveMessageTemplates(DEFAULT_ACTIVATION_TEMPLATES);
+      DEFAULT_ACTIVATION_TEMPLATES.forEach(storage.saveMessageTemplate);
+      await loadTemplates();
+      showToast("Standard templates migrated successfully", "success");
+    } catch (error) {
+      console.error("Migration failed:", error);
+      showToast("Migration failed", "error");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -1175,28 +1193,28 @@ function TemplateSettings() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">Template Name</label>
-              <input type="text" value={editForm.name || ""} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" placeholder="e.g. 12 Months Activation" />
+              <input type="text" value={editForm.name || ""} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:ring-4 focus:ring-indigo-500/10" placeholder="e.g. 12 Months Activation" />
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-400 uppercase">Trigger Event</label>
-              <select value={editForm.type || "Activation"} onChange={e => setEditForm({...editForm, type: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-indigo-500/10">
+              <select value={editForm.type || "Activation"} onChange={e => setEditForm({...editForm, type: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10">
                 <option value="Activation">Activation</option>
                 <option value="Reminder">Reminder</option>
               </select>
             </div>
             <div className="space-y-2">
                <label className="text-xs font-bold text-slate-400 uppercase">Product Type Match</label>
-              <input type="text" placeholder="e.g. Sales Navigator Core or All" value={editForm.productType || ""} onChange={e => setEditForm({...editForm, productType: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" />
+              <input type="text" placeholder="e.g. Sales Navigator Core or All" value={editForm.productType || ""} onChange={e => setEditForm({...editForm, productType: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:ring-4 focus:ring-indigo-500/10" />
             </div>
             <div className="space-y-2">
                <label className="text-xs font-bold text-slate-400 uppercase">Duration Match</label>
-              <input type="text" placeholder="e.g. 12M or All" value={editForm.duration || ""} onChange={e => setEditForm({...editForm, duration: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" />
+              <input type="text" placeholder="e.g. 12M or All" value={editForm.duration || ""} onChange={e => setEditForm({...editForm, duration: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-medium text-slate-900 focus:ring-4 focus:ring-indigo-500/10" />
             </div>
           </div>
           
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase">Message Body</label>
-            <textarea value={editForm.body || ""} onChange={e => setEditForm({...editForm, body: e.target.value})} rows={10} className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10" />
+            <textarea value={editForm.body || ""} onChange={e => setEditForm({...editForm, body: e.target.value})} rows={10} className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm font-medium text-slate-900 focus:ring-4 focus:ring-indigo-500/10" />
              <div className="flex flex-wrap gap-2 mt-2">
               {['customer_name', 'plan_name', 'activation_link', 'duration', 'days', 'price'].map(tag => (
                 <span key={tag} className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100/50 cursor-pointer hover:bg-indigo-100" onClick={() => setEditForm({...editForm, body: (editForm.body || '') + `{${tag}}`})}>
@@ -1218,10 +1236,20 @@ function TemplateSettings() {
             <h3 className="text-lg font-bold text-slate-900">Message Templates</h3>
             <p className="text-xs text-slate-500 mt-1">Manage dynamically injected WhatsApp responses based on product rules</p>
           </div>
-          <button onClick={() => { setEditForm({ type: 'Activation', productType: 'All', duration: 'All' }); setEditingId(''); }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 flex items-center gap-2">
-             <MessageSquare className="w-4 h-4" />
-             New Template
-          </button>
+          <div className="flex gap-3">
+            <button 
+              onClick={handleMigrateDefaults}
+              disabled={isProcessing}
+              className="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl font-bold flex items-center transition disabled:opacity-50"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Migrate Defaults
+            </button>
+            <button onClick={() => { setEditForm({ type: 'Activation', productType: 'All', duration: 'All' }); setEditingId(''); }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 flex items-center gap-2">
+               <Plus className="w-4 h-4 mr-2" />
+               New Template
+            </button>
+          </div>
         </div>
         <div className="divide-y divide-slate-100">
           {templates.map(t => (

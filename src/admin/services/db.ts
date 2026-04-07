@@ -797,3 +797,14 @@ export const saveMessageTemplate = async (template: MessageTemplate): Promise<vo
 export const deleteMessageTemplate = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, "message_templates", id));
 };
+
+export const bulkSaveMessageTemplates = async (templates: MessageTemplate[]): Promise<void> => {
+  const batch = writeBatch(db);
+  templates.forEach(t => {
+    batch.set(doc(db, "message_templates", t.id), {
+      ...t,
+      updatedAt: new Date().toISOString()
+    });
+  });
+  await batch.commit();
+};

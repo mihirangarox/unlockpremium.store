@@ -44,6 +44,8 @@ export function RequestDetail() {
   const [subscriptionType, setSubscriptionType] = useState<SubscriptionType | "">("");
   const [subscriptionPeriod, setSubscriptionPeriod] = useState<PlanDuration | "">("");
   const [duplicateWarning, setDuplicateWarning] = useState(false);
+  const [autoSendWhatsApp, setAutoSendWhatsApp] = useState(true);
+  const [messagePreview, setMessagePreview] = useState("");
   
   // Edit Client Information state
   const [isEditingClient, setIsEditingClient] = useState(false);
@@ -129,6 +131,30 @@ export function RequestDetail() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    updatePreview();
+  }, [request, subscriptionType, subscriptionPeriod, soldPrice, startDate, renewalDate]);
+
+  const updatePreview = () => {
+    if (!request) return;
+    
+    // Create a mock request object for the preview
+    const previewRequest: IntakeRequest = {
+      ...request,
+      subscriptionType: subscriptionType as any || request.subscriptionType,
+      subscriptionPeriod: subscriptionPeriod as any || request.subscriptionPeriod,
+      soldPrice: parseFloat(soldPrice) || request.soldPrice || 0,
+      startDate,
+      renewalDate
+    };
+
+    const preview = alertService.prepareFulfillmentMessage(
+      previewRequest, 
+      request.activationCode || "[ACTIVATION_CODE_HERE]"
+    );
+    setMessagePreview(preview);
   };
 
   const handleCalculateRenewal = () => {
@@ -257,7 +283,7 @@ export function RequestDetail() {
       setRequest(updatedRequest);
 
       // Phase 1 Automation: Auto-Fulfillment Pop-up
-      if (activationCode && updatedRequest.whatsappNumber) {
+      if (activationCode && updatedRequest.whatsappNumber && autoSendWhatsApp) {
         const waLink = alertService.prepareCustomerFulfillment(updatedRequest, activationCode);
         if (waLink) {
           window.open(waLink, '_blank');
@@ -805,6 +831,29 @@ Thank you for your business!`;
                 placeholder="Private notes about pricing or negotiations..."
               />
             </div>
+
+            {request.status === "Pending" && (
+              <div className="pt-4 border-t border-slate-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">WhatsApp Preview</label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase">Auto-Send</span>
+                    <div 
+                      onClick={() => setAutoSendWhatsApp(!autoSendWhatsApp)}
+                      className={`w-8 h-4 rounded-full transition-colors relative ${autoSendWhatsApp ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                      <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all ${autoSendWhatsApp ? 'left-4.5' : 'left-0.5'}`} />
+                    </div>
+                  </label>
+                </div>
+                <div className="bg-slate-900 rounded-2xl p-4 text-[11px] font-medium text-slate-300 leading-relaxed max-h-[200px] overflow-y-auto custom-scrollbar border border-slate-800 shadow-inner whitespace-pre-wrap">
+                  {messagePreview}
+                </div>
+                <p className="text-[9px] text-slate-500 italic">
+                  Note: The activation code will be injected automatically upon approval.
+                </p>
+              </div>
+            )}
           </div>
           
           {request.status === "Pending" && (
