@@ -231,7 +231,9 @@ export function RequestDetail() {
         startDate,
         renewalDate,
         paymentStatus,
-        status: "Active",
+        // Phase 1: "Reserved" — link is locked but NOT yet counted in financial metrics.
+        // confirmDelivery() will upgrade this to "Active".
+        status: "Reserved",
         autoRenew: true,
         createdAt: now,
         updatedAt: now

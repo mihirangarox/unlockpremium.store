@@ -1,5 +1,5 @@
 export type CustomerStatus = 'New' | 'Active' | 'In Follow-up' | 'Inactive';
-export type SubscriptionStatus = 'Active' | 'Due Soon' | 'Due Today' | 'Expired' | 'Renewed' | 'Cancelled';
+export type SubscriptionStatus = 'Active' | 'Reserved' | 'Due Soon' | 'Due Today' | 'Expired' | 'Renewed' | 'Cancelled';
 export type ReminderStatus = 'Pending' | 'Scheduled' | 'Sent' | 'Failed' | 'Skipped' | 'Manual Approval';
 export type RequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Archived' | 'Spam' | 'Lead';
 export type PlanDuration = '1M' | '2M' | '3M' | '4M' | '6M' | '9M' | '12M';
