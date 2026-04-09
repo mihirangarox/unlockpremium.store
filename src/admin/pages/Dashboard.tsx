@@ -94,7 +94,7 @@ export function Dashboard() {
 
         // 3. PROJECTED MRR
         const monthlyMomentum = subs
-          .filter(s => getSubStatus(s.renewalDate) !== 'Expired')
+          .filter(s => s.deliveredAt && getSubStatus(s.renewalDate) !== 'Expired')
           .reduce((sum, s) => {
             const months = (s as any).durationMonths || 1;
             return sum + (s.price / months);

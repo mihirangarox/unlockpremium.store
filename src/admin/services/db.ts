@@ -600,6 +600,11 @@ export const getLiveStock = async (forceRefresh: boolean = false): Promise<Digit
   return liveStockCache;
 };
 
+export const getLiveStockItem = async (id: string): Promise<DigitalCode | null> => {
+  const snap = await getDoc(doc(db, "live_stock", id));
+  return snap.exists() ? (snap.data() as DigitalCode) : null;
+};
+
 export const getCustomerDigitalCodes = async (whatsapp?: string, email?: string): Promise<DigitalCode[]> => {
   const requests = await getRequestsByContact(whatsapp, email);
   const requestIds = requests.map(r => r.id);
@@ -633,7 +638,7 @@ export const updateLiveStockCode = async (id: string, updates: Partial<DigitalCo
   await setDoc(doc(db, "live_stock", id), updates, { merge: true });
 };
 
-export const updateLiveStockStatus = async (id: string, status: 'Available' | 'Assigned' | 'Expired', subscriptionId?: string): Promise<void> => {
+export const updateLiveStockStatus = async (id: string, status: 'Available' | 'Reserved' | 'Assigned' | 'Expired', subscriptionId?: string): Promise<void> => {
   await setDoc(doc(db, "live_stock", id), { 
     status, 
     assignedToSubscriptionId: subscriptionId || null,
@@ -706,7 +711,7 @@ export const claimCodeForRequest = async (
   
   const updatedCode: DigitalCode = {
     ...codeData,
-    status: 'Assigned',
+    status: 'Reserved',
     assignedToRequestId: requestId,
     assignedToSubscriptionId: subscriptionId || null,
     assignedAt: new Date().toISOString()
@@ -806,5 +811,96 @@ export const bulkSaveMessageTemplates = async (templates: MessageTemplate[]): Pr
       updatedAt: new Date().toISOString()
     });
   });
+  await batch.commit();
+};
+
+/**
+ * Finalizes the delivery of a reserved code.
+ * Adds deliveredAt to Code & Request, confirms Subscription, and logs the ledger entry.
+ */
+export const confirmDelivery = async (
+  requestId: string, 
+  codeId: string, 
+  subscriptionId: string
+): Promise<void> => {
+  const now = new Date().toISOString();
+  
+  // 0. Fetch necessary records for financial calculation
+  const [requestSnap, codeSnap] = await Promise.all([
+    getDoc(doc(db, "requests", requestId)),
+    getDoc(doc(db, "live_stock", codeId))
+  ]);
+
+  if (!requestSnap.exists() || !codeSnap.exists()) {
+    throw new Error("Required records for delivery confirmation are missing.");
+  }
+
+  const requestData = requestSnap.data() as IntakeRequest;
+  const codeData = codeSnap.data() as DigitalCode;
+  
+  const linkCost = Number(codeData.gbpPurchaseCost || 0);
+  const soldPrice = Number(requestData.soldPrice || 0);
+  const profit = soldPrice - linkCost;
+
+  const batch = writeBatch(db);
+
+  // 1. Update Code Status to Assigned and set deliveredAt
+  batch.update(doc(db, "live_stock", codeId), {
+    status: 'Assigned',
+    deliveredAt: now
+  });
+
+  // 2. Update Request Status and set deliveredAt
+  batch.update(doc(db, "requests", requestId), {
+    deliveredAt: now
+  });
+
+  // 3. Update Subscription status
+  batch.update(doc(db, "subscriptions", subscriptionId), {
+    status: 'Active',
+    deliveredAt: now,
+    updatedAt: now
+  });
+
+  await batch.commit();
+
+  // 4. Log the transaction for the ledger (now that it's officially "Sold")
+  const subSnap = await getDoc(doc(db, "subscriptions", subscriptionId));
+  if (subSnap.exists()) {
+    const sub = subSnap.data() as Subscription;
+    await logTransaction(sub, linkCost, profit, codeId, requestId, sub.activationCode);
+  }
+};
+
+/**
+ * Reverts an approval and releases the reserved link back to stock.
+ */
+export const releaseReservation = async (
+  requestId: string, 
+  codeId: string, 
+  subscriptionId: string
+): Promise<void> => {
+  const batch = writeBatch(db);
+
+  // 1. Return Code to Available
+  batch.update(doc(db, "live_stock", codeId), {
+    status: 'Available',
+    assignedToRequestId: null,
+    assignedToSubscriptionId: null,
+    assignedAt: null,
+    deliveredAt: null
+  });
+
+  // 2. Return Request to Pending
+  batch.update(doc(db, "requests", requestId), {
+    status: 'Pending',
+    activationCode: null,
+    inventoryId: null,
+    deliveredAt: null
+  });
+
+  // 3. Delete the temporary subscription
+  batch.delete(doc(db, "subscriptions", subscriptionId));
+
   await batch.commit();
 };

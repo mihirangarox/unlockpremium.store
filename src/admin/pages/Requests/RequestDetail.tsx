@@ -46,6 +46,8 @@ export function RequestDetail() {
   const [duplicateWarning, setDuplicateWarning] = useState(false);
   const [autoSendWhatsApp, setAutoSendWhatsApp] = useState(true);
   const [messagePreview, setMessagePreview] = useState("");
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isReverting, setIsReverting] = useState(false);
   
   // Edit Client Information state
   const [isEditingClient, setIsEditingClient] = useState(false);
@@ -253,7 +255,7 @@ export function RequestDetail() {
         subscription.activationCode = activationCode;
       }
 
-      // 5. Mark Request as Approved
+      // 5. Mark Request as Approved (but NOT delivered yet)
       const updatedRequest: IntakeRequest = {
         ...request,
         soldPrice: defaultPrice,
@@ -262,18 +264,18 @@ export function RequestDetail() {
         paymentStatus,
         internalNotes,
         activationCode: activationCode,
+        inventoryId: claimedCodeObj?.id,
+        subscriptionId: subId,
         status: "Approved",
         updatedAt: now
       };
 
-      // Save everything
+      // Save Subscription (Active status but pending delivery confirmation)
       await db.saveSubscription(subscription);
       await db.saveRequest(updatedRequest);
       
-      await db.logTransaction(subscription, linkCost, profit, claimedCodeObj?.id, request.id, activationCode);
-      
-      // Phase 2 Automation: Discord Sale Celebration
-      alertService.notifySaleCelebration(updatedRequest, profit, existingCustomer);
+      // NOTE: We SKIP db.logTransaction and notifySaleCelebration here.
+      // They will be triggered during handleConfirmDelivery.
       
       // Update order count for the "Loyalty" system
       if (customerId) {
@@ -282,7 +284,7 @@ export function RequestDetail() {
       
       setRequest(updatedRequest);
 
-      // Phase 1 Automation: Auto-Fulfillment Pop-up
+      // Auto-Fulfillment Pop-up (Just opens the tab, doesn't finalize)
       if (activationCode && updatedRequest.whatsappNumber && autoSendWhatsApp) {
         const waLink = alertService.prepareCustomerFulfillment(updatedRequest, activationCode);
         if (waLink) {
@@ -292,7 +294,7 @@ export function RequestDetail() {
       
       showToast(
         claimedCodeObj 
-          ? "Approved & Activation Code Assigned!" 
+          ? "Approved! Code Reserved. Please confirm delivery after sending." 
           : "Approved! (No available codes to assign)", 
         claimedCodeObj ? "success" : "info"
       );
@@ -302,6 +304,65 @@ export function RequestDetail() {
       showToast("Failed to process request.", "error");
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmDelivery = async () => {
+    if (!request || !request.inventoryId || !request.subscriptionId) return;
+    
+    setIsConfirming(true);
+    try {
+      await db.confirmDelivery(
+        request.id,
+        request.inventoryId,
+        request.subscriptionId
+      );
+
+      // Fetch the code to get the final profit for Discord notification
+      const codeRecord = await db.getLiveStockItem(request.inventoryId);
+      const profit = (Number(request.soldPrice) || 0) - (Number(codeRecord?.gbpPurchaseCost) || 0);
+
+      // Now celebrate on Discord!
+      const existingCustomer = await db.findCustomerByIdentity(request.whatsappNumber, request.email);
+      alertService.notifySaleCelebration(request, profit, existingCustomer);
+
+      // Update local state
+      const updatedRequest = { ...request, deliveredAt: new Date().toISOString() };
+      setRequest(updatedRequest);
+      showToast("Delivery confirmed and recorded!", "success");
+    } catch (error) {
+      console.error("Confirmation error:", error);
+      showToast("Failed to confirm delivery.", "error");
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
+  const handleReleaseReservation = async () => {
+    if (!request || !request.inventoryId || !request.subscriptionId) return;
+
+    setIsReverting(true);
+    try {
+      await db.releaseReservation(
+        request.id,
+        request.inventoryId,
+        request.subscriptionId
+      );
+
+      // Revert local state
+      const updatedRequest: IntakeRequest = { 
+        ...request, 
+        status: 'Pending', 
+        activationCode: undefined, 
+        inventoryId: undefined,
+        subscriptionId: undefined
+      };
+      setRequest(updatedRequest);
+      showToast("Link released back to stock.", "info");
+    } catch (error) {
+      showToast("Failed to release link.", "error");
+    } finally {
+      setIsReverting(false);
     }
   };
 
@@ -902,35 +963,122 @@ Thank you for your business!`;
           
           {request.status === "Approved" && (
             <div className="pt-6 mt-6 border-t border-emerald-100 space-y-4">
-              <div className="bg-emerald-50 rounded-xl p-4 flex items-start gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-bold text-emerald-800">Request Converted</p>
-                  <p className="text-xs text-emerald-600 mt-1">This request has been successfully converted into a Customer and Subscription record in your CRM.</p>
-                </div>
-              </div>
-
-              {request.activationCode && (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                       <Zap className="w-4 h-4 text-indigo-600" />
-                       <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Assigned Activation Code</span>
+              {!request.deliveredAt ? (
+                /* Stage 2: Fulfillment (Reserved but not delivered) */
+                <div className="space-y-4">
+                  <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-amber-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-amber-800">Fulfillment Pending</p>
+                      <p className="text-xs text-amber-600 mt-1">Code is reserved. Open WhatsApp to send it, then confirm delivery to finalize finances.</p>
                     </div>
-                    <button 
-                      onClick={() => {
-                        navigator.clipboard.writeText(request.activationCode || "");
-                        showToast("Code copied!", "success");
-                      }}
-                      className="p-1.5 hover:bg-white rounded-lg text-indigo-400 hover:text-indigo-600 transition"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
                   </div>
-                  <div className="font-mono text-lg font-bold text-indigo-900 break-all bg-white/50 p-4 rounded-xl border border-indigo-50">
-                    {request.activationCode}
-                  </div>
+
+                  {request.activationCode && (
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                           <Zap className="w-4 h-4 text-indigo-600" />
+                           <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Reserved Code</span>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(request.activationCode || "");
+                            showToast("Code copied!", "success");
+                          }}
+                          className="p-1.5 hover:bg-white rounded-lg text-indigo-400 hover:text-indigo-600 transition"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="font-mono text-lg font-bold text-indigo-900 break-all bg-white/50 p-4 rounded-xl border border-indigo-50 text-center mb-4">
+                        {request.activationCode}
+                      </div>
+
+                      <div className="space-y-3">
+                        <button
+                          onClick={() => {
+                            const waLink = alertService.prepareCustomerFulfillment(request, request.activationCode!);
+                            if (waLink) window.open(waLink, '_blank');
+                          }}
+                          className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          Open WhatsApp
+                        </button>
+
+                        <button
+                          onClick={handleConfirmDelivery}
+                          disabled={isConfirming}
+                          className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                        >
+                          {isConfirming ? (
+                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              Confirm Delivered
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          onClick={handleReleaseReservation}
+                          disabled={isReverting}
+                          className="w-full py-2 text-xs font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition"
+                        >
+                          {isReverting ? "Releasing..." : "Release Link & Revert Approval"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
+              ) : (
+                /* Stage 3: Fully Delivered */
+                <>
+                  <div className="bg-emerald-50 rounded-xl p-4 flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-emerald-800">Order Delivered</p>
+                      <p className="text-xs text-emerald-600 mt-1">
+                        Successfully delivered on {formatDate(request.deliveredAt)}. 
+                        Profit recorded in financial records.
+                      </p>
+                    </div>
+                  </div>
+
+                  {request.activationCode && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                           <Zap className="w-4 h-4 text-slate-400" />
+                           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Delivered Code</span>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(request.activationCode || "");
+                            showToast("Code copied!", "success");
+                          }}
+                          className="p-1.5 hover:bg-white rounded-lg text-slate-400 hover:text-slate-600 transition"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="font-mono text-lg font-bold text-slate-900 break-all bg-white/50 p-4 rounded-xl border border-slate-100 text-center">
+                        {request.activationCode}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const waLink = alertService.prepareCustomerFulfillment(request, request.activationCode!);
+                          if (waLink) window.open(waLink, '_blank');
+                        }}
+                        className="w-full mt-4 py-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 flex items-center justify-center gap-1.5"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Re-open WhatsApp
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

@@ -49,7 +49,7 @@ export function Reports() {
       return true;
     });
 
-    const activeSubs = subscriptions.filter(s => s.status === 'Active');
+    const activeSubs = subscriptions.filter(s => s.status === 'Active' && s.deliveredAt);
     const totalRev = filteredHistory.reduce((sum, h) => sum + Number(h.amount || 0), 0);
     
     // Cash-Basis Accounting: Resolve real costs from stock ledger

@@ -85,6 +85,7 @@ export interface Subscription {
   lastContactedAt?: string;
   lastRenewed?: string;
   activationCode?: string; // New: For digital fulfillment
+  deliveredAt?: string; // New: For activation confirmation
   createdAt: string;
   updatedAt: string;
 }
@@ -140,6 +141,9 @@ export interface IntakeRequest {
   paymentStatus?: 'Paid' | 'Pending' | 'Partial';
   
   activationCode?: string; // New: Assigned upon approval
+  inventoryId?: string; // New: For tracking reserved stock item
+  subscriptionId?: string; // New: Link to generated subscription
+  deliveredAt?: string; // New: Final delivery timestamp
   
   status: RequestStatus;
   currency?: string;
@@ -272,10 +276,11 @@ export interface DigitalCode {
   gbpPurchaseCost?: number; // New: Locked GBP cost at time of purchase
   usdtBatchId?: string; // New: Reference to the source USDT batch
   vendorId?: string;
-  status: 'Available' | 'Assigned' | 'Expired';
+  status: 'Available' | 'Reserved' | 'Assigned' | 'Expired';
   assignedToRequestId?: string;
   assignedToSubscriptionId?: string; // New: For direct subscription renewal
   assignedAt?: string;
+  deliveredAt?: string; // New: For final delivery confirmation
   createdAt: string;
 }
 
