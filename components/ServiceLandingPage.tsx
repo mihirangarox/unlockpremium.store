@@ -79,16 +79,9 @@ const ServiceLandingPage: React.FC = () => {
     );
   }
 
-  if (!product) {
-    return (
-      <div className="pt-32 pb-20 min-h-screen flex items-center justify-center text-center">
-        <div>
-          <h2 className="text-3xl font-bold text-white mb-4">Product Not Found</h2>
-          <Button variant="outline" onClick={() => navigate('/products')}>Browse Store</Button>
-        </div>
-      </div>
-    );
-  }
+  const acceptsPreOrders = product?.acceptsPreOrders !== false;
+  const isOutOfStock = selectedTier ? (stockCounts[selectedTier.durationMonths] || 0) === 0 : true;
+  const isPreOrder = isOutOfStock && acceptsPreOrders;
 
   const handleBuyNow = () => {
     if (!product || !selectedTier) return;
@@ -96,12 +89,13 @@ const ServiceLandingPage: React.FC = () => {
     const priceField = `price${userCurrency}` as keyof ProductPricing;
     const oldPriceField = `oldPrice${userCurrency}` as keyof ProductPricing;
 
-    const cartProduct: Product = {
+    const cartProduct = {
       ...product,
       price: (selectedTier as any)[priceField] || selectedTier.priceUSD || 0,
       oldPrice: (selectedTier as any)[oldPriceField] || selectedTier.oldPriceUSD || 0,
       durationMonths: selectedTier.durationMonths,
-      currency: userCurrency
+      currency: userCurrency,
+      isPreOrder
     } as any;
     
     addToCart(cartProduct);
@@ -205,23 +199,24 @@ const ServiceLandingPage: React.FC = () => {
                   <div className="mb-6">
                     <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest mb-3">Select Plan Duration</h3>
                     <div className="flex flex-wrap gap-2">
-                       {product.pricing.map((tier, idx) => {
+                        {product.pricing.map((tier, idx) => {
                           const inStock = (stockCounts[tier.durationMonths] || 0) > 0;
+                          const selectable = inStock || acceptsPreOrders;
                           const isSelected = selectedTier?.durationMonths === tier.durationMonths;
                           return (
                             <button
                               key={idx}
-                              onClick={() => inStock && setSelectedTier(tier)}
-                              disabled={!inStock}
+                              onClick={() => selectable && setSelectedTier(tier)}
+                              disabled={!selectable}
                               className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                                 isSelected
                                   ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border border-indigo-500/50'
-                                  : inStock 
+                                  : selectable 
                                     ? 'bg-white/5 border border-white/10 text-neutral-300 hover:bg-white/10'
                                     : 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-50'
                               }`}
                             >
-                              {tier.durationMonths} Months {inStock ? '' : '(Out of Stock)'}
+                              {tier.durationMonths} Months {inStock ? '' : (acceptsPreOrders ? '(Pre-Order)' : '(Out of Stock)')}
                             </button>
                           );
                        })}
@@ -230,12 +225,12 @@ const ServiceLandingPage: React.FC = () => {
                 )}
 
                 <Button 
-                  className={`w-full ${!(selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0) ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                  className={`w-full ${!(selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders )) ? 'opacity-50 cursor-not-allowed' : ''}`} 
                   size="lg" 
-                  onClick={() => selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0 && handleBuyNow()}
-                  disabled={!(selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0)}
+                  onClick={() => selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders ) && handleBuyNow()}
+                  disabled={!(selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders ))}
                 >
-                  {!(selectedTier && (stockCounts[selectedTier.durationMonths] || 0) > 0) ? "Out of Stock" : "Add to Cart"}
+                  {isOutOfStock ? (acceptsPreOrders ? "Pre-Order Now" : "Out of Stock") : "Add to Cart"}
                 </Button>
               </div>
             </div>
