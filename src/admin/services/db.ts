@@ -628,6 +628,10 @@ export const saveLiveStockBatch = async (codes: DigitalCode[]): Promise<void> =>
     batch.set(doc(db, "live_stock", code.id), code);
   });
   await batch.commit();
+
+  // Atomically re-sync inventory stockCount for each affected product
+  const affectedProductIds = Array.from(new Set(codes.map(c => c.productId).filter(Boolean)));
+  await Promise.all(affectedProductIds.map(pid => syncInventoryFromLiveStock(pid)));
 };
 
 export const deleteLiveStockCode = async (id: string): Promise<void> => {
@@ -903,4 +907,22 @@ export const releaseReservation = async (
   batch.delete(doc(db, "subscriptions", subscriptionId));
 
   await batch.commit();
+
+  // 4. Re-sync inventory count (code is back in stock)
+  const codeSnap = await getDoc(doc(db, "live_stock", codeId));
+  if (codeSnap.exists()) {
+    const codeData = codeSnap.data() as DigitalCode;
+    if (codeData.productId) await syncInventoryFromLiveStock(codeData.productId);
+  }
+};
+
+/**
+ * Returns the available stock count for a given product ID.
+ * Used by checkout to detect zero-stock pre-order scenarios.
+ */
+export const getStockCountForProduct = async (productId: string): Promise<number> => {
+  const inventorySnap = await getDoc(doc(db, "inventory", productId));
+  if (inventorySnap.exists()) return inventorySnap.data().stockCount ?? 0;
+  // Fallback: count directly from live_stock
+  return getAvailableCodesCount(productId);
 };

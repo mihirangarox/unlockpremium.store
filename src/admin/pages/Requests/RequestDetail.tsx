@@ -564,6 +564,28 @@ Thank you for your business!`;
         </div>
       )}
 
+      {/* Pre-order alert: customer ordered when stock was zero */}
+      {request.notes?.includes('[PENDING_STOCK]') && request.status === "Pending" && (
+        <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="text-sm font-bold text-orange-800">⚡ Pre-Order — Stock Needed</h4>
+            <p className="text-xs text-orange-700 mt-1">This order was placed when stock was zero. Source a link before approving.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Approved but no code assigned — admin needs to manually add a link */}
+      {request.status === "Approved" && !request.activationCode && (
+        <div className="bg-amber-50 border-2 border-amber-400 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <h4 className="text-sm font-bold text-amber-800">⚠️ Awaiting Stock — No Link Assigned</h4>
+            <p className="text-xs text-amber-700 mt-1">Request approved but no activation link was available. Add stock in Manage Stock, then come back and reprocess.</p>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Side: Submitted Data */}
         <div className="space-y-6">

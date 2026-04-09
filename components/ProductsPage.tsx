@@ -8,7 +8,7 @@ import { useLocalization } from '../src/context/LocalizationContext';
 import type { Product, ProductPricing } from '../src/admin/types/index';
 import { Package, Tag, Check, Loader2, ShoppingCart } from 'lucide-react';
 
-const ProductCard = ({ product, variants }: { product: Product, variants: any }) => {
+const ProductCard = ({ product, stockCount, variants }: { product: Product, stockCount: number, variants: any }) => {
   const { addToCart } = useCart();
   const { userCurrency, formatCurrency } = useLocalization();
   
@@ -21,42 +21,38 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       }) 
     : [];
     
-  // Store selected duration instead of the whole object to ensure responsiveness to currency changes
   const [selectedDuration, setSelectedDuration] = useState<number>(pricingTiers[0]?.durationMonths || 1);
-
-  // Derive the active tier from the latest pricing tiers on each render
   const selectedTier = pricingTiers.find(t => t.durationMonths === selectedDuration) || pricingTiers[0];
+
+  // acceptsPreOrders defaults to true when not set (safe for existing products)
+  const acceptsPreOrders = (product as any).acceptsPreOrders !== false;
+  const isOutOfStock = stockCount === 0;
+  const isPreOrder = isOutOfStock && acceptsPreOrders;
 
   const handleAddToCart = () => {
     if (!selectedTier) return;
-    
     const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
     const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
-
     addToCart({
       ...product,
       price: selectedTier[priceField] || selectedTier.priceUSD || 0,
       oldPrice: selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0,
       durationMonths: selectedTier.durationMonths,
-      currency: userCurrency
+      currency: userCurrency,
+      isPreOrder,
     } as any);
   };
 
-  const isOutOfStock = (variants as any)?.stockCount === 0;
-
   const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
   const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
-
   const currentPrice = selectedTier ? (selectedTier[priceField] || selectedTier.priceUSD || 0) : (product.price || 0);
   const currentOldPrice = selectedTier ? (selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0) : (product.oldPrice || 0);
 
   return (
     <m.div
       variants={variants}
-      whileHover={isOutOfStock ? {} : { y: -8 }}
-      className={`group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden ${
-        isOutOfStock ? 'opacity-70 grayscale-[0.5]' : 'hover:border-indigo-500/50'
-      }`}
+      whileHover={{ y: -8 }}
+      className="group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden hover:border-indigo-500/50"
     >
       {product.popular && !isOutOfStock && (
         <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-indigo-500/20">
@@ -65,16 +61,14 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       )}
 
       {isOutOfStock && (
-        <div className="absolute top-4 right-4 bg-rose-600/90 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-rose-500/20">
-          Sold Out
+        <div className={`absolute top-4 right-4 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg ${
+          isPreOrder ? 'bg-amber-500/90 shadow-amber-500/20' : 'bg-rose-600/90 shadow-rose-500/20'
+        }`}>
+          {isPreOrder ? 'Pre-Order' : 'Sold Out'}
         </div>
       )}
 
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-6 transform transition-transform duration-300 origin-center border ${
-        isOutOfStock 
-          ? 'bg-neutral-800 text-neutral-500 border-neutral-700' 
-          : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20 group-hover:scale-110'
-      }`}>
+      <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-6 transform transition-transform duration-300 origin-center border bg-indigo-500/10 text-indigo-400 border-indigo-500/20 group-hover:scale-110">
         <Tag className="w-6 h-6" />
       </div>
 
@@ -114,7 +108,7 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       <div className="space-y-3 mb-8 flex-1">
         {product.features.map((feature, i) => (
           <div key={i} className="flex items-start gap-3 text-sm text-neutral-300">
-            <Check className={`w-5 h-5 flex-shrink-0 mt-0.5 ${isOutOfStock ? 'text-neutral-600' : 'text-indigo-500'}`} />
+            <Check className="w-5 h-5 flex-shrink-0 mt-0.5 text-indigo-500" />
             <span>{feature}</span>
           </div>
         ))}
@@ -130,12 +124,16 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
           Details
         </Button>
         <Button 
-          variant={isOutOfStock ? "outline" : "primary"} 
-          className="w-full group"
+          variant={isPreOrder ? "outline" : "primary"} 
+          className={`w-full group ${isPreOrder ? 'border-amber-500/50 text-amber-400 hover:bg-amber-500/10' : ''}`}
           onClick={handleAddToCart}
-          disabled={isOutOfStock}
         >
-          {isOutOfStock ? (
+          {isPreOrder ? (
+            <>
+              <span>Pre-Order Now</span>
+              <ShoppingCart className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform" />
+            </>
+          ) : isOutOfStock ? (
             <span className="text-neutral-500">Out of Stock</span>
           ) : (
             <>
@@ -151,6 +149,7 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
 
 const ProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [stockCounts, setStockCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const { addToCart } = useCart();
 
@@ -163,16 +162,15 @@ const ProductsPage: React.FC = () => {
         ]);
         
         // Count available stock per product ID
-        const stockCounts = liveStock.reduce((acc, code) => {
+        const counts = liveStock.reduce((acc, code) => {
           acc[code.productId] = (acc[code.productId] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
 
-        // Show all active products
-        setProducts(data.filter(p => p.isActive));
-        
-        // Pass stock counts to the component state if needed, but for now we'll just pass them to ProductCard
-        (window as any).__stockCounts = stockCounts;
+        // KEY FIX: `!== false` means products without isActive field show by default.
+        // Only products explicitly set to isActive: false are hidden.
+        setProducts(data.filter(p => p.isActive !== false));
+        setStockCounts(counts);
       } catch (error) {
         console.error("Failed to load products:", error);
       } finally {
@@ -238,11 +236,9 @@ const ProductsPage: React.FC = () => {
             {products.map((product) => (
               <ProductCard 
                 key={product.id} 
-                product={product} 
-                variants={{
-                  ...item,
-                  stockCount: (window as any).__stockCounts?.[product.id] || 0
-                }} 
+                product={product}
+                stockCount={stockCounts[product.id] ?? 0}
+                variants={item}
               />
             ))}
           </m.div>

@@ -61,6 +61,8 @@ export interface Product {
   category: ProductCategory;
   popular: boolean;
   isActive: boolean;
+  /** When true, orders are still accepted even when stock is zero (pending_stock flow). Defaults to true. */
+  acceptsPreOrders?: boolean;
   
   // New unified pricing array
   pricing: ProductPricing[];

@@ -4,7 +4,7 @@ import { useCart } from '../src/context/CartContext';
 import { useLocalization } from '../src/context/LocalizationContext';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from './Button';
-import { saveRequest } from '../src/admin/services/db';
+import { saveRequest, getProducts, getStockCountForProduct } from '../src/admin/services/db';
 import { alertService } from '../src/admin/services/alertService';
 import type { IntakeRequest } from '../src/admin/types/index';
 import { CheckCircle, CreditCard, User, ChevronRight, ShieldCheck, ShoppingBag, ArrowLeft, Loader2, Copy, Check, Upload, Zap, MessageCircle } from 'lucide-react';
@@ -101,14 +101,24 @@ const CheckoutPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Update existing lead to Pending (waiting for payment verification)
       const orderContent = items.map(item => `${item.name} (${item.durationMonths}Mo)`).join(', ');
       
-      // Calculate GBP Equivalent based on product tiers
       const gbpEquivalent = items.reduce((sum, item) => {
         const tier = item.pricing?.find(p => p.durationMonths === item.durationMonths);
         return sum + (tier?.priceGBP || tier?.priceUSD || 0); 
       }, 0);
+
+      // Check if any item is a pre-order (stock = 0)
+      let needsStock = false;
+      try {
+        const primaryItem = items[0];
+        if (primaryItem?.id) {
+          const stockCount = await getStockCountForProduct(primaryItem.id);
+          needsStock = stockCount === 0;
+        }
+      } catch (_) { /* non-critical — skip if stock check fails */ }
+
+      const baseNotes = `E-COMMERCE CHECKOUT \nItems: ${orderContent}\nTotalPaid: ${formatCurrency(totalPrice)}\nLedgerValue: £${gbpEquivalent.toFixed(2)}\nTransaction ID: ${formData.transactionId || 'Pending'}`;
 
       const updatedRequest: IntakeRequest = {
         id: orderId,
@@ -119,12 +129,11 @@ const CheckoutPage: React.FC = () => {
         subscriptionType: items[0]?.name || '',
         subscriptionPeriod: items[0]?.durationMonths === 1 ? '1M' : items[0]?.durationMonths === 3 ? '3M' : items[0]?.durationMonths === 6 ? '6M' : (items[0]?.durationMonths + 'M' as any),
         linkedinUrl: formData.linkedinUrl,
-        notes: `E-COMMERCE CHECKOUT \nItems: ${orderContent}\nTotalPaid: ${formatCurrency(totalPrice)}\nLedgerValue: £${gbpEquivalent.toFixed(2)}\nTransaction ID: ${formData.transactionId || 'Pending'}`,
+        notes: needsStock ? `[PENDING_STOCK] ${baseNotes}` : baseNotes,
         status: 'Pending',
         paymentStatus: 'Pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        // Multi-currency logging
         currency: userCurrency,
         amount: totalPrice,
         gbpEquivalent: gbpEquivalent
@@ -132,9 +141,6 @@ const CheckoutPage: React.FC = () => {
 
       await saveRequest(updatedRequest);
       
-      // Notify Admin of completed checkout (Handled by Cloud Function trigger on Firestore)
-      
-      // Complete
       clearCart();
       setIsSuccess(true);
       window.scrollTo(0, 0);
