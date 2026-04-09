@@ -24,6 +24,7 @@ export function ProductForm() {
     category: "LinkedIn",
     popular: false,
     isActive: true,
+    acceptsPreOrders: true,
     pricing: [{ 
       durationMonths: 1, 
       priceUSD: 0, priceGBP: 0, priceEUR: 0, 
@@ -61,7 +62,12 @@ export function ProductForm() {
              oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0 
            }];
         }
-        setFormData({ ...product, pricing });
+        setFormData({ 
+          ...product, 
+          pricing,
+          isActive: product.isActive ?? true,
+          acceptsPreOrders: product.acceptsPreOrders ?? true
+        });
       } else {
         showToast("Product not found", "error");
         navigate("/unlock-world-26/products");
@@ -151,6 +157,7 @@ export function ProductForm() {
         category: formData.category || "LinkedIn",
         popular: formData.popular || false,
         isActive: formData.isActive ?? true,
+        acceptsPreOrders: formData.acceptsPreOrders ?? true,
         pricing: formData.pricing,
         // Sync legacy fields with the lowest base tier (using USD as base)
         price: basePricing.priceUSD,
@@ -427,6 +434,20 @@ export function ProductForm() {
                     <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                   </div>
                   <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition mb-0">Highlight as "Popular"</span>
+                </label>
+
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative flex items-center">
+                    <input
+                      type="checkbox"
+                      name="acceptsPreOrders"
+                      checked={formData.acceptsPreOrders}
+                      onChange={handleChange}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                  </div>
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-slate-900 transition mb-0">Allow Pre-Orders (Orderable at 0 stock)</span>
                 </label>
               </div>
             </div>
