@@ -31,6 +31,9 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
 
   const handleAddToCart = () => {
     if (!selectedTier) return;
+    // Block if truly sold out (no stock, no pre-orders allowed)
+    if (isOutOfStock && !acceptsPreOrders) return;
+
     const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
     const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
     addToCart({
@@ -60,11 +63,9 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
         </div>
       )}
 
-      {isOutOfStock && (
-        <div className={`absolute top-4 right-4 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg ${
-          isPreOrder ? 'bg-amber-500/90 shadow-amber-500/20' : 'bg-rose-600/90 shadow-rose-500/20'
-        }`}>
-          {isPreOrder ? 'Pre-Order' : 'Sold Out'}
+      {isOutOfStock && !isPreOrder && (
+        <div className="absolute top-4 right-4 bg-rose-600/90 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-rose-500/20">
+          Sold Out
         </div>
       )}
 
@@ -124,16 +125,12 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
           Details
         </Button>
         <Button 
-          variant={isPreOrder ? "outline" : "primary"} 
-          className={`w-full group ${isPreOrder ? 'border-amber-500/50 text-amber-400 hover:bg-amber-500/10' : ''}`}
+          variant={isOutOfStock && !isPreOrder ? "outline" : "primary"} 
+          className="w-full group"
           onClick={handleAddToCart}
+          disabled={isOutOfStock && !isPreOrder}
         >
-          {isPreOrder ? (
-            <>
-              <span>Pre-Order Now</span>
-              <ShoppingCart className="w-4 h-4 ml-2 group-hover:scale-110 transition-transform" />
-            </>
-          ) : isOutOfStock ? (
+          {isOutOfStock && !isPreOrder ? (
             <span className="text-neutral-500">Out of Stock</span>
           ) : (
             <>

@@ -8,7 +8,7 @@ import { useLocalization } from '../src/context/LocalizationContext';
 import type { Product, ProductPricing } from '../src/admin/types/index';
 import { Loader2, Package, ShoppingCart } from 'lucide-react';
 
-const ProductCard = ({ product, variants }: { product: Product, variants: any }) => {
+const ProductCard = ({ product, stockCount, variants }: { product: Product, stockCount: number, variants: any }) => {
   const { addToCart } = useCart();
   const { userCurrency, formatCurrency } = useLocalization();
   
@@ -21,14 +21,18 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       }) 
     : [];
     
-  // Store selected duration instead of the whole object to ensure responsiveness to data changes
   const [selectedDuration, setSelectedDuration] = useState<number>(pricingTiers[0]?.durationMonths || 1);
-
-  // The active tier is found from the latest pricing array on each render
   const selectedTier = pricingTiers.find(t => t.durationMonths === selectedDuration) || pricingTiers[0];
+
+  // acceptsPreOrders defaults to true when not set (safe for existing products)
+  const acceptsPreOrders = (product as any).acceptsPreOrders !== false;
+  const isOutOfStock = stockCount === 0;
+  const isPreOrder = isOutOfStock && acceptsPreOrders;
 
   const handleAddToCart = () => {
     if (!selectedTier) return;
+    // Block if truly sold out (no stock, no pre-orders allowed)
+    if (isOutOfStock && !acceptsPreOrders) return;
     
     const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
     const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
@@ -38,11 +42,10 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
       price: selectedTier[priceField] || selectedTier.priceUSD || 0,
       oldPrice: selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0,
       durationMonths: selectedTier.durationMonths,
-      currency: userCurrency
+      currency: userCurrency,
+      isPreOrder,
     } as any);
   };
-
-  const isOutOfStock = (variants as any)?.stockCount === 0;
 
   const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
   const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
@@ -53,10 +56,8 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
   return (
     <m.div
       variants={variants}
-      whileHover={isOutOfStock ? {} : { y: -10, transition: { duration: 0.3 } }}
-      className={`group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden ${
-        isOutOfStock ? 'opacity-70 grayscale-[0.5]' : 'hover:border-indigo-500/50'
-      }`}
+      whileHover={{ y: -10, transition: { duration: 0.3 } }}
+      className="group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden hover:border-indigo-500/50"
     >
       {product.popular && !isOutOfStock && (
         <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded text-white z-10">
@@ -64,18 +65,14 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
         </div>
       )}
 
-      {isOutOfStock && (
+      {isOutOfStock && !isPreOrder && (
         <div className="absolute top-4 right-4 bg-rose-600/90 text-[10px] font-black uppercase tracking-tighter px-3 py-1.5 rounded-full text-white z-10 shadow-lg shadow-rose-500/20">
           Sold Out
         </div>
       )}
 
-      {/* Icon with Circular Background */}
-      <div className={`w-11 h-11 rounded-full flex items-center justify-center mb-6 transform transition-transform duration-300 origin-center border ${
-        isOutOfStock 
-          ? 'bg-neutral-800 text-neutral-500 border-neutral-700' 
-          : 'bg-indigo-500/12 text-indigo-400 border-transparent group-hover:scale-110'
-      }`}>
+      {/* Icon */}
+      <div className="w-11 h-11 rounded-full flex items-center justify-center mb-6 transform transition-transform duration-300 origin-center border bg-indigo-500/10 text-indigo-400 border-transparent group-hover:scale-110">
         <Package className="w-5 h-5" />
       </div>
 
@@ -134,13 +131,15 @@ const ProductCard = ({ product, variants }: { product: Product, variants: any })
             Details
           </Button>
           <Button 
-            variant={isOutOfStock ? "outline" : "primary"} 
+            variant={isOutOfStock && !isPreOrder ? "outline" : "primary"} 
             size="sm"
             className="flex-1 group"
             onClick={handleAddToCart}
-            disabled={isOutOfStock}
+            disabled={isOutOfStock && !isPreOrder}
           >
-            {isOutOfStock ? "Out of Stock" : (
+            {isOutOfStock && !isPreOrder ? (
+              <span>Out of Stock</span>
+            ) : (
               <>
                 Add to Cart
                 <ShoppingCart className="w-4 h-4 ml-1.5 group-hover:scale-110 transition-transform" />
@@ -159,6 +158,7 @@ interface ServicesProps {
 
 const Services: React.FC<ServicesProps> = ({ limit }) => {
   const [products, setProducts] = useState<Product[]>([]);
+  const [stockCounts, setStockCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -170,18 +170,18 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
           getAvailableLiveStock()
         ]);
         
-        const stockCounts = liveStock.reduce((acc, code) => {
+        const counts = liveStock.reduce((acc, code) => {
           acc[code.productId] = (acc[code.productId] || 0) + 1;
           return acc;
         }, {} as Record<string, number>);
 
-        // Use active products only, sort by popularity
-        const activeProducts = data.filter(p => p.isActive)
-                                   .sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
-        
-        // Pass stock counts to global (same as ProductsPage)
-        (window as any).__stockCounts = stockCounts;
+        // KEY FIX: use `!== false` so products without isActive field show by default.
+        // Only products explicitly set to isActive: false are hidden.
+        const activeProducts = data
+          .filter(p => p.isActive !== false)
+          .sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
 
+        setStockCounts(counts);
         setProducts(limit ? activeProducts.slice(0, limit) : activeProducts);
       } catch (error) {
         console.error("Error fetching products:", error);
@@ -245,11 +245,9 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
             ) : products.map((product) => (
               <ProductCard 
                 key={product.id} 
-                product={product} 
-                variants={{
-                  ...item,
-                  stockCount: (window as any).__stockCounts?.[product.id] || 0
-                }} 
+                product={product}
+                stockCount={stockCounts[product.id] ?? 0}
+                variants={item}
               />
             ))}
         </m.div>

@@ -79,12 +79,25 @@ const ServiceLandingPage: React.FC = () => {
     );
   }
 
-  const acceptsPreOrders = product?.acceptsPreOrders !== false;
+  if (!product) {
+    return (
+      <div className="pt-32 pb-20 min-h-screen flex flex-col items-center justify-center text-center px-6">
+        <Package className="w-16 h-16 text-neutral-600 mb-6" />
+        <h2 className="text-2xl font-bold text-white mb-2">Product Not Found</h2>
+        <p className="text-neutral-400 mb-6">This product doesn't exist or has been removed.</p>
+        <Button variant="outline" as={Link} to="/products">Back to Store</Button>
+      </div>
+    );
+  }
+
+  const acceptsPreOrders = product.acceptsPreOrders !== false;
   const isOutOfStock = selectedTier ? (stockCounts[selectedTier.durationMonths] || 0) === 0 : true;
   const isPreOrder = isOutOfStock && acceptsPreOrders;
 
   const handleBuyNow = () => {
     if (!product || !selectedTier) return;
+    // Block if truly sold out (no stock, no pre-orders allowed)
+    if (isOutOfStock && !acceptsPreOrders) return;
     
     const priceField = `price${userCurrency}` as keyof ProductPricing;
     const oldPriceField = `oldPrice${userCurrency}` as keyof ProductPricing;
@@ -216,7 +229,7 @@ const ServiceLandingPage: React.FC = () => {
                                     : 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-50'
                               }`}
                             >
-                              {tier.durationMonths} Months {inStock ? '' : (acceptsPreOrders ? '(Pre-Order)' : '(Out of Stock)')}
+                              {tier.durationMonths} Months {!inStock && !acceptsPreOrders ? '(Out of Stock)' : ''}
                             </button>
                           );
                        })}
@@ -230,7 +243,7 @@ const ServiceLandingPage: React.FC = () => {
                   onClick={() => selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders ) && handleBuyNow()}
                   disabled={!(selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders ))}
                 >
-                  {isOutOfStock ? (acceptsPreOrders ? "Pre-Order Now" : "Out of Stock") : "Add to Cart"}
+                  {isOutOfStock && !acceptsPreOrders ? "Out of Stock" : "Add to Cart"}
                 </Button>
               </div>
             </div>
