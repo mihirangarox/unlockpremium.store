@@ -13,7 +13,7 @@ const ServiceLandingPage: React.FC = () => {
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { userCurrency, formatCurrency } = useLocalization();
-  
+
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTier, setSelectedTier] = useState<ProductPricing | null>(null);
@@ -27,24 +27,24 @@ const ServiceLandingPage: React.FC = () => {
           getProducts(),
           getAvailableLiveStock()
         ]);
-        
+
         const found = products.find(p => p.id === serviceId);
         if (found) {
-          const pricingTiers = found.pricing && found.pricing.length > 0 
-            ? found.pricing 
-            : [{ 
-                durationMonths: found.durationMonths || 1, 
-                priceUSD: found.price || 0, 
-                priceGBP: (found.price || 0) * 0.8, // Rough estimate for fallback
-                priceEUR: (found.price || 0) * 0.9, // Rough estimate for fallback
-                oldPriceUSD: found.oldPrice || 0,
-                oldPriceGBP: (found.oldPrice || 0) * 0.8,
-                oldPriceEUR: (found.oldPrice || 0) * 0.9,
-              } as ProductPricing];
-            
-          const sortedPricing = [...pricingTiers].sort((a,b) => (a.priceUSD || 0) - (b.priceUSD || 0));
+          const pricingTiers = found.pricing && found.pricing.length > 0
+            ? found.pricing
+            : [{
+              durationMonths: found.durationMonths || 1,
+              priceUSD: found.price || 0,
+              priceGBP: (found.price || 0) * 0.8, // Rough estimate for fallback
+              priceEUR: (found.price || 0) * 0.9, // Rough estimate for fallback
+              oldPriceUSD: found.oldPrice || 0,
+              oldPriceGBP: (found.oldPrice || 0) * 0.8,
+              oldPriceEUR: (found.oldPrice || 0) * 0.9,
+            } as ProductPricing];
+
+          const sortedPricing = [...pricingTiers].sort((a, b) => (a.priceUSD || 0) - (b.priceUSD || 0));
           found.pricing = sortedPricing;
-          
+
           const counts = liveStock
             .filter(code => code.productId === found.id)
             .reduce((acc, code) => {
@@ -52,7 +52,7 @@ const ServiceLandingPage: React.FC = () => {
               acc[dur] = (acc[dur] || 0) + 1;
               return acc;
             }, {} as Record<number, number>);
-            
+
           setStockCounts(counts);
 
           // Find first in-stock tier, or fallback
@@ -98,7 +98,7 @@ const ServiceLandingPage: React.FC = () => {
     if (!product || !selectedTier) return;
     // Block if truly sold out (no stock, no pre-orders allowed)
     if (isOutOfStock && !acceptsPreOrders) return;
-    
+
     const priceField = `price${userCurrency}` as keyof ProductPricing;
     const oldPriceField = `oldPrice${userCurrency}` as keyof ProductPricing;
 
@@ -110,7 +110,7 @@ const ServiceLandingPage: React.FC = () => {
       currency: userCurrency,
       isPreOrder
     } as any;
-    
+
     addToCart(cartProduct);
   };
 
@@ -127,12 +127,12 @@ const ServiceLandingPage: React.FC = () => {
               <Zap className="w-4 h-4 text-indigo-400" />
               <span className="text-xs font-bold uppercase tracking-wider text-indigo-400">Premium Activation Service</span>
             </div>
-            
+
             <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-[1.05] text-white">
               {product.name} <br />
-              <span className="gradient-text">70% Off</span> 
+              <span className="gradient-text">70% Off</span>
             </h1>
-            
+
             <p className="text-neutral-400 text-lg mb-10 leading-relaxed max-w-xl">
               {product.description} Upgrade your professional LinkedIn experience safely and legitimately using our verified referral activation links.
             </p>
@@ -170,7 +170,7 @@ const ServiceLandingPage: React.FC = () => {
               <div className="absolute top-0 right-0 p-8">
                 <Package className="w-24 h-24 text-indigo-500/20" />
               </div>
-              
+
               <div className="mb-10">
                 <h2 className="text-2xl font-bold text-white mb-6">Plan Features</h2>
                 <div className="space-y-4">
@@ -190,10 +190,10 @@ const ServiceLandingPage: React.FC = () => {
                   {(() => {
                     const priceField = `price${userCurrency}` as keyof ProductPricing;
                     const oldPriceField = `oldPrice${userCurrency}` as keyof ProductPricing;
-                    
+
                     const currentPrice = selectedTier ? ((selectedTier as any)[priceField] || selectedTier.priceUSD || 0) : (product.price || 0);
                     const currentOldPrice = selectedTier ? ((selectedTier as any)[oldPriceField] || selectedTier.oldPriceUSD || 0) : (product.oldPrice || 0);
-                    
+
                     return (
                       <>
                         <span className="text-5xl font-black text-white">{formatCurrency(currentPrice)}</span>
@@ -207,41 +207,40 @@ const ServiceLandingPage: React.FC = () => {
                     70% SAVINGS
                   </span>
                 </div>
-                
+
                 {product.pricing && product.pricing.length > 0 && (
                   <div className="mb-6">
                     <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest mb-3">Select Plan Duration</h3>
                     <div className="flex flex-wrap gap-2">
-                        {product.pricing.map((tier, idx) => {
-                          const inStock = (stockCounts[tier.durationMonths] || 0) > 0;
-                          const selectable = inStock || acceptsPreOrders;
-                          const isSelected = selectedTier?.durationMonths === tier.durationMonths;
-                          return (
-                            <button
-                              key={idx}
-                              onClick={() => selectable && setSelectedTier(tier)}
-                              disabled={!selectable}
-                              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                                isSelected
-                                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border border-indigo-500/50'
-                                  : selectable 
-                                    ? 'bg-white/5 border border-white/10 text-neutral-300 hover:bg-white/10'
-                                    : 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-50'
+                      {product.pricing.map((tier, idx) => {
+                        const inStock = (stockCounts[tier.durationMonths] || 0) > 0;
+                        const selectable = inStock || acceptsPreOrders;
+                        const isSelected = selectedTier?.durationMonths === tier.durationMonths;
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => selectable && setSelectedTier(tier)}
+                            disabled={!selectable}
+                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${isSelected
+                                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border border-indigo-500/50'
+                                : selectable
+                                  ? 'bg-white/5 border border-white/10 text-neutral-300 hover:bg-white/10'
+                                  : 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-50'
                               }`}
-                            >
-                              {tier.durationMonths} Months {!inStock && !acceptsPreOrders ? '(Out of Stock)' : ''}
-                            </button>
-                          );
-                       })}
+                          >
+                            {tier.durationMonths} Months {!inStock && !acceptsPreOrders ? '(Out of Stock)' : ''}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                <Button 
-                  className={`w-full ${!(selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders )) ? 'opacity-50 cursor-not-allowed' : ''}`} 
-                  size="lg" 
-                  onClick={() => selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders ) && handleBuyNow()}
-                  disabled={!(selectedTier && ( (stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders ))}
+                <Button
+                  className={`w-full ${!(selectedTier && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  size="lg"
+                  onClick={() => selectedTier && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders) && handleBuyNow()}
+                  disabled={!(selectedTier && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders))}
                 >
                   {isOutOfStock && !acceptsPreOrders ? "Out of Stock" : "Add to Cart"}
                 </Button>

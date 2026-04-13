@@ -11,16 +11,16 @@ import { Loader2, Package, ShoppingCart } from 'lucide-react';
 const ProductCard = ({ product, stockCount, variants }: { product: Product, stockCount: number, variants: any }) => {
   const { addToCart } = useCart();
   const { userCurrency, formatCurrency } = useLocalization();
-  
-  const pricingTiers = product.pricing && product.pricing.length > 0 
-    ? [...product.pricing].sort((a,b) => {
-        const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
-        const priceA = a[priceField] || a.priceUSD || 0;
-        const priceB = b[priceField] || b.priceUSD || 0;
-        return priceA - priceB;
-      }) 
+
+  const pricingTiers = product.pricing && product.pricing.length > 0
+    ? [...product.pricing].sort((a, b) => {
+      const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+      const priceA = a[priceField] || a.priceUSD || 0;
+      const priceB = b[priceField] || b.priceUSD || 0;
+      return priceA - priceB;
+    })
     : [];
-    
+
   const [selectedDuration, setSelectedDuration] = useState<number>(pricingTiers[0]?.durationMonths || 1);
   const selectedTier = pricingTiers.find(t => t.durationMonths === selectedDuration) || pricingTiers[0];
 
@@ -29,11 +29,12 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
   const isOutOfStock = stockCount === 0;
   const isPreOrder = isOutOfStock && acceptsPreOrders;
 
+
   const handleAddToCart = () => {
     if (!selectedTier) return;
     // Block if truly sold out (no stock, no pre-orders allowed)
     if (isOutOfStock && !acceptsPreOrders) return;
-    
+
     const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
     const oldPriceField = `oldPrice${userCurrency}` as 'oldPriceUSD' | 'oldPriceGBP' | 'oldPriceEUR';
 
@@ -87,11 +88,10 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
               <button
                 key={tier.durationMonths}
                 onClick={() => setSelectedDuration(tier.durationMonths)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                  selectedDuration === tier.durationMonths
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${selectedDuration === tier.durationMonths
                     ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
                     : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
-                }`}
+                  }`}
               >
                 {tier.durationMonths} Months
               </button>
@@ -121,17 +121,17 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
           )}
         </div>
         <div className="flex gap-2 w-full">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="flex-1 hover:border-indigo-500 hover:text-white"
             as={Link}
             to={`/products/${product.id}`}
           >
             Details
           </Button>
-          <Button 
-            variant={isOutOfStock && !isPreOrder ? "outline" : "primary"} 
+          <Button
+            variant={isOutOfStock && !isPreOrder ? "outline" : "primary"}
             size="sm"
             className="flex-1 group"
             onClick={handleAddToCart}
@@ -169,7 +169,7 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
           getProducts(),
           getAvailableLiveStock()
         ]);
-        
+
         const counts = liveStock.reduce((acc, code) => {
           acc[code.productId] = (acc[code.productId] || 0) + 1;
           return acc;
@@ -191,7 +191,7 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
     };
     fetchProducts();
   }, [limit]);
-  
+
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -238,18 +238,18 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
           viewport={{ once: true }}
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto min-h-[400px]"
         >
-            {isLoading ? (
-              <div className="col-span-1 md:col-span-2 lg:col-span-3 flex justify-center items-center">
-                <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
-              </div>
-            ) : products.map((product) => (
-              <ProductCard 
-                key={product.id} 
-                product={product}
-                stockCount={stockCounts[product.id] ?? 0}
-                variants={item}
-              />
-            ))}
+          {isLoading ? (
+            <div className="col-span-1 md:col-span-2 lg:col-span-3 flex justify-center items-center">
+              <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
+            </div>
+          ) : products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              stockCount={stockCounts[product.id] ?? 0}
+              variants={item}
+            />
+          ))}
         </m.div>
       </div>
     </section>

@@ -13,7 +13,7 @@ export function ProductForm() {
 
   const [isLoading, setIsLoading] = useState(isEditing);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Array management for features
   const [featureInput, setFeatureInput] = useState("");
 
@@ -25,10 +25,10 @@ export function ProductForm() {
     popular: false,
     isActive: true,
     acceptsPreOrders: true,
-    pricing: [{ 
-      durationMonths: 1, 
-      priceUSD: 0, priceGBP: 0, priceEUR: 0, 
-      oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0 
+    pricing: [{
+      durationMonths: 1,
+      priceUSD: 0, priceGBP: 0, priceEUR: 0,
+      oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0
     }],
   });
 
@@ -45,25 +45,25 @@ export function ProductForm() {
         // Handle migration from legacy single-pricing to array
         let pricing = product.pricing || [];
         if (pricing.length === 0 && (product as any).price !== undefined) {
-           pricing = [{
-             durationMonths: (product as any).durationMonths || 1,
-             priceUSD: (product as any).price || 0,
-             priceGBP: (product as any).price || 0,
-             priceEUR: (product as any).price || 0,
-             oldPriceUSD: (product as any).oldPrice || 0,
-             oldPriceGBP: (product as any).oldPrice || 0,
-             oldPriceEUR: (product as any).oldPrice || 0
-           }];
+          pricing = [{
+            durationMonths: (product as any).durationMonths || 1,
+            priceUSD: (product as any).price || 0,
+            priceGBP: (product as any).price || 0,
+            priceEUR: (product as any).price || 0,
+            oldPriceUSD: (product as any).oldPrice || 0,
+            oldPriceGBP: (product as any).oldPrice || 0,
+            oldPriceEUR: (product as any).oldPrice || 0
+          }];
         }
         if (pricing.length === 0) {
-           pricing = [{ 
-             durationMonths: 1, 
-             priceUSD: 0, priceGBP: 0, priceEUR: 0, 
-             oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0 
-           }];
+          pricing = [{
+            durationMonths: 1,
+            priceUSD: 0, priceGBP: 0, priceEUR: 0,
+            oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0
+          }];
         }
-        setFormData({ 
-          ...product, 
+        setFormData({
+          ...product,
           pricing,
           isActive: product.isActive ?? true,
           acceptsPreOrders: product.acceptsPreOrders ?? true
@@ -82,7 +82,7 @@ export function ProductForm() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    
+
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData(prev => ({ ...prev, [name]: checked }));
@@ -102,10 +102,10 @@ export function ProductForm() {
   const addPricingTier = () => {
     setFormData(prev => ({
       ...prev,
-      pricing: [...(prev.pricing || []), { 
-        durationMonths: 1, 
-        priceUSD: 0, priceGBP: 0, priceEUR: 0, 
-        oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0 
+      pricing: [...(prev.pricing || []), {
+        durationMonths: 1,
+        priceUSD: 0, priceGBP: 0, priceEUR: 0,
+        oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0
       }]
     }));
   };
@@ -146,7 +146,7 @@ export function ProductForm() {
       }
 
       // Automatically set lowest price/duration for backward compatibility/quick sorting
-      const sortedPricing = [...formData.pricing].sort((a,b) => a.priceUSD - b.priceUSD);
+      const sortedPricing = [...formData.pricing].sort((a, b) => a.priceUSD - b.priceUSD);
       const basePricing = sortedPricing[0];
 
       const productToSave: Product = {
@@ -265,15 +265,15 @@ export function ProductForm() {
               {(formData.pricing || []).map((tier, index) => (
                 <div key={index} className="flex flex-wrap items-end gap-4 bg-slate-50 p-4 border border-slate-200 rounded-xl relative group">
                   {index > 0 && (
-                     <button
-                       type="button"
-                       onClick={() => removePricingTier(index)}
-                       className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-full p-1 shadow-sm transition opacity-0 group-hover:opacity-100"
-                     >
-                       <X className="w-4 h-4" />
-                     </button>
+                    <button
+                      type="button"
+                      onClick={() => removePricingTier(index)}
+                      className="absolute -top-2 -right-2 bg-white text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 rounded-full p-1 shadow-sm transition opacity-0 group-hover:opacity-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   )}
-                  
+
                   <div className="flex-1 min-w-[200px]">
                     <label className="block text-xs font-bold text-slate-500 mb-1.5">Duration (Months) *</label>
                     <input
@@ -285,11 +285,11 @@ export function ProductForm() {
                       className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900"
                     />
                   </div>
-                  
+
                   <div className="flex-1 min-w-[150px]">
                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Price USD ($) *</label>
                     <div className="space-y-2">
-                       <input
+                      <input
                         type="number"
                         step="0.01"
                         placeholder="Retail"
@@ -312,7 +312,7 @@ export function ProductForm() {
                   <div className="flex-1 min-w-[150px]">
                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Price GBP (£) *</label>
                     <div className="space-y-2">
-                       <input
+                      <input
                         type="number"
                         step="0.01"
                         placeholder="Retail"
@@ -335,7 +335,7 @@ export function ProductForm() {
                   <div className="flex-1 min-w-[150px]">
                     <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase">Price EUR (€) *</label>
                     <div className="space-y-2">
-                       <input
+                      <input
                         type="number"
                         step="0.01"
                         placeholder="Retail"
@@ -356,7 +356,7 @@ export function ProductForm() {
                   </div>
                 </div>
               ))}
-              
+
               {(!formData.pricing || formData.pricing.length === 0) && (
                 <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
                   <p className="text-slate-400 text-sm">No pricing tiers added. You must add at least one.</p>
@@ -367,7 +367,7 @@ export function ProductForm() {
             {/* Features */}
             <div className="space-y-4 md:col-span-2">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">Features List</h3>
-              
+
               <div className="flex gap-2">
                 <input
                   type="text"

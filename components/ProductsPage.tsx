@@ -11,16 +11,16 @@ import { Package, Tag, Check, Loader2, ShoppingCart } from 'lucide-react';
 const ProductCard = ({ product, stockCount, variants }: { product: Product, stockCount: number, variants: any }) => {
   const { addToCart } = useCart();
   const { userCurrency, formatCurrency } = useLocalization();
-  
-  const pricingTiers = product.pricing && product.pricing.length > 0 
-    ? [...product.pricing].sort((a,b) => {
-        const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
-        const priceA = a[priceField] || a.priceUSD || 0;
-        const priceB = b[priceField] || b.priceUSD || 0;
-        return priceA - priceB;
-      }) 
+
+  const pricingTiers = product.pricing && product.pricing.length > 0
+    ? [...product.pricing].sort((a, b) => {
+      const priceField = `price${userCurrency}` as 'priceUSD' | 'priceGBP' | 'priceEUR';
+      const priceA = a[priceField] || a.priceUSD || 0;
+      const priceB = b[priceField] || b.priceUSD || 0;
+      return priceA - priceB;
+    })
     : [];
-    
+
   const [selectedDuration, setSelectedDuration] = useState<number>(pricingTiers[0]?.durationMonths || 1);
   const selectedTier = pricingTiers.find(t => t.durationMonths === selectedDuration) || pricingTiers[0];
 
@@ -85,11 +85,10 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
             <button
               key={tier.durationMonths}
               onClick={() => setSelectedDuration(tier.durationMonths)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                selectedDuration === tier.durationMonths
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${selectedDuration === tier.durationMonths
                   ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
                   : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
-              }`}
+                }`}
             >
               {tier.durationMonths} Months
             </button>
@@ -116,16 +115,16 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
       </div>
 
       <div className="mt-auto pt-6 border-t border-white/5 flex gap-3">
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           className="flex-shrink-0 !px-4 hover:border-indigo-500 hover:text-white"
           as={Link}
           to={`/products/${product.id}`}
         >
           Details
         </Button>
-        <Button 
-          variant={isOutOfStock && !isPreOrder ? "outline" : "primary"} 
+        <Button
+          variant={isOutOfStock && !isPreOrder ? "outline" : "primary"}
           className="w-full group"
           onClick={handleAddToCart}
           disabled={isOutOfStock && !isPreOrder}
@@ -157,7 +156,7 @@ const ProductsPage: React.FC = () => {
           getProducts(),
           getAvailableLiveStock()
         ]);
-        
+
         // Count available stock per product ID
         const counts = liveStock.reduce((acc, code) => {
           acc[code.productId] = (acc[code.productId] || 0) + 1;
@@ -194,14 +193,14 @@ const ProductsPage: React.FC = () => {
   return (
     <div className="pt-32 pb-24 min-h-screen">
       <div className="max-w-7xl mx-auto px-6 mb-16 text-center">
-        <m.h1 
+        <m.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-4xl md:text-6xl font-black mb-6 gradient-text"
         >
           Explore Our Store
         </m.h1>
-        <m.p 
+        <m.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
@@ -231,8 +230,8 @@ const ProductsPage: React.FC = () => {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
           >
             {products.map((product) => (
-              <ProductCard 
-                key={product.id} 
+              <ProductCard
+                key={product.id}
                 product={product}
                 stockCount={stockCounts[product.id] ?? 0}
                 variants={item}
