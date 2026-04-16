@@ -29,7 +29,7 @@ export function ManageStock() {
   // Selection & Filtering
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'All' | 'Available' | 'Assigned'>('All');
+  const [filterStatus, setFilterStatus] = useState<'All' | 'Available' | 'Reserved' | 'Assigned'>('All');
   const [selectedStockIds, setSelectedStockIds] = useState<string[]>([]);
   
   // Editing SKU Price
@@ -252,6 +252,50 @@ export function ManageStock() {
           showToast("Bulk deletion completed", "success");
         } catch (err) {
           showToast("Bulk delete failed", "error");
+        }
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      }
+    });
+  };
+
+  // Release one or many Reserved codes back to Available
+  const handleReleaseCode = async (codeId: string) => {
+    try {
+      await db.updateLiveStockCode(codeId, {
+        status: 'Available',
+        assignedToRequestId: undefined,
+        assignedToSubscriptionId: undefined,
+        assignedAt: undefined,
+      });
+      if (selectedProductId) await db.syncInventoryFromLiveStock(selectedProductId);
+      setStock(prev => prev.map(s => s.id === codeId ? { ...s, status: 'Available', assignedToRequestId: undefined, assignedAt: undefined } : s));
+      showToast('Released to Available', 'success');
+    } catch (err) {
+      showToast('Failed to release code', 'error');
+    }
+  };
+
+  const handleBulkRelease = () => {
+    if (selectedStockIds.length === 0) return;
+    setConfirmModal({
+      isOpen: true,
+      title: 'Release Reserved Codes',
+      message: `Release ${selectedStockIds.length} selected code(s) back to Available? They will be orderable again.`,
+      isDanger: false,
+      onConfirm: async () => {
+        try {
+          await Promise.all(selectedStockIds.map(id => db.updateLiveStockCode(id, {
+            status: 'Available',
+            assignedToRequestId: undefined,
+            assignedToSubscriptionId: undefined,
+            assignedAt: undefined,
+          })));
+          if (selectedProductId) await db.syncInventoryFromLiveStock(selectedProductId);
+          setStock(prev => prev.map(s => selectedStockIds.includes(s.id) ? { ...s, status: 'Available', assignedToRequestId: undefined, assignedAt: undefined } : s));
+          setSelectedStockIds([]);
+          showToast(`${selectedStockIds.length} codes released to Available`, 'success');
+        } catch (err) {
+          showToast('Bulk release failed', 'error');
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
       }
@@ -482,6 +526,7 @@ export function ManageStock() {
             >
               <option value="All">All Status</option>
               <option value="Available">Available</option>
+              <option value="Reserved">Reserved</option>
               <option value="Assigned">Assigned</option>
             </select>
           </div>
@@ -498,6 +543,12 @@ export function ManageStock() {
             >
               <span className="text-white text-[10px] font-black uppercase tracking-wider">{selectedStockIds.length} Codes Selected</span>
               <div className="flex items-center gap-2">
+                <button 
+                  onClick={handleBulkRelease}
+                  className="px-3 py-1.5 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-lg hover:bg-emerald-500 transition"
+                >
+                  Release → Available
+                </button>
                 <button 
                   onClick={handleBulkAssign}
                   className="px-3 py-1.5 bg-indigo-500 text-white text-[10px] font-black uppercase rounded-lg hover:bg-indigo-400 transition"
@@ -601,30 +652,51 @@ export function ManageStock() {
                     {formatDate(item.createdAt)}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button 
-                      onClick={() => {
-                        setConfirmModal({
-                          isOpen: true,
-                          title: 'Delete Digital Code',
-                          message: `Delete this code permanently? This will update the inventory count for ${item.productName}.`,
-                          isDanger: true,
-                          onConfirm: async () => {
-                            try {
-                              await db.deleteLiveStockCode(item.id);
-                              await db.syncInventoryFromLiveStock(item.productId);
-                              setStock(prev => prev.filter(s => s.id !== item.id));
-                              showToast("Deleted successfully", "success");
-                            } catch (e) {
-                              showToast("Failed to delete", "error");
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Release button — only for Reserved codes */}
+                      {item.status === 'Reserved' && (
+                        <button
+                          title="Release back to Available"
+                          onClick={() => setConfirmModal({
+                            isOpen: true,
+                            title: 'Release Code',
+                            message: `Release this code back to Available stock? It will be orderable again.`,
+                            isDanger: false,
+                            onConfirm: async () => {
+                              await handleReleaseCode(item.id);
+                              setConfirmModal(prev => ({ ...prev, isOpen: false }));
                             }
-                            setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                          }
-                        });
-                      }}
-                      className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                          })}
+                          className="p-2 text-slate-300 hover:text-emerald-600 transition-colors"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => {
+                          setConfirmModal({
+                            isOpen: true,
+                            title: 'Delete Digital Code',
+                            message: `Delete this code permanently? This will update the inventory count for ${item.productName}.`,
+                            isDanger: true,
+                            onConfirm: async () => {
+                              try {
+                                await db.deleteLiveStockCode(item.id);
+                                await db.syncInventoryFromLiveStock(item.productId);
+                                setStock(prev => prev.filter(s => s.id !== item.id));
+                                showToast("Deleted successfully", "success");
+                              } catch (e) {
+                                showToast("Failed to delete", "error");
+                              }
+                              setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                            }
+                          });
+                        }}
+                        className="p-2 text-slate-300 hover:text-rose-600 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
