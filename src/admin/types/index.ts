@@ -279,14 +279,16 @@ export interface DigitalCode {
   code: string;
   duration: PlanDuration;
   costBasisUSDT: number;
-  gbpPurchaseCost?: number; // New: Locked GBP cost at time of purchase
-  usdtBatchId?: string; // New: Reference to the source USDT batch
+  gbpPurchaseCost?: number;
+  usdtBatchId?: string;
   vendorId?: string;
   status: 'Available' | 'Reserved' | 'Assigned' | 'Expired';
+  /** When true, this code is claimed first ahead of FIFO order. Cleared automatically when claimed. */
+  isPriority?: boolean;
   assignedToRequestId?: string;
-  assignedToSubscriptionId?: string; // New: For direct subscription renewal
+  assignedToSubscriptionId?: string;
   assignedAt?: string;
-  deliveredAt?: string; // New: For final delivery confirmation
+  deliveredAt?: string;
   createdAt: string;
 }
 

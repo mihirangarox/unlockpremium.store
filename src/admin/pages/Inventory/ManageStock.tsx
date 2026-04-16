@@ -5,7 +5,7 @@ import {
   ExternalLink, ShieldCheck, Tag, 
   DollarSign, Layers, Save, Copy, 
   Check, AlertCircle, List, Edit2, UserPlus, HelpCircle,
-  History as HistoryIcon, Wallet, ArrowRight, AlertTriangle, Users
+  History as HistoryIcon, Wallet, ArrowRight, AlertTriangle, Users, Star
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocalization } from '../../../context/LocalizationContext';
@@ -135,12 +135,19 @@ export function ManageStock() {
 
   // Filtered Ledger (Bottom Section)
   const filteredStock = useMemo(() => {
-    return stock.filter(item => {
-      const matchesProduct = !selectedProductId || item.productId === selectedProductId;
-      const matchesSearch = item.code.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStatus = filterStatus === 'All' || item.status === filterStatus;
-      return matchesProduct && matchesSearch && matchesStatus;
-    });
+    return stock
+      .filter(item => {
+        const matchesProduct = !selectedProductId || item.productId === selectedProductId;
+        const matchesSearch = item.code.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = filterStatus === 'All' || item.status === filterStatus;
+        return matchesProduct && matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        // Pinned priority codes always appear first
+        if (a.isPriority && !b.isPriority) return -1;
+        if (!a.isPriority && b.isPriority) return 1;
+        return 0;
+      });
   }, [stock, selectedProductId, searchQuery, filterStatus]);
 
   // Handlers
@@ -312,6 +319,27 @@ export function ManageStock() {
   const handleBulkAssign = () => {
     if (selectedStockIds.length === 0) return;
     setAssignModal({ isOpen: true, userId: '' });
+  };
+
+  const handlePinCode = async (item: DigitalCode) => {
+    const shouldPin = !item.isPriority;
+    try {
+      await db.pinCodeAsNext(item.id, item.productId, item.duration, shouldPin);
+      // Update local state: unpin all sibling codes, set new pin
+      setStock(prev => prev.map(s => {
+        if (s.productId === item.productId && s.duration === item.duration) {
+          return { ...s, isPriority: s.id === item.id ? shouldPin : false };
+        }
+        return s;
+      }));
+      showToast(
+        shouldPin ? '⭐ Pinned as next — will be assigned before others' : 'Pin removed',
+        'success'
+      );
+    } catch (err) {
+      console.error('Pin failed:', err);
+      showToast('Failed to update priority', 'error');
+    }
   };
 
   const executeBulkAssign = async () => {
@@ -635,14 +663,24 @@ export function ManageStock() {
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.duration}</span>
                   </td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                      item.status === 'Available' 
-                        ? 'bg-emerald-600 text-white shadow-sm' 
-                        : 'bg-slate-400 text-white shadow-sm'
-                    }`}>
-                      {item.status === 'Available' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                      {item.status}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        item.status === 'Available'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : item.status === 'Reserved'
+                            ? 'bg-amber-500 text-white shadow-sm'
+                            : 'bg-slate-400 text-white shadow-sm'
+                      }`}>
+                        {item.status === 'Available' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                        {item.status}
+                      </span>
+                      {item.isPriority && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-700 border border-amber-300">
+                          <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                          Next
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 font-bold text-slate-400">
                     {item.costBasisUSDT?.toFixed(2)}
@@ -660,6 +698,20 @@ export function ManageStock() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1">
+                      {/* Pin as Next — only for Available codes */}
+                      {item.status === 'Available' && (
+                        <button
+                          title={item.isPriority ? 'Unpin — remove priority' : 'Pin as next to be assigned'}
+                          onClick={() => handlePinCode(item)}
+                          className={`p-2 transition-colors rounded-lg ${
+                            item.isPriority
+                              ? 'text-amber-500 hover:text-amber-600 bg-amber-50'
+                              : 'text-slate-300 hover:text-amber-500'
+                          }`}
+                        >
+                          <Star className={`w-4 h-4 ${item.isPriority ? 'fill-amber-500' : ''}`} />
+                        </button>
+                      )}
                       {/* Release button — only for Reserved codes */}
                       {item.status === 'Reserved' && (
                         <button

@@ -642,6 +642,40 @@ export const updateLiveStockCode = async (id: string, updates: Partial<DigitalCo
   await setDoc(doc(db, "live_stock", id), updates, { merge: true });
 };
 
+/**
+ * Pins a specific available code as the next one to be claimed.
+ * Unpins any other pinned code for the same product+duration automatically.
+ * Pass shouldPin=false to simply unpin without setting a new priority.
+ */
+export const pinCodeAsNext = async (
+  codeId: string,
+  productId: string,
+  duration: string,
+  shouldPin: boolean
+): Promise<void> => {
+  const batch = writeBatch(db);
+
+  // Unpin any existing pinned code for this product+duration
+  const q = query(
+    collection(db, "live_stock"),
+    where("productId", "==", productId),
+    where("duration", "==", duration),
+    where("isPriority", "==", true)
+  );
+  const snap = await getDocs(q);
+  snap.docs.forEach(d => {
+    batch.update(d.ref, { isPriority: false });
+  });
+
+  // Set (or clear) the target code's priority
+  batch.update(doc(db, "live_stock", codeId), { isPriority: shouldPin });
+
+  await batch.commit();
+
+  // Invalidate cache so next claim reflects the new priority
+  liveStockCache = null;
+};
+
 export const updateLiveStockStatus = async (id: string, status: 'Available' | 'Reserved' | 'Assigned' | 'Expired', subscriptionId?: string): Promise<void> => {
   await setDoc(doc(db, "live_stock", id), { 
     status, 
@@ -669,30 +703,55 @@ export const claimCodeForRequest = async (
   requestId: string,
   subscriptionId?: string // Link it to the subscription for better financial ledgering
 ): Promise<DigitalCode | null> => {
-  // 1. Try to find by direct productId first
+  // 1. Try by direct productId — pinned priority code first, then FIFO
   let q = query(
     collection(db, "live_stock"),
     where("productId", "==", productIdOrType),
     where("duration", "==", duration),
     where("status", "==", "Available"),
+    where("isPriority", "==", true),
     limit(1)
   );
-  
   let snap = await getDocs(q);
-  
-  // 2. If not found, try finding product by subscriptionType first
+
+  if (snap.empty) {
+    // No pinned code — fall back to standard FIFO
+    q = query(
+      collection(db, "live_stock"),
+      where("productId", "==", productIdOrType),
+      where("duration", "==", duration),
+      where("status", "==", "Available"),
+      limit(1)
+    );
+    snap = await getDocs(q);
+  }
+
+  // 2. If still not found, try finding product by subscriptionType
   if (snap.empty) {
     const products = await getProducts();
     const product = products.find(p => p.subscriptionType === productIdOrType);
     if (product) {
+      // Priority first
       q = query(
         collection(db, "live_stock"),
         where("productId", "==", product.id),
         where("duration", "==", duration),
         where("status", "==", "Available"),
+        where("isPriority", "==", true),
         limit(1)
       );
       snap = await getDocs(q);
+
+      if (snap.empty) {
+        q = query(
+          collection(db, "live_stock"),
+          where("productId", "==", product.id),
+          where("duration", "==", duration),
+          where("status", "==", "Available"),
+          limit(1)
+        );
+        snap = await getDocs(q);
+      }
     }
   }
 
@@ -718,7 +777,8 @@ export const claimCodeForRequest = async (
     status: 'Reserved',
     assignedToRequestId: requestId,
     assignedToSubscriptionId: subscriptionId || null,
-    assignedAt: new Date().toISOString()
+    assignedAt: new Date().toISOString(),
+    isPriority: false  // Clear priority pin once the code is claimed
   };
   
   const batch = writeBatch(db);
