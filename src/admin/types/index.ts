@@ -45,6 +45,10 @@ export interface ProductPricing {
   oldPriceUSD: number;
   oldPriceGBP: number;
   oldPriceEUR: number;
+  /** Admin can mark this tier as unavailable. Customers see it greyed-out. */
+  isDisabled?: boolean;
+  /** Optional short note shown to customers when this tier is selected. */
+  tierNote?: string;
 }
 
 export interface Product {

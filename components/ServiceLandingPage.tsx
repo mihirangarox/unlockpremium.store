@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { m } from 'framer-motion';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Package } from 'lucide-react';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Package, Info } from 'lucide-react';
 import Button from './Button';
 import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
 import { useCart } from '../src/context/CartContext';
@@ -55,9 +55,10 @@ const ServiceLandingPage: React.FC = () => {
 
           setStockCounts(counts);
 
-          // Find first in-stock tier, or fallback
-          const firstInStock = sortedPricing.find(t => (counts[t.durationMonths] || 0) > 0);
-          setSelectedTier(firstInStock || sortedPricing[0]);
+          // Find best tier: in-stock + not disabled → not-disabled → fallback to first
+          const firstInStockAvailable = sortedPricing.find(t => !t.isDisabled && (counts[t.durationMonths] || 0) > 0);
+          const firstAvailable = sortedPricing.find(t => !t.isDisabled);
+          setSelectedTier(firstInStockAvailable || firstAvailable || sortedPricing[0]);
           setProduct(found);
         } else {
           setProduct(null);
@@ -212,37 +213,48 @@ const ServiceLandingPage: React.FC = () => {
                   <div className="mb-6">
                     <h3 className="text-sm font-bold text-neutral-400 uppercase tracking-widest mb-3">Select Plan Duration</h3>
                     <div className="flex flex-wrap gap-2">
-                      {product.pricing.map((tier, idx) => {
-                        const inStock = (stockCounts[tier.durationMonths] || 0) > 0;
-                        const selectable = inStock || acceptsPreOrders;
-                        const isSelected = selectedTier?.durationMonths === tier.durationMonths;
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => selectable && setSelectedTier(tier)}
-                            disabled={!selectable}
-                            className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${isSelected
-                                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border border-indigo-500/50'
-                                : selectable
-                                  ? 'bg-white/5 border border-white/10 text-neutral-300 hover:bg-white/10'
-                                  : 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-50'
+                        {product.pricing.map((tier, idx) => {
+                          const inStock = (stockCounts[tier.durationMonths] || 0) > 0;
+                          const selectable = !tier.isDisabled && (inStock || acceptsPreOrders);
+                          const isSelected = selectedTier?.durationMonths === tier.durationMonths;
+                          return (
+                            <button
+                              key={idx}
+                              onClick={() => selectable && setSelectedTier(tier)}
+                              disabled={!selectable}
+                              title={tier.isDisabled ? 'Currently unavailable' : undefined}
+                              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                                isSelected
+                                  ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/25 border border-indigo-500/50'
+                                  : tier.isDisabled
+                                    ? 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-40 line-through'
+                                    : selectable
+                                      ? 'bg-white/5 border border-white/10 text-neutral-300 hover:bg-white/10'
+                                      : 'bg-white/5 border border-white/10 text-neutral-600 cursor-not-allowed opacity-50'
                               }`}
-                          >
-                            {tier.durationMonths} Months {!inStock && !acceptsPreOrders ? '(Out of Stock)' : ''}
-                          </button>
-                        );
-                      })}
+                            >
+                              {tier.durationMonths} Months{tier.isDisabled ? ' (Unavailable)' : ''}
+                            </button>
+                          );
+                       })}
                     </div>
+                    {/* Per-tier note */}
+                    {selectedTier?.tierNote && (
+                      <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                        <Info className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                        <span className="text-xs font-medium text-amber-300">{selectedTier.tierNote}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
-                <Button
-                  className={`w-full ${!(selectedTier && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                <Button 
+                  className={`w-full ${!(selectedTier && !selectedTier.isDisabled && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders)) ? 'opacity-50 cursor-not-allowed' : ''}`}
                   size="lg"
-                  onClick={() => selectedTier && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders) && handleBuyNow()}
-                  disabled={!(selectedTier && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders))}
+                  onClick={() => selectedTier && !selectedTier.isDisabled && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders) && handleBuyNow()}
+                  disabled={!(selectedTier && !selectedTier.isDisabled && ((stockCounts[selectedTier.durationMonths] || 0) > 0 || acceptsPreOrders))}
                 >
-                  {isOutOfStock && !acceptsPreOrders ? "Out of Stock" : "Add to Cart"}
+                  {selectedTier?.isDisabled ? 'Unavailable' : (isOutOfStock && !acceptsPreOrders ? 'Out of Stock' : 'Add to Cart')}
                 </Button>
               </div>
             </div>

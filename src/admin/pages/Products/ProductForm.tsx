@@ -28,7 +28,9 @@ export function ProductForm() {
     pricing: [{
       durationMonths: 1,
       priceUSD: 0, priceGBP: 0, priceEUR: 0,
-      oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0
+      oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0,
+      isDisabled: false,
+      tierNote: ''
     }],
   });
 
@@ -91,7 +93,7 @@ export function ProductForm() {
     }
   };
 
-  const handlePricingChange = (index: number, field: keyof ProductPricing, value: number) => {
+  const handlePricingChange = (index: number, field: keyof ProductPricing, value: string | number | boolean) => {
     setFormData(prev => {
       const newPricing = [...(prev.pricing || [])];
       newPricing[index] = { ...newPricing[index], [field]: value };
@@ -105,7 +107,9 @@ export function ProductForm() {
       pricing: [...(prev.pricing || []), {
         durationMonths: 1,
         priceUSD: 0, priceGBP: 0, priceEUR: 0,
-        oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0
+        oldPriceUSD: 0, oldPriceGBP: 0, oldPriceEUR: 0,
+        isDisabled: false,
+        tierNote: ''
       }]
     }));
   };
@@ -263,7 +267,14 @@ export function ProductForm() {
               </div>
 
               {(formData.pricing || []).map((tier, index) => (
-                <div key={index} className="flex flex-wrap items-end gap-4 bg-slate-50 p-4 border border-slate-200 rounded-xl relative group">
+                <div
+                  key={index}
+                  className={`flex flex-wrap items-end gap-4 p-4 border rounded-xl relative group transition-colors ${
+                    tier.isDisabled
+                      ? 'bg-rose-50/40 border-slate-200 border-l-4 border-l-rose-400'
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
                   {index > 0 && (
                     <button
                       type="button"
@@ -353,6 +364,35 @@ export function ProductForm() {
                         className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold text-indigo-700 bg-amber-50/50"
                       />
                     </div>
+                  </div>
+
+                  {/* Tier Note + Unavailable toggle — full width row */}
+                  <div className="w-full flex items-end gap-4 pt-3 mt-1 border-t border-slate-200">
+                    <div className="flex-1">
+                      <label className="block text-xs font-bold text-slate-500 mb-1.5">
+                        Tier Note <span className="font-normal text-slate-400">(optional — shown to customers when this tier is selected)</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. New accounts only · Max 60 chars"
+                        maxLength={80}
+                        value={tier.tierNote || ''}
+                        onChange={(e) => handlePricingChange(index, 'tierNote', e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-900"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2.5 cursor-pointer pb-1 flex-shrink-0">
+                      <div className="relative flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={tier.isDisabled || false}
+                          onChange={(e) => handlePricingChange(index, 'isDisabled', e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-6 bg-slate-200 peer-focus:ring-2 peer-focus:ring-rose-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500"></div>
+                      </div>
+                      <span className="text-sm font-bold text-slate-600 whitespace-nowrap">Mark Unavailable</span>
+                    </label>
                   </div>
                 </div>
               ))}

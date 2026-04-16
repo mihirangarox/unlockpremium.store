@@ -21,7 +21,10 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
     })
     : [];
 
-  const [selectedDuration, setSelectedDuration] = useState<number>(pricingTiers[0]?.durationMonths || 1);
+  // Default to first non-disabled tier
+  const [selectedDuration, setSelectedDuration] = useState<number>(
+    (pricingTiers.find(t => !t.isDisabled) || pricingTiers[0])?.durationMonths || 1
+  );
   const selectedTier = pricingTiers.find(t => t.durationMonths === selectedDuration) || pricingTiers[0];
 
   // acceptsPreOrders defaults to true when not set (safe for existing products)
@@ -31,6 +34,7 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
 
   const handleAddToCart = () => {
     if (!selectedTier) return;
+    if (selectedTier.isDisabled) return;
     // Block if truly sold out (no stock, no pre-orders allowed)
     if (isOutOfStock && !acceptsPreOrders) return;
 
@@ -84,13 +88,18 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
           {pricingTiers.map(tier => (
             <button
               key={tier.durationMonths}
-              onClick={() => setSelectedDuration(tier.durationMonths)}
-              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${selectedDuration === tier.durationMonths
-                  ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
-                  : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
-                }`}
+              onClick={() => !tier.isDisabled && setSelectedDuration(tier.durationMonths)}
+              disabled={tier.isDisabled}
+              title={tier.isDisabled ? 'Currently unavailable' : undefined}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                tier.isDisabled
+                  ? 'bg-white/5 text-neutral-600 border-white/10 cursor-not-allowed opacity-40 line-through'
+                  : selectedDuration === tier.durationMonths
+                    ? 'bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/25'
+                    : 'bg-white/5 text-neutral-400 border-white/10 hover:bg-white/10 hover:text-white'
+              }`}
             >
-              {tier.durationMonths} Months
+              {tier.durationMonths} Months{tier.isDisabled ? ' (Unavailable)' : ''}
             </button>
           ))}
         </div>
