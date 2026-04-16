@@ -1,19 +1,31 @@
 import { startOfDay, parseISO, differenceInDays } from 'date-fns';
 import * as db from './db';
-import type { Subscription, Reminder, Customer, SubscriptionStatus } from '../types/index';
+import { alertService } from './alertService';
+import type { Reminder, Customer } from '../types/index';
 
 export const automation = {
   /**
-   * Scans all active subscriptions and generates reminders 
-   * based on configured thresholds (e.g., 3, 1, 0 days before).
+   * Scans all active subscriptions and generates reminders based on
+   * thresholds configured in Settings → Automation (stored in Firestore).
+   * Falls back to [7, 3, 1] if no settings found.
+   * Uses custom Template Manager templates for message previews.
    */
   checkAndGenerateReminders: async () => {
-    const subscriptions = await db.getSubscriptions();
-    const customers = await db.getCustomers();
-    const existingReminders = await db.getReminders();
+    const [subscriptions, customers, existingReminders, systemSettings] = await Promise.all([
+      db.getSubscriptions(),
+      db.getCustomers(),
+      db.getReminders(),
+      db.getSystemSettings()
+    ]);
+
     const today = startOfDay(new Date());
 
-    const thresholds = [3, 1, 0]; 
+    // Read from Firestore settings — fall back to sensible defaults
+    const thresholds: number[] =
+      systemSettings?.reminderThresholds?.length
+        ? systemSettings.reminderThresholds
+        : [7, 3, 1];
+
     const generatedCount = { new: 0, skipped: 0 };
 
     for (const sub of subscriptions) {
@@ -30,13 +42,21 @@ export const automation = {
       for (const threshold of thresholds) {
         if (daysUntilRenewal === threshold) {
           const reminderType = threshold === 0 ? 'due-today' : `${threshold}-day`;
-          
-          const alreadyExists = existingReminders.find((r: Reminder) => 
-            r.subscriptionId === sub.id && 
+
+          const alreadyExists = existingReminders.find((r: Reminder) =>
+            r.subscriptionId === sub.id &&
             r.reminderType === reminderType
           );
 
           if (!alreadyExists) {
+            // Use custom template from Template Manager (falls back to legacy template)
+            const messagePreview = alertService.generateReminderMessage(
+              customer,
+              sub,
+              threshold,
+              sub.price?.toFixed(2) || '0.00'
+            );
+
             const newReminder: Reminder = {
               id: `rem_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
               customerId: sub.customerId,
@@ -45,7 +65,7 @@ export const automation = {
               channel: 'WhatsApp',
               scheduledFor: today.toISOString(),
               status: 'Pending',
-              messagePreview: automation.generateMessage(customer, sub, threshold),
+              messagePreview,
               createdAt: new Date().toISOString()
             };
 
@@ -59,19 +79,5 @@ export const automation = {
     }
 
     return generatedCount;
-  },
-
-  generateMessage: (customer: Customer, sub: Subscription, days: number) => {
-    const firstName = customer.fullName.split(' ')[0];
-    const product = sub.subscriptionType;
-    const durationLabel = sub.planDuration === '1M' ? 'Monthly' : 
-                         sub.planDuration === '3M' ? '3-Month' : 
-                         sub.planDuration === '6M' ? '6-Month' : 'Annual';
-    
-    if (days === 0) {
-      return `Hi ${firstName}! 🔔 Your ${durationLabel} *${product}* plan is due for renewal *TODAY*. \n\nTo keep your premium service active without interruption, please let us know if you'd like to renew now! 🚀`;
-    }
-    
-    return `Hi ${firstName}! 👋 Just a quick reminder that your ${durationLabel} *${product}* subscription is set to renew in *${days} day(s)*. \n\nWe wanted to give you a heads-up so you can ensure your premium benefits continue smoothly. Let us know if you're ready to proceed! ✨`;
   }
 };

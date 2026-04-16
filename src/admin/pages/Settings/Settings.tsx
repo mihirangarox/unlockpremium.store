@@ -403,10 +403,23 @@ function AutomationSettings({ settings, setSettings }: { settings: AppSettings, 
             <div className="space-y-4">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Thresholds</label>
               <div className="space-y-2">
-                {[7, 3, 1].map(days => (
+                {[7, 3, 1, 0].map(days => (
                   <label key={days} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 cursor-pointer transition-all">
-                    <input type="checkbox" checked={settings.reminderThresholds.includes(days)} className="w-4 h-4 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500" />
-                    <span className="text-sm font-medium text-slate-700">{days} days before renewal</span>
+                    <input
+                      type="checkbox"
+                      checked={(settings.reminderThresholds || []).includes(days)}
+                      onChange={() => {
+                        const current = settings.reminderThresholds || [];
+                        const updated = current.includes(days)
+                          ? current.filter(t => t !== days)
+                          : [...current, days].sort((a, b) => b - a);
+                        setSettings({ ...settings, reminderThresholds: updated });
+                      }}
+                      className="w-4 h-4 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="text-sm font-medium text-slate-700">
+                      {days === 0 ? 'On the day of renewal (due today)' : `${days} days before renewal`}
+                    </span>
                   </label>
                 ))}
               </div>

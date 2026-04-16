@@ -494,17 +494,31 @@ export const alertService = {
    * Selects the correct template based on the subscription period.
    */
   prepareCustomerReminder(customer: any, sub: any, daysLeft: number, price: string): string {
-    const firstName = customer.fullName.split(' ')[0];
     const cleanNumber = (customer.whatsappNumber || '').replace(/[^0-9]/g, '');
 
     if (!cleanNumber) return "";
 
+    const message = this.generateReminderMessage(customer, sub, daysLeft, price);
+    return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+  },
+
+  /**
+   * Returns the plain-text reminder message body (without wa.me URL wrapper).
+   * Used by the automation engine to create Reminder previews from custom templates.
+   * Follows the same 4-step template matching as Activation messages:
+   *   1. Exact match (product + duration)
+   *   2. Any product for this duration
+   *   3. Any duration for this product
+   *   4. Universal fallback
+   */
+  generateReminderMessage(customer: any, sub: any, daysLeft: number, price: string): string {
+    const firstName = customer.fullName.split(' ')[0];
     const period = (sub.planDuration || `${sub.durationMonths}M`).toUpperCase();
     const planName = sub.subscriptionType || 'LinkedIn Premium';
 
     const templates = storage.getMessageTemplates().filter(t => t.type === 'Reminder');
     let matchedTemplate = templates.find(t => t.productType === planName && t.duration === period);
-    
+
     if (!matchedTemplate) {
       matchedTemplate = templates.find(t => t.productType === 'All' && t.duration === period);
     }
@@ -515,21 +529,21 @@ export const alertService = {
       matchedTemplate = templates.find(t => t.productType === 'All' && t.duration === 'All');
     }
 
-    // Default template from AppSettings legacy config if no dynamic template found
+    // Fallback to legacy whatsappTemplate from AppSettings
     const settings = storage.getSettings();
-    const legacyTemplate = settings.whatsappTemplate || `Hi {customer_name}, your {plan_name} plan is renewing {days}. Price: {price}. Would you like to keep it active?`;
+    const legacyTemplate = settings.whatsappTemplate ||
+      `Hi {customer_name}, your {plan_name} plan is renewing {days}. Price: {price}. Would you like to keep it active?`;
 
     let message = matchedTemplate?.body || legacyTemplate;
 
     const daysStr = daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
 
-    message = message
+    return message
       .replace(/{customer_name}/g, firstName)
       .replace(/{plan_name}/g, planName)
       .replace(/{days}/g, daysStr)
       .replace(/{price}/g, price)
-      .replace(/{renewal_date}/g, sub.renewalDate.split('T')[0]);
-
-    return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(message)}`;
+      .replace(/{renewal_date}/g, sub.renewalDate?.split('T')[0] || '');
   }
 };
+
