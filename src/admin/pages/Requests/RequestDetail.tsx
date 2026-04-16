@@ -160,8 +160,10 @@ export function RequestDetail() {
   };
 
   const handleCalculateRenewal = () => {
-    if (!request?.subscriptionPeriod) return;
-    const months = parseInt(request.subscriptionPeriod.replace("M", ""));
+    // Use the admin-edited state value, not the original request value
+    const period = subscriptionPeriod || request?.subscriptionPeriod;
+    if (!period) return;
+    const months = parseInt(period.replace("M", ""));
     if (isNaN(months)) return;
 
     const start = new Date(startDate);
@@ -257,9 +259,11 @@ export function RequestDetail() {
         subscription.activationCode = activationCode;
       }
 
-      // 5. Mark Request as Approved (but NOT delivered yet)
+      // 5. Mark Request as Approved — include admin-edited type/period so saved record reflects changes
       const updatedRequest: IntakeRequest = {
         ...request,
+        subscriptionType: (subscriptionType as SubscriptionType) || request.subscriptionType,
+        subscriptionPeriod: (subscriptionPeriod as PlanDuration) || request.subscriptionPeriod,
         soldPrice: defaultPrice,
         startDate,
         renewalDate,
