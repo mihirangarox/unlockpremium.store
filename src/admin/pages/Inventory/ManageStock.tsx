@@ -258,19 +258,22 @@ export function ManageStock() {
     });
   };
 
-  // Release one or many Reserved codes back to Available
   const handleReleaseCode = async (codeId: string) => {
     try {
       await db.updateLiveStockCode(codeId, {
         status: 'Available',
-        assignedToRequestId: undefined,
-        assignedToSubscriptionId: undefined,
-        assignedAt: undefined,
+        assignedToRequestId: null as any,
+        assignedToSubscriptionId: null as any,
+        assignedAt: null as any,
       });
       if (selectedProductId) await db.syncInventoryFromLiveStock(selectedProductId);
-      setStock(prev => prev.map(s => s.id === codeId ? { ...s, status: 'Available', assignedToRequestId: undefined, assignedAt: undefined } : s));
+      setStock(prev => prev.map(s => s.id === codeId
+        ? { ...s, status: 'Available', assignedToRequestId: undefined, assignedAt: undefined }
+        : s
+      ));
       showToast('Released to Available', 'success');
     } catch (err) {
+      console.error('Release failed:', err);
       showToast('Failed to release code', 'error');
     }
   };
@@ -286,15 +289,19 @@ export function ManageStock() {
         try {
           await Promise.all(selectedStockIds.map(id => db.updateLiveStockCode(id, {
             status: 'Available',
-            assignedToRequestId: undefined,
-            assignedToSubscriptionId: undefined,
-            assignedAt: undefined,
+            assignedToRequestId: null as any,
+            assignedToSubscriptionId: null as any,
+            assignedAt: null as any,
           })));
           if (selectedProductId) await db.syncInventoryFromLiveStock(selectedProductId);
-          setStock(prev => prev.map(s => selectedStockIds.includes(s.id) ? { ...s, status: 'Available', assignedToRequestId: undefined, assignedAt: undefined } : s));
+          setStock(prev => prev.map(s => selectedStockIds.includes(s.id)
+            ? { ...s, status: 'Available', assignedToRequestId: undefined, assignedAt: undefined }
+            : s
+          ));
           setSelectedStockIds([]);
           showToast(`${selectedStockIds.length} codes released to Available`, 'success');
         } catch (err) {
+          console.error('Bulk release failed:', err);
           showToast('Bulk release failed', 'error');
         }
         setConfirmModal(prev => ({ ...prev, isOpen: false }));
