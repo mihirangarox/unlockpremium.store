@@ -15,6 +15,7 @@ import {
   writeBatch,
   orderBy,
   limit,
+  QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type {
@@ -655,16 +656,19 @@ export const pinCodeAsNext = async (
 ): Promise<void> => {
   const batch = writeBatch(db);
 
-  // Unpin any existing pinned code for this product+duration
+  // Fetch all available codes for this product+duration, then unpin client-side
+  // (avoids needing a Firestore composite index on isPriority)
   const q = query(
     collection(db, "live_stock"),
     where("productId", "==", productId),
     where("duration", "==", duration),
-    where("isPriority", "==", true)
+    where("status", "==", "Available")
   );
   const snap = await getDocs(q);
   snap.docs.forEach(d => {
-    batch.update(d.ref, { isPriority: false });
+    if (d.data().isPriority === true && d.id !== codeId) {
+      batch.update(d.ref, { isPriority: false });
+    }
   });
 
   // Set (or clear) the target code's priority
@@ -698,78 +702,57 @@ export const getAvailableCodesCount = async (productId?: string): Promise<number
  * Returns the code string if successful, or null if no codes available.
  */
 export const claimCodeForRequest = async (
-  productIdOrType: string, 
-  duration: string, 
+  productIdOrType: string,
+  duration: string,
   requestId: string,
-  subscriptionId?: string // Link it to the subscription for better financial ledgering
+  subscriptionId?: string
 ): Promise<DigitalCode | null> => {
-  // 1. Try by direct productId — pinned priority code first, then FIFO
-  let q = query(
-    collection(db, "live_stock"),
-    where("productId", "==", productIdOrType),
-    where("duration", "==", duration),
-    where("status", "==", "Available"),
-    where("isPriority", "==", true),
-    limit(1)
-  );
-  let snap = await getDocs(q);
-
-  if (snap.empty) {
-    // No pinned code — fall back to standard FIFO
-    q = query(
+  /**
+   * Fetches available codes for a productId+duration and returns the best one:
+   * - Prefers codes with isPriority===true (pinned)
+   * - Falls back to first result (FIFO)
+   * Done client-side to avoid requiring Firestore composite indexes.
+   */
+  const findBestCode = async (productId: string): Promise<QueryDocumentSnapshot | null> => {
+    const q = query(
       collection(db, "live_stock"),
-      where("productId", "==", productIdOrType),
+      where("productId", "==", productId),
       where("duration", "==", duration),
       where("status", "==", "Available"),
-      limit(1)
+      limit(20) // Fetch a small batch to find the pinned one
     );
-    snap = await getDocs(q);
-  }
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    // Prefer pinned code, fall back to first (FIFO)
+    return snap.docs.find(d => d.data().isPriority === true) || snap.docs[0];
+  };
 
-  // 2. If still not found, try finding product by subscriptionType
-  if (snap.empty) {
+  // 1. Try by direct productId
+  let codeDoc = await findBestCode(productIdOrType);
+
+  // 2. If not found, resolve productId from subscriptionType
+  if (!codeDoc) {
     const products = await getProducts();
     const product = products.find(p => p.subscriptionType === productIdOrType);
     if (product) {
-      // Priority first
-      q = query(
-        collection(db, "live_stock"),
-        where("productId", "==", product.id),
-        where("duration", "==", duration),
-        where("status", "==", "Available"),
-        where("isPriority", "==", true),
-        limit(1)
-      );
-      snap = await getDocs(q);
-
-      if (snap.empty) {
-        q = query(
-          collection(db, "live_stock"),
-          where("productId", "==", product.id),
-          where("duration", "==", duration),
-          where("status", "==", "Available"),
-          limit(1)
-        );
-        snap = await getDocs(q);
-      }
+      codeDoc = await findBestCode(product.id);
     }
   }
 
-  // 3. Last resort: try matching by productName directly (legacy or loose matching)
-  if (snap.empty) {
-     q = query(
+  // 3. Last resort: match by productName (legacy)
+  if (!codeDoc) {
+    const q = query(
       collection(db, "live_stock"),
       where("productName", "==", productIdOrType),
       where("duration", "==", duration),
       where("status", "==", "Available"),
       limit(1)
     );
-    snap = await getDocs(q);
+    const snap = await getDocs(q);
+    if (!snap.empty) codeDoc = snap.docs[0];
   }
 
-  if (snap.empty) return null;
-  
-  const codeDoc = snap.docs[0];
+  if (!codeDoc) return null;
   const codeData = codeDoc.data() as DigitalCode;
   
   const updatedCode: DigitalCode = {

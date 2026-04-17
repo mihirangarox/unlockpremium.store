@@ -56,6 +56,7 @@ export function Subscriptions() {
   const [statusFilter, setStatusFilter] = useState<string>("All");
   const [typeFilter, setTypeFilter] = useState<string>("All");
   const [durationFilter, setDurationFilter] = useState<string>("All");
+  const [paymentFilter, setPaymentFilter] = useState<string>("All");
   
   // Sorting state
   const [sortField, setSortField] = useState<SortField>('renewalDate');
@@ -132,14 +133,17 @@ export function Subscriptions() {
 
   // Summary Metrics
   const metrics = useMemo(() => {
-    const counts = { active: 0, soon: 0, today: 0, expired: 0, mrr: 0 };
+    const counts = { active: 0, soon: 0, today: 0, expired: 0, mrr: 0, unpaid: 0 };
     subs.forEach(({ sub }) => {
       const status = getSubStatus(sub.renewalDate);
       if (status === 'Active') counts.active++;
       else if (status === 'Due Soon') counts.soon++;
       else if (status === 'Due Today') counts.today++;
       else if (status === 'Expired') counts.expired++;
-      
+
+      // Count unpaid (Pending or Partial)
+      if (sub.paymentStatus === 'Pending' || sub.paymentStatus === 'Partial') counts.unpaid++;
+
       // Calculate MRR: price / (durationMonths || 1)
       counts.mrr += sub.price / (sub.durationMonths || 1);
     });
@@ -150,17 +154,18 @@ export function Subscriptions() {
   const filteredAndSortedSubs = useMemo(() => {
     return subs
       .filter(item => {
-        const matchesSearch = 
+        const matchesSearch =
           item.customer?.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.customer?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
           item.customer?.whatsappNumber?.includes(searchTerm);
-        
+
         const status = getSubStatus(item.sub.renewalDate);
         const matchesStatus = statusFilter === "All" || status === statusFilter;
         const matchesType = typeFilter === "All" || item.sub.subscriptionType === typeFilter;
         const matchesDuration = durationFilter === "All" || item.sub.durationMonths?.toString() === durationFilter;
+        const matchesPayment = paymentFilter === "All" || (item.sub.paymentStatus || 'Paid') === paymentFilter;
 
-        return matchesSearch && matchesStatus && matchesType && matchesDuration;
+        return matchesSearch && matchesStatus && matchesType && matchesDuration && matchesPayment;
       })
       .sort((a, b) => {
         let comparison = 0;
@@ -173,7 +178,7 @@ export function Subscriptions() {
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
-  }, [subs, searchTerm, statusFilter, typeFilter, durationFilter, sortField, sortOrder]);
+  }, [subs, searchTerm, statusFilter, typeFilter, durationFilter, paymentFilter, sortField, sortOrder]);
 
   const urgentSubs = useMemo(() => {
     return subs.filter(item => {
@@ -343,12 +348,24 @@ export function Subscriptions() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <MetricCard title="Total MRR" value={metrics.mrr} isCurrency icon={<ArrowUpDown className="w-5 h-5 text-indigo-600" />} bgColor="bg-indigo-50" />
         <MetricCard title="Active Subs" value={metrics.active} icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} bgColor="bg-emerald-50" />
         <MetricCard title="Due in 7 Days" value={metrics.soon} icon={<Clock className="w-5 h-5 text-amber-600" />} bgColor="bg-amber-50" />
         <MetricCard title="Due Today" value={metrics.today} icon={<AlertCircle className="w-5 h-5 text-rose-600" />} bgColor="bg-rose-50" />
         <MetricCard title="Expired" value={metrics.expired} icon={<XCircle className="w-5 h-5 text-slate-600" />} bgColor="bg-slate-50" />
+        <button
+          onClick={() => setPaymentFilter('Pending')}
+          className="bg-white rounded-3xl p-6 border-2 border-amber-100 shadow-sm flex items-center justify-between hover:border-amber-300 transition-all group text-left"
+        >
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-1">Unpaid</p>
+            <p className="text-2xl font-black text-slate-900">{metrics.unpaid}</p>
+          </div>
+          <div className="w-12 h-12 rounded-2xl bg-amber-50 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+            <CreditCard className="w-5 h-5 text-amber-500" />
+          </div>
+        </button>
       </div>
 
       {/* Attention Required Section */}
@@ -413,25 +430,39 @@ export function Subscriptions() {
               />
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <FilterSelect 
-              value={typeFilter} 
-              onChange={setTypeFilter} 
-              options={["All", "Premium Career", "Premium Business", "Premium Company Page", "Recruiter Lite", "Sales Navigator Core", "Sales Navigator Advanced", "Sales Navigator Advanced Plus"]} 
+            <FilterSelect
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={["All", "Premium Career", "Premium Business", "Premium Company Page", "Recruiter Lite", "Sales Navigator Core", "Sales Navigator Advanced", "Sales Navigator Advanced Plus"]}
               label="Type"
             />
-            <FilterSelect 
-              value={durationFilter} 
-              onChange={setDurationFilter} 
-              options={["All", "1", "2", "3", "6", "9", "12"]} 
+            <FilterSelect
+              value={durationFilter}
+              onChange={setDurationFilter}
+              options={["All", "1", "2", "3", "6", "9", "12"]}
               label="Duration"
               formatOption={(opt) => opt === 'All' ? 'All Durations' : `${opt} month${opt !== '1' ? 's' : ''}`}
             />
-            <FilterSelect 
-              value={statusFilter} 
-              onChange={setStatusFilter} 
-              options={["All", "Active", "Due Soon", "Due Today", "Expired"]} 
+            <FilterSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={["All", "Active", "Due Soon", "Due Today", "Expired"]}
               label="Status"
             />
+            <FilterSelect
+              value={paymentFilter}
+              onChange={setPaymentFilter}
+              options={["All", "Paid", "Pending", "Partial"]}
+              label="Payment"
+            />
+            {paymentFilter !== 'All' && (
+              <button
+                onClick={() => setPaymentFilter('All')}
+                className="text-[10px] font-bold text-slate-400 hover:text-rose-500 transition-colors uppercase tracking-widest"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -526,7 +557,16 @@ export function Subscriptions() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="font-black text-slate-900 text-sm">{formatCurrency(item.sub.price)}</span>
+                        <div className="space-y-0.5">
+                          <span className="font-black text-slate-900 text-sm">{formatCurrency(item.sub.price)}</span>
+                          {item.sub.paymentStatus && item.sub.paymentStatus !== 'Paid' && (
+                            <span className={`text-[9px] font-black uppercase tracking-widest block ${
+                              item.sub.paymentStatus === 'Pending' ? 'text-amber-500' : 'text-orange-500'
+                            }`}>
+                              ⚠ {item.sub.paymentStatus}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="space-y-0.5">
@@ -548,6 +588,21 @@ export function Subscriptions() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {(item.sub.paymentStatus === 'Pending' || item.sub.paymentStatus === 'Partial') && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await db.saveSubscription({ ...item.sub, paymentStatus: 'Paid', updatedAt: new Date().toISOString() });
+                                  showToast(`Marked as Paid for ${item.customer?.fullName}`, 'success');
+                                  loadSubscriptions();
+                                } catch { showToast('Failed to update', 'error'); }
+                              }}
+                              className="p-2 text-amber-500 hover:bg-amber-50 rounded-xl transition-all"
+                              title="Mark as Paid"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </button>
+                          )}
                           {status === 'Due Today' && (
                             <button 
                               onClick={() => handleQuickRenew(item)}
