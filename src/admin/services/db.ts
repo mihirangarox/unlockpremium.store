@@ -718,13 +718,22 @@ export const claimCodeForRequest = async (
       collection(db, "live_stock"),
       where("productId", "==", productId),
       where("duration", "==", duration),
-      where("status", "==", "Available"),
-      limit(20) // Fetch a small batch to find the pinned one
+      where("status", "==", "Available")
     );
     const snap = await getDocs(q);
     if (snap.empty) return null;
-    // Prefer pinned code, fall back to first (FIFO)
-    return snap.docs.find(d => d.data().isPriority === true) || snap.docs[0];
+    
+    // Prefer pinned code
+    const priorityDoc = snap.docs.find(d => d.data().isPriority === true);
+    if (priorityDoc) return priorityDoc;
+
+    // Fall back to oldest (FIFO)
+    const sorted = snap.docs.sort((a, b) => {
+      const d1 = new Date(a.data().createdAt || 0).getTime();
+      const d2 = new Date(b.data().createdAt || 0).getTime();
+      return d1 - d2;
+    });
+    return sorted[0];
   };
 
   // 1. Try by direct productId
@@ -745,11 +754,22 @@ export const claimCodeForRequest = async (
       collection(db, "live_stock"),
       where("productName", "==", productIdOrType),
       where("duration", "==", duration),
-      where("status", "==", "Available"),
-      limit(1)
+      where("status", "==", "Available")
     );
     const snap = await getDocs(q);
-    if (!snap.empty) codeDoc = snap.docs[0];
+    if (!snap.empty) {
+      const priorityDoc = snap.docs.find(d => d.data().isPriority === true);
+      if (priorityDoc) {
+        codeDoc = priorityDoc;
+      } else {
+        const sorted = snap.docs.sort((a, b) => {
+          const d1 = new Date(a.data().createdAt || 0).getTime();
+          const d2 = new Date(b.data().createdAt || 0).getTime();
+          return d1 - d2;
+        });
+        codeDoc = sorted[0];
+      }
+    }
   }
 
   if (!codeDoc) return null;
