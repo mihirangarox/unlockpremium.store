@@ -1111,6 +1111,57 @@ Thank you for your business!`;
               </div>
             )}
 
+            {request.status === "Lead" && (
+              <div className="pt-6 mt-6 border-t border-blue-100 space-y-4">
+                <div className="bg-blue-50 rounded-xl p-4 flex items-start gap-3 border border-blue-100">
+                  <Zap className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold text-blue-800">Lead — Started Payment</p>
+                    <p className="text-xs text-blue-600 mt-1">This person started the checkout flow but didn't complete it. Follow up and convert when ready.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleUpdateStatus('Pending')}
+                    disabled={isProcessing}
+                    className="w-full py-3.5 bg-white border-2 border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-50 hover:border-indigo-300 hover:text-indigo-700 transition disabled:opacity-50"
+                  >
+                    Move to Pending
+                  </button>
+                  <button
+                    onClick={handleApproveAndConvert}
+                    disabled={isProcessing}
+                    className="w-full py-3.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isProcessing ? (
+                      <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        Approve & Convert
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => handleUpdateStatus('Archived')}
+                    disabled={isProcessing}
+                    className="w-full py-3 bg-slate-50 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition disabled:opacity-50 text-xs uppercase tracking-widest"
+                  >
+                    Archive
+                  </button>
+                  <button
+                    onClick={() => handleUpdateStatus('Spam')}
+                    disabled={isProcessing}
+                    className="w-full py-3 bg-slate-50 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 transition disabled:opacity-50 text-xs uppercase tracking-widest"
+                  >
+                    Mark as Spam
+                  </button>
+                </div>
+              </div>
+            )}
+
             {request.status === "Rejected" && (
               <div className="pt-6 mt-6 border-t border-rose-100 space-y-4">
                 <div className="bg-rose-50 rounded-xl p-4 flex items-start gap-3 border border-rose-100">
