@@ -146,7 +146,10 @@ export function ManageStock() {
         // Pinned priority codes always appear first
         if (a.isPriority && !b.isPriority) return -1;
         if (!a.isPriority && b.isPriority) return 1;
-        return 0;
+        // Secondary: FIFO — oldest createdAt first (mirrors actual claim order)
+        const t1 = a.createdAt ? new Date(a.createdAt).getTime() : Infinity;
+        const t2 = b.createdAt ? new Date(b.createdAt).getTime() : Infinity;
+        return t1 - t2;
       });
   }, [stock, selectedProductId, searchQuery, filterStatus]);
 
@@ -272,6 +275,7 @@ export function ManageStock() {
         assignedToRequestId: null as any,
         assignedToSubscriptionId: null as any,
         assignedAt: null as any,
+        isPriority: false, // Clear any ghost priority pin from before it was reserved
       });
       if (selectedProductId) await db.syncInventoryFromLiveStock(selectedProductId);
       setStock(prev => prev.map(s => s.id === codeId

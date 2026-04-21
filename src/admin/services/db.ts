@@ -727,10 +727,14 @@ export const claimCodeForRequest = async (
     const priorityDoc = snap.docs.find(d => d.data().isPriority === true);
     if (priorityDoc) return priorityDoc;
 
-    // Fall back to oldest (FIFO)
+    // Fall back to oldest (FIFO).
+    // Treat missing createdAt as Infinity (far future) so codes without a
+    // timestamp are NOT incorrectly sorted to the front of the queue.
     const sorted = snap.docs.sort((a, b) => {
-      const d1 = new Date(a.data().createdAt || 0).getTime();
-      const d2 = new Date(b.data().createdAt || 0).getTime();
+      const raw1 = a.data().createdAt;
+      const raw2 = b.data().createdAt;
+      const d1 = raw1 ? new Date(raw1).getTime() : Infinity;
+      const d2 = raw2 ? new Date(raw2).getTime() : Infinity;
       return d1 - d2;
     });
     return sorted[0];
@@ -763,8 +767,10 @@ export const claimCodeForRequest = async (
         codeDoc = priorityDoc;
       } else {
         const sorted = snap.docs.sort((a, b) => {
-          const d1 = new Date(a.data().createdAt || 0).getTime();
-          const d2 = new Date(b.data().createdAt || 0).getTime();
+          const raw1 = a.data().createdAt;
+          const raw2 = b.data().createdAt;
+          const d1 = raw1 ? new Date(raw1).getTime() : Infinity;
+          const d2 = raw2 ? new Date(raw2).getTime() : Infinity;
           return d1 - d2;
         });
         codeDoc = sorted[0];
@@ -949,13 +955,15 @@ export const releaseReservation = async (
 ): Promise<void> => {
   const batch = writeBatch(db);
 
-  // 1. Return Code to Available
+  // 1. Return Code to Available — also clear isPriority so a previously-pinned
+  //    code doesn't retain ghost priority after being released back to stock.
   batch.update(doc(db, "live_stock", codeId), {
     status: 'Available',
     assignedToRequestId: null,
     assignedToSubscriptionId: null,
     assignedAt: null,
-    deliveredAt: null
+    deliveredAt: null,
+    isPriority: false
   });
 
   // 2. Return Request to Pending
