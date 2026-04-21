@@ -708,12 +708,32 @@ export const claimCodeForRequest = async (
   subscriptionId?: string
 ): Promise<DigitalCode | null> => {
   /**
-   * Fetches available codes for a productId+duration and returns the best one:
-   * - Prefers codes with isPriority===true (pinned)
-   * - Falls back to first result (FIFO)
+   * Fetches available codes for a productId and returns the best one.
+   *
+   * Priority resolution order:
+   * 1. Any Available code for this product with isPriority===true
+   *    (searched PRODUCT-WIDE so a duration mismatch never silently drops a pin)
+   * 2. Oldest Available code matching product + duration (FIFO)
+   *
    * Done client-side to avoid requiring Firestore composite indexes.
    */
   const findBestCode = async (productId: string): Promise<QueryDocumentSnapshot | null> => {
+    // ── Step 1: Product-wide priority scan ───────────────────────────────────
+    // Query ALL Available codes for this product regardless of duration so that
+    // a pinned code is NEVER silently excluded by a duration mismatch.
+    const priorityScanQ = query(
+      collection(db, "live_stock"),
+      where("productId", "==", productId),
+      where("status", "==", "Available")
+    );
+    const priorityScanSnap = await getDocs(priorityScanQ);
+    const priorityDoc = priorityScanSnap.docs.find(d => d.data().isPriority === true);
+    if (priorityDoc) {
+      console.log(`[claimCode] Priority pin found: ${priorityDoc.id} (duration: ${priorityDoc.data().duration})`);
+      return priorityDoc;
+    }
+
+    // ── Step 2: Normal duration-scoped FIFO ──────────────────────────────────
     const q = query(
       collection(db, "live_stock"),
       where("productId", "==", productId),
@@ -722,15 +742,10 @@ export const claimCodeForRequest = async (
     );
     const snap = await getDocs(q);
     if (snap.empty) return null;
-    
-    // Prefer pinned code
-    const priorityDoc = snap.docs.find(d => d.data().isPriority === true);
-    if (priorityDoc) return priorityDoc;
 
-    // Fall back to oldest (FIFO).
     // Treat missing createdAt as Infinity (far future) so codes without a
     // timestamp are NOT incorrectly sorted to the front of the queue.
-    const sorted = snap.docs.sort((a, b) => {
+    const sorted = [...snap.docs].sort((a, b) => {
       const raw1 = a.data().createdAt;
       const raw2 = b.data().createdAt;
       const d1 = raw1 ? new Date(raw1).getTime() : Infinity;
@@ -754,19 +769,27 @@ export const claimCodeForRequest = async (
 
   // 3. Last resort: match by productName (legacy)
   if (!codeDoc) {
-    const q = query(
+    // Priority scan: product-name-wide, no duration filter
+    const priorityNameQ = query(
       collection(db, "live_stock"),
       where("productName", "==", productIdOrType),
-      where("duration", "==", duration),
       where("status", "==", "Available")
     );
-    const snap = await getDocs(q);
-    if (!snap.empty) {
-      const priorityDoc = snap.docs.find(d => d.data().isPriority === true);
-      if (priorityDoc) {
-        codeDoc = priorityDoc;
-      } else {
-        const sorted = snap.docs.sort((a, b) => {
+    const priorityNameSnap = await getDocs(priorityNameQ);
+    const namesPriority = priorityNameSnap.docs.find(d => d.data().isPriority === true);
+    if (namesPriority) {
+      codeDoc = namesPriority;
+    } else {
+      // FIFO fallback with duration filter
+      const q = query(
+        collection(db, "live_stock"),
+        where("productName", "==", productIdOrType),
+        where("duration", "==", duration),
+        where("status", "==", "Available")
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const sorted = [...snap.docs].sort((a, b) => {
           const raw1 = a.data().createdAt;
           const raw2 = b.data().createdAt;
           const d1 = raw1 ? new Date(raw1).getTime() : Infinity;
