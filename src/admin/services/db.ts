@@ -17,7 +17,8 @@ import {
   limit,
   QueryDocumentSnapshot,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { db, storage } from "./firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import type {
   Customer,
   Subscription,
@@ -908,6 +909,19 @@ export const bulkSaveMessageTemplates = async (templates: MessageTemplate[]): Pr
     });
   });
   await batch.commit();
+};
+
+// ─── Testimonial Screenshot Upload ───────────────────────────────────────────
+
+/**
+ * Uploads a screenshot image for a testimonial to Firebase Storage.
+ * Returns the public download URL.
+ */
+export const uploadTestimonialScreenshot = async (file: File, testimonialId: string): Promise<string> => {
+  const fileExt = file.name.split('.').pop() || 'jpg';
+  const storageRef = ref(storage, `testimonials/${testimonialId}_${Date.now()}.${fileExt}`);
+  const snapshot = await uploadBytes(storageRef, file);
+  return getDownloadURL(snapshot.ref);
 };
 
 /**

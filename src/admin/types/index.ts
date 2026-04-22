@@ -239,6 +239,12 @@ export interface Testimonial {
   region?: string;
   featured: boolean;
   createdAt: string;
+  /** Where the review came from */
+  source?: 'reddit' | 'whatsapp' | 'direct';
+  /** Firebase Storage URL for a screenshot image */
+  screenshotUrl?: string;
+  /** Product type for filtering on the testimonials page */
+  productType?: 'career' | 'business' | 'sales-navigator' | 'company-page' | 'recruiter';
 }
 
 // ─── Phase 8: Inventory & Vendors ─────────────────────────────────────────────

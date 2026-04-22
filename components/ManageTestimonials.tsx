@@ -1,231 +1,343 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getAuth } from 'firebase/auth';
-import { Trash2, Edit2, Plus, Star, Pin } from 'lucide-react';
-import { getTestimonials, saveTestimonial, deleteTestimonial } from '../src/admin/services/db';
+import { Trash2, Edit2, Plus, Star, Pin, Upload, X, Image } from 'lucide-react';
+import { getTestimonials, saveTestimonial, deleteTestimonial, uploadTestimonialScreenshot } from '../src/admin/services/db';
 import type { Testimonial } from '../src/admin/types/index';
 
+const PRODUCT_TYPES = [
+  { value: '', label: 'Any / Not specified' },
+  { value: 'career', label: 'Premium Career' },
+  { value: 'business', label: 'Premium Business' },
+  { value: 'sales-navigator', label: 'Sales Navigator' },
+  { value: 'company-page', label: 'Premium Company Page' },
+  { value: 'recruiter', label: 'Recruiter Lite' },
+] as const;
+
 const ManageTestimonials: React.FC = () => {
-    const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [view, setView] = useState<'list' | 'form'>('list');
-    const [editingId, setEditingId] = useState<string | null>(null);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'form'>('list');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-    // Form State
-    const [content, setContent] = useState('');
-    const [user, setUser] = useState('');
-    const [rating, setRating] = useState(5);
-    const [region, setRegion] = useState('');
-    const [featured, setFeatured] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
+  // Form state
+  const [content, setContent] = useState('');
+  const [user, setUser] = useState('');
+  const [rating, setRating] = useState(5);
+  const [region, setRegion] = useState('');
+  const [featured, setFeatured] = useState(false);
+  const [source, setSource] = useState<'reddit' | 'whatsapp' | 'direct'>('direct');
+  const [productType, setProductType] = useState<string>('');
+  const [screenshotUrl, setScreenshotUrl] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-    const auth = getAuth();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const auth = getAuth();
 
-    const fetchTestimonialsData = async () => {
-        setLoading(true);
-        try {
-            const data = await getTestimonials();
-            // Sort: featured first
-            const sorted = [...data].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-            setTestimonials(sorted);
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const data = await getTestimonials();
+      setTestimonials([...data].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    useEffect(() => { fetchTestimonialsData(); }, []);
+  useEffect(() => { fetchData(); }, []);
 
-    const handleCreateNew = () => {
-        setContent(''); setUser(''); setRating(5); setRegion(''); setFeatured(false);
-        setEditingId(null);
-        setView('form');
-    };
+  const resetForm = () => {
+    setContent(''); setUser(''); setRating(5); setRegion(''); setFeatured(false);
+    setSource('direct'); setProductType(''); setScreenshotUrl('');
+    setScreenshotFile(null); setScreenshotPreview('');
+    setEditingId(null); setError(null);
+  };
 
-    const handleEdit = (t: Testimonial) => {
-        setContent(t.content); setUser(t.user); setRating(t.rating); setRegion(t.region); setFeatured(t.featured);
-        setEditingId(t.id);
-        setView('form');
-    };
+  const handleCreateNew = () => { resetForm(); setView('form'); };
 
-    const handleCancel = () => { setView('list'); setEditingId(null); setError(null); };
+  const handleEdit = (t: Testimonial) => {
+    setContent(t.content); setUser(t.user); setRating(t.rating); setRegion(t.region || '');
+    setFeatured(t.featured); setSource(t.source || 'direct');
+    setProductType(t.productType || ''); setScreenshotUrl(t.screenshotUrl || '');
+    setScreenshotPreview(t.screenshotUrl || ''); setScreenshotFile(null);
+    setEditingId(t.id); setView('form');
+  };
 
-    const handleDelete = async (id: string) => {
-        if (!window.confirm('Delete this testimonial?')) return;
-        const currentUser = auth.currentUser;
-        if (!currentUser) { setError("Not authenticated."); return; }
-        try {
-            await deleteTestimonial(id);
-            setTestimonials(prev => prev.filter(t => t.id !== id));
-        } catch (err: any) {
-            setError(err.message);
-        }
-    };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScreenshotFile(file);
+    const url = URL.createObjectURL(file);
+    setScreenshotPreview(url);
+  };
 
-    const handleToggleFeatured = async (t: Testimonial) => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) return;
-        const newFeatured = !t.featured;
-        try {
-            const updatedTestimonial = { ...t, featured: newFeatured };
-            await saveTestimonial(updatedTestimonial);
-            setTestimonials(prev => {
-                const next = prev.map(item => item.id === t.id ? updatedTestimonial : item);
-                return [...next].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-            });
-        } catch (err: any) {
-            setError(err.message);
-        }
-    };
+  const handleRemoveScreenshot = () => {
+    setScreenshotFile(null); setScreenshotPreview(''); setScreenshotUrl('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setSubmitting(true);
-        setError(null);
-        const currentUser = auth.currentUser;
-        if (!currentUser) { setError("Not authenticated."); setSubmitting(false); return; }
-        
-        const testimonialData: Testimonial = {
-            id: editingId || `t_${Date.now()}`,
-            content,
-            user,
-            rating,
-            region,
-            featured,
-            createdAt: testimonials.find(t => t.id === editingId)?.createdAt || new Date().toISOString()
-        };
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Delete this testimonial?')) return;
+    try {
+      await deleteTestimonial(id);
+      setTestimonials(prev => prev.filter(t => t.id !== id));
+    } catch (err: any) { setError(err.message); }
+  };
 
-        try {
-            await saveTestimonial(testimonialData);
-            if (editingId) {
-                setTestimonials(prev => {
-                    const next = prev.map(t => t.id === editingId ? testimonialData : t);
-                    return [...next].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-                });
-            } else {
-                setTestimonials(prev => {
-                    const next = [testimonialData, ...prev];
-                    return [...next].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
-                });
-            }
-            setView('list');
-        } catch (err: any) {
-            setError(err.message);
-        } finally {
-            setSubmitting(false);
-        }
-    };
+  const handleToggleFeatured = async (t: Testimonial) => {
+    const updated = { ...t, featured: !t.featured };
+    try {
+      await saveTestimonial(updated);
+      setTestimonials(prev => [...prev.map(x => x.id === t.id ? updated : x)].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0)));
+    } catch (err: any) { setError(err.message); }
+  };
 
-    if (view === 'form') {
-        return (
-            <div className="bg-gray-800 p-6 rounded-lg shadow-lg max-w-2xl mx-auto">
-                <h2 className="text-2xl font-bold mb-6 text-white">{editingId ? 'Edit Testimonial' : 'New Testimonial'}</h2>
-                {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md mb-4">{error}</div>}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">Quote Content</label>
-                        <textarea value={content} onChange={e => setContent(e.target.value)} required rows={4}
-                            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-1">User Name / Title</label>
-                        <input type="text" value={user} onChange={e => setUser(e.target.value)} required
-                            className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            placeholder="e.g. Career Premium user (UK)" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Rating (1–5)</label>
-                            <select value={rating} onChange={e => setRating(Number(e.target.value))}
-                                className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                {[1, 2, 3, 4, 5].map(r => <option key={r} value={r}>{r} Stars</option>)}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-1">Region (Optional)</label>
-                            <input type="text" value={region} onChange={e => setRegion(e.target.value)}
-                                className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                placeholder="e.g. EU, US" />
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3 p-3 bg-gray-700/50 rounded-lg">
-                        <input type="checkbox" id="featured-check" checked={featured} onChange={e => setFeatured(e.target.checked)} className="w-4 h-4 accent-indigo-500" />
-                        <label htmlFor="featured-check" className="text-sm text-gray-300 cursor-pointer flex items-center gap-1.5">
-                            <Pin size={14} className="text-indigo-400" /> Pin as featured review
-                        </label>
-                    </div>
-                    <div className="flex justify-end gap-3 mt-6">
-                        <button type="button" onClick={handleCancel} className="px-4 py-2 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition">Cancel</button>
-                        <button type="submit" disabled={submitting} className="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-medium transition disabled:opacity-50">
-                            {submitting ? 'Saving...' : (editingId ? 'Update' : 'Create')}
-                        </button>
-                    </div>
-                </form>
-            </div>
-        );
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true); setError(null);
+    const currentUser = auth.currentUser;
+    if (!currentUser) { setError('Not authenticated.'); setSubmitting(false); return; }
+
+    let finalScreenshotUrl = screenshotUrl;
+
+    // Upload new screenshot if one was picked
+    if (screenshotFile) {
+      setUploading(true);
+      try {
+        const id = editingId || `t_${Date.now()}`;
+        finalScreenshotUrl = await uploadTestimonialScreenshot(screenshotFile, id);
+      } catch (err: any) {
+        setError('Screenshot upload failed: ' + err.message);
+        setSubmitting(false); setUploading(false); return;
+      } finally { setUploading(false); }
     }
 
+    const data: Testimonial = {
+      id: editingId || `t_${Date.now()}`,
+      content, user, rating, region, featured,
+      source,
+      productType: productType as any || undefined,
+      screenshotUrl: finalScreenshotUrl || undefined,
+      createdAt: testimonials.find(t => t.id === editingId)?.createdAt || new Date().toISOString(),
+    };
+
+    try {
+      await saveTestimonial(data);
+      setTestimonials(prev => {
+        const next = editingId
+          ? prev.map(t => t.id === editingId ? data : t)
+          : [data, ...prev];
+        return [...next].sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
+      });
+      setView('list');
+      resetForm();
+    } catch (err: any) {
+      setError(err.message);
+    } finally { setSubmitting(false); }
+  };
+
+  if (view === 'form') {
     return (
-        <div>
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h2 className="text-2xl font-bold text-white">Testimonials</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">{testimonials.filter(t => t.featured).length} pinned · {testimonials.length} total</p>
-                </div>
-                <button onClick={handleCreateNew} className="flex items-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-md transition">
-                    <Plus size={18} /> Add New
-                </button>
+      <div className="bg-slate-800/50 p-8 rounded-2xl border border-slate-700 max-w-2xl mx-auto">
+        <h2 className="text-2xl font-bold mb-6 text-white">{editingId ? 'Edit Testimonial' : 'New Testimonial'}</h2>
+        {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-xl mb-4 text-sm">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Quote */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Review Quote</label>
+            <textarea value={content} onChange={e => setContent(e.target.value)} required rows={4}
+              className="w-full bg-slate-900 border border-slate-600 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+          </div>
+
+          {/* User & Region */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Customer Name</label>
+              <input type="text" value={user} onChange={e => setUser(e.target.value)} required
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="e.g. James R." />
             </div>
-            {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-md mb-4 text-sm">{error}</div>}
-            {loading ? (
-                <p className="text-gray-400">Loading testimonials...</p>
-            ) : testimonials.length === 0 ? (
-                <p className="text-gray-400 text-center py-12 bg-gray-800/50 rounded-lg">No testimonials found.</p>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Region</label>
+              <input type="text" value={region} onChange={e => setRegion(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="e.g. 🇬🇧 United Kingdom" />
+            </div>
+          </div>
+
+          {/* Rating, Source, Product */}
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Rating</label>
+              <select value={rating} onChange={e => setRating(Number(e.target.value))}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                {[5, 4, 3, 2, 1].map(r => <option key={r} value={r}>{r} Stars</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Source</label>
+              <select value={source} onChange={e => setSource(e.target.value as any)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="direct">Direct</option>
+                <option value="reddit">Reddit</option>
+                <option value="whatsapp">WhatsApp</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Product Type</label>
+              <select value={productType} onChange={e => setProductType(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                {PRODUCT_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Screenshot Upload */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Screenshot (optional)</label>
+            {screenshotPreview ? (
+              <div className="relative">
+                <img src={screenshotPreview} alt="Preview" className="w-full max-h-48 object-cover rounded-xl border border-slate-600" />
+                <button type="button" onClick={handleRemoveScreenshot}
+                  className="absolute top-2 right-2 p-1.5 bg-red-500 hover:bg-red-400 text-white rounded-lg transition">
+                  <X size={14} />
+                </button>
+              </div>
             ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {testimonials.map(t => (
-                        <div key={t.id} className={`bg-gray-800 p-5 rounded-lg border flex flex-col justify-between transition ${t.featured ? 'border-indigo-500/50 shadow-lg shadow-indigo-500/10' : 'border-gray-700'}`}>
-                            {t.featured && (
-                                <div className="flex items-center gap-1 text-indigo-400 text-xs font-bold mb-3">
-                                    <Pin size={12} /> Pinned / Featured
-                                </div>
-                            )}
-                            <div>
-                                <div className="flex text-yellow-500 mb-3 space-x-0.5">
-                                    {[...Array(5)].map((_, i) => (
-                                        <Star key={i} size={14} className={i < t.rating ? "fill-current" : "text-gray-600 fill-none"} />
-                                    ))}
-                                </div>
-                                <p className="text-gray-300 mb-4 line-clamp-4 italic">"{t.content}"</p>
-                            </div>
-                            <div className="flex items-center justify-between pt-4 border-t border-gray-700/50 mt-auto">
-                                <div>
-                                    <p className="text-sm font-bold text-white">{t.user}</p>
-                                    {t.region && <p className="text-xs text-gray-500">{t.region}</p>}
-                                </div>
-                                <div className="flex gap-1">
-                                    <button
-                                        onClick={() => handleToggleFeatured(t)}
-                                        title={t.featured ? "Unpin" : "Pin as featured"}
-                                        className={`p-1.5 rounded-md transition ${t.featured ? 'text-indigo-400 bg-indigo-400/10 hover:bg-indigo-400/20' : 'text-gray-500 hover:text-indigo-400 hover:bg-indigo-400/10'}`}
-                                    >
-                                        <Pin size={14} />
-                                    </button>
-                                    <button onClick={() => handleEdit(t)} className="p-1.5 text-indigo-400 hover:bg-indigo-400/10 rounded-md transition">
-                                        <Edit2 size={14} />
-                                    </button>
-                                    <button onClick={() => handleDelete(t.id)} className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-md transition">
-                                        <Trash2 size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-600 hover:border-indigo-500 rounded-xl p-8 text-center cursor-pointer transition-colors group"
+              >
+                <Image size={28} className="mx-auto mb-2 text-slate-500 group-hover:text-indigo-400 transition" />
+                <p className="text-sm text-slate-500 group-hover:text-slate-400">Click to upload screenshot</p>
+                <p className="text-xs text-slate-600 mt-1">PNG, JPG, WEBP up to 10MB</p>
+              </div>
             )}
-        </div>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          </div>
+
+          {/* Featured toggle */}
+          <div
+            onClick={() => setFeatured(!featured)}
+            className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${featured ? 'border-indigo-500/50 bg-indigo-500/10' : 'border-slate-700 hover:border-slate-500'}`}
+          >
+            <Pin size={16} className={featured ? 'text-indigo-400' : 'text-slate-500'} />
+            <div>
+              <p className="text-sm font-bold text-white">Pin as Featured Review</p>
+              <p className="text-xs text-slate-500">Shows this review in the spotlight at the top of the page</p>
+            </div>
+            <div className={`ml-auto w-9 h-5 rounded-full transition-colors relative ${featured ? 'bg-indigo-500' : 'bg-slate-700'}`}>
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${featured ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => { setView('list'); resetForm(); }}
+              className="px-5 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium transition">Cancel</button>
+            <button type="submit" disabled={submitting || uploading}
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition disabled:opacity-50 flex items-center gap-2">
+              {(submitting || uploading) && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              {uploading ? 'Uploading...' : submitting ? 'Saving...' : (editingId ? 'Update' : 'Create')}
+            </button>
+          </div>
+        </form>
+      </div>
     );
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Testimonials</h2>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {testimonials.filter(t => t.featured).length} pinned · {testimonials.filter(t => t.screenshotUrl).length} with screenshot · {testimonials.length} total
+          </p>
+        </div>
+        <button onClick={handleCreateNew}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl transition text-sm">
+          <Plus size={16} /> Add New
+        </button>
+      </div>
+
+      {error && <div className="bg-red-500/20 text-red-300 p-3 rounded-xl mb-4 text-sm">{error}</div>}
+
+      {loading ? (
+        <p className="text-slate-400 text-sm">Loading testimonials...</p>
+      ) : testimonials.length === 0 ? (
+        <p className="text-slate-400 text-center py-16 bg-slate-800/30 rounded-2xl text-sm">No testimonials yet. Add your first one!</p>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {testimonials.map(t => (
+            <div key={t.id}
+              className={`bg-slate-800 rounded-2xl border flex flex-col justify-between transition ${t.featured ? 'border-indigo-500/40 shadow-lg shadow-indigo-500/10' : 'border-slate-700'}`}
+            >
+              {/* Screenshot thumbnail */}
+              {t.screenshotUrl && (
+                <img src={t.screenshotUrl} alt="" className="w-full h-28 object-cover rounded-t-2xl" />
+              )}
+
+              <div className="p-5 flex flex-col justify-between flex-1">
+                {t.featured && (
+                  <div className="flex items-center gap-1 text-indigo-400 text-xs font-bold mb-2">
+                    <Pin size={11} /> Pinned / Featured
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex text-yellow-400">
+                      {[...Array(5)].map((_, i) => (
+                        <Star key={i} size={12} className={i < t.rating ? 'fill-current' : 'text-slate-600 fill-none'} />
+                      ))}
+                    </div>
+                    {t.source && (
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${
+                        t.source === 'reddit' ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' :
+                        t.source === 'whatsapp' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
+                        'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                      }`}>
+                        {t.source === 'reddit' ? '🤖 Reddit' : t.source === 'whatsapp' ? '💬 WhatsApp' : '✓ Direct'}
+                      </span>
+                    )}
+                    {t.productType && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-400 border border-slate-600">
+                        {PRODUCT_TYPES.find(p => p.value === t.productType)?.label || t.productType}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-slate-300 text-xs mb-3 line-clamp-3 italic">"{t.content}"</p>
+                </div>
+                <div className="flex items-center justify-between pt-3 border-t border-slate-700/50 mt-auto">
+                  <div>
+                    <p className="text-xs font-bold text-white">{t.user}</p>
+                    {t.region && <p className="text-[10px] text-slate-500">{t.region}</p>}
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => handleToggleFeatured(t)} title={t.featured ? 'Unpin' : 'Pin as featured'}
+                      className={`p-1.5 rounded-lg transition ${t.featured ? 'text-indigo-400 bg-indigo-400/10 hover:bg-indigo-400/20' : 'text-slate-500 hover:text-indigo-400 hover:bg-indigo-400/10'}`}>
+                      <Pin size={13} />
+                    </button>
+                    <button onClick={() => handleEdit(t)} className="p-1.5 text-indigo-400 hover:bg-indigo-400/10 rounded-lg transition">
+                      <Edit2 size={13} />
+                    </button>
+                    <button onClick={() => handleDelete(t.id)} className="p-1.5 text-red-400 hover:bg-red-400/10 rounded-lg transition">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default ManageTestimonials;
