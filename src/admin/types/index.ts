@@ -245,6 +245,12 @@ export interface Testimonial {
   screenshotUrl?: string;
   /** Product type for filtering on the testimonials page */
   productType?: 'career' | 'business' | 'sales-navigator' | 'company-page' | 'recruiter';
+  /** Whether this review is visible on the public page (defaults to true if absent) */
+  visible?: boolean;
+  /** Avatar colour key */
+  avatarColor?: 'blue' | 'purple' | 'green' | 'orange' | 'teal' | 'pink';
+  /** Country flag emoji */
+  flag?: string;
 }
 
 // ─── Phase 8: Inventory & Vendors ─────────────────────────────────────────────
