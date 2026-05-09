@@ -33,7 +33,7 @@ const Footer: React.FC = () => {
   return (
     <footer className="bg-black pt-24 pb-12 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-20">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-20">
           <div className="lg:col-span-1">
             <Link to="/" className="flex items-center gap-2 mb-6">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center">
@@ -139,6 +139,26 @@ const Footer: React.FC = () => {
                   </Link>
                 </m.div>
               </li>
+            </ul>
+          </div>
+          <div>
+            <h3 className="font-bold text-white mb-6 text-sm uppercase tracking-widest">Latest Guides</h3>
+            <ul className="space-y-4 text-sm text-neutral-500">
+              {[
+                { label: 'LinkedIn Premium vs Free: Is It Worth It?', path: '/guides/linkedin-premium-vs-free-is-it-worth-it-in-2026' },
+                { label: 'Sales Navigator Review 2026', path: '/guides/linkedin-sales-navigator-review-2026' },
+                { label: 'LinkedIn Premium for Freelancers', path: '/guides/linkedin-premium-for-freelancers-2026' },
+                { label: 'Career vs Business: Which Plan?', path: '/guides/linkedin-premium-career-vs-business-2026' },
+                { label: 'How to Use InMails to Skip the Job Queue', path: '/guides/the-job-hunters-guide-how-to-use-linkedin-inmails-to-skip-the-job-queue-2026-guide' },
+              ].map((item) => (
+                <li key={item.label}>
+                  <m.div whileHover={{ x: 5, color: '#818cf8' }}>
+                    <Link to={item.path} className="transition-colors text-left block leading-snug">
+                      {item.label}
+                    </Link>
+                  </m.div>
+                </li>
+              ))}
             </ul>
           </div>
         </div>

@@ -2,7 +2,8 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation, Navigate, Link } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { auth } from './firebase';
+import { collection, getDocs, query, orderBy, limit as fsLimit, where } from 'firebase/firestore';
+import { auth, db } from './firebase';
 import { LazyMotion } from 'framer-motion';
 import ReactGA from 'react-ga4';
 
@@ -13,6 +14,92 @@ import Hero from '../components/Hero';
 import Button from '../components/Button';
 import TrustSection from '../components/TrustSection';
 import Services from '../components/Services';
+
+// --- Latest Guides Component (for Homepage Internal Linking) ---
+interface GuidePreview { id: string; slug: string; title: string; summary: string; imageUrl?: string; createdAt: string; }
+
+const LatestGuides: React.FC = () => {
+  const [guides, setGuides] = useState<GuidePreview[]>([]);
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const q = query(
+          collection(db, 'posts'),
+          where('status', '!=', 'draft'),
+          orderBy('status'),
+          orderBy('createdAt', 'desc'),
+          fsLimit(3)
+        );
+        const snap = await getDocs(q);
+        setGuides(snap.docs.map(d => ({ id: d.id, ...d.data() } as GuidePreview)));
+      } catch (e) {
+        console.error('LatestGuides fetch error:', e);
+      }
+    };
+    fetch();
+  }, []);
+
+  if (guides.length === 0) return null;
+
+  return (
+    <section className="py-24 border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-6">
+        <div className="flex flex-col md:flex-row items-start md:items-end justify-between mb-14 gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold tracking-[0.2em] text-indigo-400 mb-4 uppercase">
+              Unlock Academy
+            </div>
+            <h2 className="text-4xl md:text-5xl font-black text-white tracking-tight">
+              👉 Latest LinkedIn <span className="text-indigo-400">Guides</span>
+            </h2>
+            <p className="text-neutral-500 mt-3 text-base max-w-xl">
+              Expert strategies to maximise your LinkedIn Premium subscription for career growth and sales success.
+            </p>
+          </div>
+          <Link
+            to="/guides"
+            className="shrink-0 text-sm font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 group"
+          >
+            View all guides <span className="group-hover:translate-x-1 transition-transform inline-block">→</span>
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {guides.map((guide) => (
+            <Link
+              key={guide.id}
+              to={`/guides/${guide.slug}`}
+              className="glass rounded-[20px] overflow-hidden border border-white/10 group hover:border-indigo-500/30 hover:-translate-y-1 transition-all duration-300 flex flex-col"
+            >
+              {guide.imageUrl && (
+                <div className="w-full h-44 overflow-hidden">
+                  <img
+                    src={guide.imageUrl}
+                    alt={guide.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                </div>
+              )}
+              <div className="p-6 flex flex-col flex-1">
+                <h3 className="text-lg font-bold text-white mb-2 group-hover:text-indigo-300 transition-colors line-clamp-2 leading-snug">
+                  {guide.title}
+                </h3>
+                <p className="text-neutral-500 text-sm leading-relaxed line-clamp-3 flex-1">
+                  {guide.summary}
+                </p>
+                <div className="pt-4 mt-4 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-xs text-neutral-600">{new Date(guide.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                  <span className="text-xs font-bold text-indigo-400 group-hover:translate-x-1 transition-transform">Read Guide →</span>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
 
 // Lazy Imports
 const LegalPage = React.lazy(() => import('../components/LegalPage'));
@@ -185,6 +272,7 @@ const App: React.FC = () => {
         <Services limit={3} />
       </section>
       <TrustSection />
+      <LatestGuides />
       
       {/* How it Works Section (Condensed for Homepage SEO) */}
       <section className="py-20 bg-[#070707]">
