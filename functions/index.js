@@ -337,7 +337,7 @@ app.delete('/testimonials/:id', authenticate, async (req, res) => {
 // --- SITEMAP ---
 app.get('/sitemap.xml', async (req, res) => {
     try {
-        const baseUrl = 'https://unlockpremium.store';
+        const baseUrl = 'https://www.unlockpremium.store';
         const staticPages = [
             '',
             '/how-it-works',
@@ -348,7 +348,8 @@ app.get('/sitemap.xml', async (req, res) => {
             '/contact-support',
             '/activation-warranty',
             '/legal-privacy-notice',
-            '/refund-activation-policy'
+            '/refund-activation-policy',
+            '/guides/the-job-hunters-guide-how-to-use-linkedin-inmails-to-skip-the-job-queue-2026-guide'
         ];
 
         // Fetch all posts and filter out drafts
