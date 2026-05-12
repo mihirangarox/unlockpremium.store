@@ -2,7 +2,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { Routes, Route, useLocation, Navigate, Link } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { collection, getDocs, query, orderBy, limit as fsLimit, where } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit as fsLimit } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { LazyMotion } from 'framer-motion';
 import ReactGA from 'react-ga4';
@@ -25,13 +25,12 @@ const LatestGuides: React.FC = () => {
       try {
         const q = query(
           collection(db, 'posts'),
-          where('status', '!=', 'draft'),
-          orderBy('status'),
           orderBy('createdAt', 'desc'),
-          fsLimit(3)
+          fsLimit(6)
         );
         const snap = await getDocs(q);
-        setGuides(snap.docs.map(d => ({ id: d.id, ...d.data() } as GuidePreview)));
+        const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as GuidePreview));
+        setGuides(all.filter(p => p.status !== 'draft').slice(0, 3));
       } catch (e) {
         console.error('LatestGuides fetch error:', e);
       }

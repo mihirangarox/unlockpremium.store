@@ -46,21 +46,6 @@ const GuideDetailPage: React.FC = () => {
                 }
                 const postData = { id: snap.docs[0].id, ...snap.docs[0].data() } as Post;
                 setPost(postData);
-
-                // Fetch related guides (excluding current)
-                const relatedQ = query(
-                    collection(db, 'posts'),
-                    where('status', '!=', 'draft'),
-                    orderBy('status'),
-                    orderBy('createdAt', 'desc'),
-                    limit(6)
-                );
-                const relatedSnap = await getDocs(relatedQ);
-                const others = relatedSnap.docs
-                    .map(d => ({ id: d.id, ...d.data() } as Post))
-                    .filter(p => p.slug !== slug)
-                    .slice(0, 3);
-                setRelatedGuides(others);
             } catch (error: any) {
                 console.error("Error fetching post:", error);
                 setError(error.message);
@@ -69,7 +54,27 @@ const GuideDetailPage: React.FC = () => {
             }
         };
 
+        const fetchRelated = async () => {
+            try {
+                const relatedQ = query(
+                    collection(db, 'posts'),
+                    orderBy('createdAt', 'desc'),
+                    limit(6)
+                );
+                const relatedSnap = await getDocs(relatedQ);
+                const others = relatedSnap.docs
+                    .map(d => ({ id: d.id, ...d.data() } as Post))
+                    .filter(p => p.slug !== slug && p.status !== 'draft')
+                    .slice(0, 3);
+                setRelatedGuides(others);
+            } catch (e) {
+                console.error('Related guides fetch error:', e);
+                // Don't set error state — related guides failing is non-critical
+            }
+        };
+
         fetchPost();
+        fetchRelated();
     }, [slug]);
 
     if (loading) {
