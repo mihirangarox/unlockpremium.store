@@ -264,14 +264,17 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
 
-  const HomePage = () => (
+  const HomePage = React.memo(() => (
     <>
       <Hero />
       <section className="py-20">
         <Services limit={3} />
       </section>
       <TrustSection />
-      <LatestGuides />
+      {/* Defer below-fold guides section — won't block LCP */}
+      <React.Suspense fallback={null}>
+        <LatestGuides />
+      </React.Suspense>
       
       {/* How it Works Section (Condensed for Homepage SEO) */}
       <section className="py-20 bg-[#070707]">
@@ -328,7 +331,7 @@ const App: React.FC = () => {
         </div>
       </section>
     </>
-  );
+  ));
 
   const isAdminRoute = location.pathname.startsWith(ADMIN_PATH);
 

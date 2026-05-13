@@ -84,10 +84,17 @@ body {
   color: #ffffff;
 }
 
+/* Mobile: skip backdrop-filter (major paint cost on low-end devices).
+   Desktop keeps the full glass effect. */
 .glass {
   background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+@media (min-width: 640px) {
+  .glass {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
 }
 
 .gradient-text {
