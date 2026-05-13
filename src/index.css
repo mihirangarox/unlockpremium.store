@@ -78,10 +78,18 @@
 }
 
 /* Additional custom styles moved from index.html */
+/* Smooth scroll — replaces the inline <style> that was in App.tsx */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   background-color: #050505;
   color: #ffffff;
+  /* Prevent mobile text-size inflation */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Mobile: skip backdrop-filter (major paint cost on low-end devices).

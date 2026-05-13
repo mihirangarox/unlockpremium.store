@@ -7,13 +7,16 @@ import { auth, db } from './firebase';
 import { LazyMotion } from 'framer-motion';
 import ReactGA from 'react-ga4';
 
-// Static Imports
+// Static Imports — only what's needed above the fold
 import Header from '../components/Header';
-import Footer from '../components/Footer';
 import Hero from '../components/Hero';
 import Button from '../components/Button';
 import TrustSection from '../components/TrustSection';
 import Services from '../components/Services';
+
+// Lazy Imports — non-critical, loaded after initial render
+const Footer = React.lazy(() => import('../components/Footer'));
+const CartDrawer = React.lazy(() => import('../components/CartDrawer'));
 
 // --- Latest Guides Component (for Homepage Internal Linking) ---
 interface GuidePreview { id: string; slug: string; title: string; summary: string; imageUrl?: string; createdAt: string; }
@@ -75,8 +78,11 @@ const LatestGuides: React.FC = () => {
                   <img
                     src={guide.imageUrl}
                     alt={guide.title}
+                    width={400}
+                    height={176}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
+                    decoding="async"
                   />
                 </div>
               )}
@@ -113,12 +119,11 @@ const CheckoutPage = React.lazy(() => import('../components/CheckoutPage'));
 const GuidesPage = React.lazy(() => import('../components/GuidesPage'));
 const GuideDetailPage = React.lazy(() => import('../components/GuideDetailPage'));
 const TestimonialsPage = React.lazy(() => import('../components/TestimonialsPage'));
-import AdminLoginPage from '../components/AdminLoginPage';
-import NotFoundPage from '../components/NotFoundPage';
+const AdminLoginPage = React.lazy(() => import('../components/AdminLoginPage'));
+const NotFoundPage = React.lazy(() => import('../components/NotFoundPage'));
 import { AdminRoutes } from './admin/AdminRoutes';
 import { CartProvider } from './context/CartContext';
 import { LocalizationProvider } from './context/LocalizationContext';
-import CartDrawer from '../components/CartDrawer';
 const ServiceLandingPage = React.lazy(() => import('../components/ServiceLandingPage'));
 
 // Helper to scroll to top on route change
@@ -342,7 +347,12 @@ const App: React.FC = () => {
         <ScrollToTop />
         <LazyMotion features={() => import('framer-motion').then(res => res.domAnimation)}>
           {!isAdminRoute ? <Header /> : null}
-          {!isAdminRoute ? <CartDrawer /> : null}
+          {/* CartDrawer lazy — not needed until user clicks cart */}
+          {!isAdminRoute ? (
+            <React.Suspense fallback={null}>
+              <CartDrawer />
+            </React.Suspense>
+          ) : null}
           <main>
             <Routes>
               <Route path="/" element={<HomePage />} />
@@ -374,11 +384,13 @@ const App: React.FC = () => {
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
         </main>
-        {!isAdminRoute ? <Footer /> : null}
+        {/* Footer lazy — well below fold, never blocks LCP */}
+        {!isAdminRoute ? (
+          <React.Suspense fallback={null}>
+            <Footer />
+          </React.Suspense>
+        ) : null}
       </LazyMotion>
-      <style>{`
-        html { scroll-behavior: smooth; }
-      `}</style>
       </div>
     </CartProvider>
     </LocalizationProvider>
