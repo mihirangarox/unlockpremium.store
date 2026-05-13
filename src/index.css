@@ -136,6 +136,71 @@ body {
   animation: float 4s ease-in-out infinite;
 }
 
+/* ─── CSS entry animations (replace framer-motion in critical path) ─── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile first: no animations above the fold — content renders fully visible */
+.anim-fade-in,
+.anim-fade-up,
+.anim-fade-up-d1,
+.anim-fade-up-d2,
+.anim-fade-up-d3,
+.anim-fade-up-d4 {
+  /* visible by default on mobile */
+  opacity: 1;
+  transform: none;
+}
+
+/* Desktop (768px+): enable entry animations */
+@media (min-width: 768px) {
+  .anim-fade-in  { animation: fadeIn 0.45s ease both; }
+  .anim-fade-up  { animation: fadeUp 0.5s ease both; }
+  .anim-fade-up-d1 { animation: fadeUp 0.5s 0.12s ease both; }
+  .anim-fade-up-d2 { animation: fadeUp 0.5s 0.22s ease both; }
+  .anim-fade-up-d3 { animation: fadeUp 0.5s 0.32s ease both; }
+  .anim-fade-up-d4 { animation: fadeUp 0.5s 0.42s ease both; }
+}
+
+/* Scroll-reveal: JS adds .is-visible via IntersectionObserver */
+/* Mobile: show immediately — no layout cost from hidden-then-reveal */
+.reveal {
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+/* Desktop: enable reveal animation */
+@media (min-width: 768px) {
+  .reveal {
+    opacity: 0;
+    transform: translateY(16px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-d1 { transition-delay: 0.08s; }
+  .reveal-d2 { transition-delay: 0.16s; }
+  .reveal-d3 { transition-delay: 0.24s; }
+  .reveal-d4 { transition-delay: 0.32s; }
+}
+
+/* Always respect user motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-in, .anim-fade-up,
+  .anim-fade-up-d1, .anim-fade-up-d2,
+  .anim-fade-up-d3, .anim-fade-up-d4,
+  .reveal { animation: none !important; transition: none !important;
+            opacity: 1 !important; transform: none !important; }
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
