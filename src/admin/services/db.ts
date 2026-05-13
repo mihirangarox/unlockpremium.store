@@ -41,7 +41,7 @@ import type {
 
 export const getProducts = async (): Promise<Product[]> => {
   const snap = await getDocs(collection(db, "products"));
-  return snap.docs.map(d => d.data() as Product);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
 };
 
 export const getProduct = async (id: string): Promise<Product | undefined> => {

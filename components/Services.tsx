@@ -171,34 +171,50 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        setIsLoading(true);
-        const [data, liveStock] = await Promise.all([
-          getProducts(),
-          getAvailableLiveStock()
-        ]);
+    let cancelled = false;
 
-        const counts = liveStock.reduce((acc, code) => {
-          acc[code.productId] = (acc[code.productId] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
+    const doFetch = async () => {
+      const [data, liveStock] = await Promise.all([
+        getProducts(),
+        getAvailableLiveStock()
+      ]);
 
-        // KEY FIX: use `!== false` so products without isActive field show by default.
-        // Only products explicitly set to isActive: false are hidden.
-        const activeProducts = data
-          .filter(p => p.isActive !== false)
-          .sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
+      const counts = liveStock.reduce((acc, code) => {
+        acc[code.productId] = (acc[code.productId] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
+      // Only products explicitly set to isActive: false are hidden.
+      const activeProducts = data
+        .filter(p => p.isActive !== false)
+        .sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
+
+      if (!cancelled) {
         setStockCounts(counts);
         setProducts(limit ? activeProducts.slice(0, limit) : activeProducts);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      } finally {
-        setIsLoading(false);
       }
     };
-    fetchProducts();
+
+    const fetchWithRetry = async (attemptsLeft: number, delayMs: number) => {
+      try {
+        setIsLoading(true);
+        await doFetch();
+      } catch (error) {
+        if (attemptsLeft > 0 && !cancelled) {
+          console.warn(`Products fetch failed, retrying in ${delayMs}ms…`, error);
+          await new Promise(r => setTimeout(r, delayMs));
+          return fetchWithRetry(attemptsLeft - 1, delayMs * 2);
+        }
+        console.error("Error fetching products after retries:", error);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
+    // Retry up to 3 times: 800ms → 1600ms → 3200ms
+    fetchWithRetry(3, 800);
+
+    return () => { cancelled = true; };
   }, [limit]);
 
   const container = {
