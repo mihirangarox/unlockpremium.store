@@ -341,7 +341,7 @@ app.get('/sitemap.xml', async (req, res) => {
         const staticPages = [
             '',
             '/how-it-works',
-            '/plans',
+            '/products',
             '/guides',
             '/testimonials',
             '/faqs',

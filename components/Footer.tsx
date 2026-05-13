@@ -6,7 +6,7 @@ import { logEvent } from 'firebase/analytics';
 // Nav link data — static, no framer-motion needed
 const NAV_LINKS = [
   { label: 'How It Works', path: '/how-it-works' },
-  { label: 'Plans', path: '/plans' },
+  { label: 'Products', path: '/products' },
   { label: 'Guides', path: '/guides' },
   { label: 'Testimonials', path: '/testimonials' },
 ];

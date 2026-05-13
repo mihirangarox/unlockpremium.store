@@ -345,7 +345,7 @@ const TestimonialsPage: React.FC = () => {
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-purple-500/5 to-transparent pointer-events-none rounded-3xl" />
           <h2 className="text-4xl font-black text-white mb-4">Join 500+ professionals saving on LinkedIn Premium</h2>
           <p className="text-neutral-400 mb-8">Verified activation. Instant delivery. Up to 70% off Career & Sales Navigator.</p>
-          <Button variant="primary" size="lg" as={Link} to="/plans">Get Your Discount Now →</Button>
+          <Button variant="primary" size="lg" as={Link} to="/products">Get Your Discount Now →</Button>
           <p className="text-neutral-600 text-xs mt-4">No password required · Official LinkedIn redemption · Instant activation</p>
         </div>
       </section>

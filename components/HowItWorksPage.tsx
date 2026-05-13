@@ -50,7 +50,7 @@ const HowItWorksPage: React.FC = () => {
             </p>
           </div>
           <div className="mt-12 flex flex-wrap gap-4">
-            <Button variant="primary" as={Link} to="/plans">Explore LinkedIn Plans</Button>
+            <Button variant="primary" as={Link} to="/products">Explore LinkedIn Plans</Button>
             <Button variant="outline" as={Link} to="/contact-support">Speak to Support</Button>
             <Button variant="ghost" as={Link} to="/activation-warranty">Read our Warranty</Button>
           </div>

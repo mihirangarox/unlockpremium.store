@@ -113,7 +113,6 @@ const ContactPage = React.lazy(() => import('../components/ContactPage'));
 const WarrantyPage = React.lazy(() => import('../components/WarrantyPage'));
 const FaqPage = React.lazy(() => import('../components/FaqPage'));
 const HowItWorksPage = React.lazy(() => import('../components/HowItWorksPage'));
-const PlansPage = React.lazy(() => import('../components/PlansPage'));
 const ProductsPage = React.lazy(() => import('../components/ProductsPage'));
 const CheckoutPage = React.lazy(() => import('../components/CheckoutPage'));
 const GuidesPage = React.lazy(() => import('../components/GuidesPage'));
@@ -175,8 +174,9 @@ const App: React.FC = () => {
         desc: "Explore our discounted LinkedIn Premium plans. Career, Business, and Sales Navigator available at up to 70% off retail prices."
       },
       '/products': {
-        title: "Store & Catalog — LinkedIn Premium | UnlockPremium",
-        desc: "Shop our active catalog of discounted LinkedIn Premium subscriptions and digital products."
+        title: "LinkedIn Premium Plans & Discounts | UnlockPremium",
+        desc: "Choose from Career, Business, or Sales Navigator plans with verified activation, no password needed, and a full global warranty. Save up to 70% today.",
+        canonical: "https://www.unlockpremium.store/products"
       },
       '/checkout': {
         title: "Checkout — Secure Payment | UnlockPremium",
@@ -219,6 +219,7 @@ const App: React.FC = () => {
     // Special handling for dynamic service routes
     let title = seoData.default.title;
     let desc = seoData.default.desc;
+    let canonical: string | null = null;
 
     if (path.startsWith('/services/')) {
       const serviceId = path.split('/services/')[1];
@@ -226,17 +227,29 @@ const App: React.FC = () => {
       title = `${serviceTitle} Discount — LinkedIn Premium | UnlockPremium`;
       desc = `Get ${serviceTitle} at up to 70% off. Instant activation via verified referral links. Save today at UnlockPremium.`;
     } else {
-      const pageData = seoData[path];
+      const pageData = seoData[path] as any;
       if (pageData) {
         title = pageData.title;
         desc = pageData.desc;
+        canonical = pageData.canonical || null;
       }
     }
 
     document.title = title;
     const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
-      metaDesc.setAttribute('content', desc);
+    if (metaDesc) metaDesc.setAttribute('content', desc);
+
+    // Canonical tag
+    let canonicalEl = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (canonical) {
+      if (!canonicalEl) {
+        canonicalEl = document.createElement('link');
+        canonicalEl.setAttribute('rel', 'canonical');
+        document.head.appendChild(canonicalEl);
+      }
+      canonicalEl.setAttribute('href', canonical);
+    } else if (canonicalEl) {
+      canonicalEl.remove();
     }
   }, [location]);
 
@@ -357,8 +370,8 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/how-it-works" element={<HowItWorksPage />} />
-              <Route path="/plans" element={<PlansPage />} />
               <Route path="/products" element={<ProductsPage />} />
+              <Route path="/plans" element={<Navigate to="/products" replace />} />
               <Route path="/checkout" element={<CheckoutPage />} />
               <Route path="/guides" element={<GuidesPage />} />
               <Route path="/guides/:slug" element={<GuideDetailPage />} />

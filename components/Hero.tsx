@@ -92,7 +92,7 @@ const Hero: React.FC = memo(() => {
             transition={{ duration: 0.5, delay: 0.35 }}
             className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16"
           >
-            <Button size="lg" variant="primary" className="shadow-xl shadow-indigo-500/10 min-w-[200px]" as={Link} to="/plans">
+            <Button size="lg" variant="primary" className="shadow-xl shadow-indigo-500/10 min-w-[200px]" as={Link} to="/products">
               Explore Plans
             </Button>
             <Button size="lg" variant="outline" className="min-w-[200px]" as={Link} to="/how-it-works">
