@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import Button from './Button';
 import { m } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '../src/firebase';
 import { useCart } from '../src/context/CartContext';
 import { useLocalization } from '../src/context/LocalizationContext';
-import type { Product, ProductPricing } from '../src/admin/types/index';
+import type { Product } from '../src/admin/types/index';
 import { Loader2, Package, ShoppingCart } from 'lucide-react';
 
 const ProductCard = ({ product, stockCount, variants }: { product: Product, stockCount: number, variants: any }) => {
@@ -171,51 +172,63 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
+    setIsLoading(true);
+    let productsReady = false;
+    let stockReady = false;
+    let latestProducts: Product[] = [];
+    let latestCounts: Record<string, number> = {};
 
-    const doFetch = async () => {
-      const [data, liveStock] = await Promise.all([
-        getProducts(),
-        getAvailableLiveStock()
-      ]);
-
-      const counts = liveStock.reduce((acc, code) => {
-        acc[code.productId] = (acc[code.productId] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      // Only products explicitly set to isActive: false are hidden.
-      const activeProducts = data
+    const trySetData = () => {
+      if (!productsReady || !stockReady) return;
+      const activeProducts = latestProducts
         .filter(p => p.isActive !== false)
         .sort((a, b) => (a.popular === b.popular ? 0 : a.popular ? -1 : 1));
-
-      if (!cancelled) {
-        setStockCounts(counts);
-        setProducts(limit ? activeProducts.slice(0, limit) : activeProducts);
-      }
+      setProducts(limit ? activeProducts.slice(0, limit) : activeProducts);
+      setStockCounts(latestCounts);
+      setIsLoading(false);
     };
 
-    const fetchWithRetry = async (attemptsLeft: number, delayMs: number) => {
-      try {
-        setIsLoading(true);
-        await doFetch();
-      } catch (error) {
-        if (attemptsLeft > 0 && !cancelled) {
-          console.warn(`Products fetch failed, retrying in ${delayMs}ms…`, error);
-          await new Promise(r => setTimeout(r, delayMs));
-          return fetchWithRetry(attemptsLeft - 1, delayMs * 2);
-        }
-        console.error("Error fetching products after retries:", error);
-      } finally {
-        if (!cancelled) setIsLoading(false);
+    // onSnapshot is connection-aware: Firestore queues it internally
+    // and delivers as soon as the connection is ready — no retries needed.
+    const unsubProducts = onSnapshot(
+      collection(db, 'products'),
+      (snap) => {
+        latestProducts = snap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
+        productsReady = true;
+        trySetData();
+      },
+      (err) => {
+        console.error('Products listener error:', err);
+        setIsLoading(false);
       }
+    );
+
+    const unsubStock = onSnapshot(
+      query(collection(db, 'live_stock'), where('status', '==', 'Available')),
+      (snap) => {
+        latestCounts = snap.docs.reduce((acc, d) => {
+          const productId = d.data().productId as string;
+          acc[productId] = (acc[productId] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        stockReady = true;
+        trySetData();
+      },
+      (err) => {
+        console.error('Stock listener error:', err);
+        // Stock failure is non-critical — show products without stock counts
+        stockReady = true;
+        trySetData();
+      }
+    );
+
+    return () => {
+      unsubProducts();
+      unsubStock();
     };
-
-    // Retry up to 3 times: 800ms → 1600ms → 3200ms
-    fetchWithRetry(3, 800);
-
-    return () => { cancelled = true; };
   }, [limit]);
+
+
 
   const container = {
     hidden: { opacity: 0 },
