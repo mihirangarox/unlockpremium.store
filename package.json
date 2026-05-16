@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"vite\" \"npm start --prefix backend\"",
-    "build": "vite build",
+    "build": "node scripts/generate-sitemap.js && vite build",
     "preview": "vite preview",
     "deploy": "firebase deploy",
     "firebase": "firebase"
