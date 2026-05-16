@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Button from './Button';
+import { m } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../src/firebase';
@@ -8,7 +9,7 @@ import { useLocalization } from '../src/context/LocalizationContext';
 import type { Product } from '../src/admin/types/index';
 import { Loader2, Package, ShoppingCart } from 'lucide-react';
 
-const ProductCard = ({ product, stockCount }: { product: Product; stockCount: number }) => {
+const ProductCard = ({ product, stockCount, variants }: { product: Product, stockCount: number, variants: any }) => {
   const { addToCart } = useCart();
   const { userCurrency, formatCurrency } = useLocalization();
 
@@ -59,7 +60,11 @@ const ProductCard = ({ product, stockCount }: { product: Product; stockCount: nu
   const currentOldPrice = selectedTier ? (selectedTier[oldPriceField] || selectedTier.oldPriceUSD || 0) : (product.oldPrice || 0);
 
   return (
-    <div className="group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden hover:border-indigo-500/50 hover:-translate-y-2">
+    <m.div
+      variants={variants}
+      whileHover={{ y: -10, transition: { duration: 0.3 } }}
+      className="group glass rounded-3xl p-8 transition-all duration-300 flex flex-col relative overflow-hidden hover:border-indigo-500/50"
+    >
       {product.popular && !isOutOfStock && (
         <div className="absolute top-4 right-4 bg-indigo-600 text-[10px] font-black uppercase tracking-tighter px-2 py-1 rounded text-white z-10">
           Most Popular
@@ -153,7 +158,7 @@ const ProductCard = ({ product, stockCount }: { product: Product; stockCount: nu
           </Button>
         </div>
       </div>
-    </div>
+    </m.div>
   );
 };
 
@@ -225,19 +230,52 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
 
 
 
+  const container = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1
+      }
+    }
+  };
+
+  const item = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.5 } }
+  };
+
   return (
     <section id="services" className="relative">
       <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="reveal text-4xl md:text-5xl font-bold mb-4 tracking-tight">
+          <m.h2
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-4xl md:text-5xl font-bold mb-4 tracking-tight"
+          >
             LinkedIn Premium Plans
-          </h2>
-          <p className="reveal reveal-d1 text-neutral-500 text-lg max-w-2xl mx-auto">
+          </m.h2>
+          <m.p
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-neutral-500 text-lg max-w-2xl mx-auto"
+          >
             Elite professional tools for individuals and businesses. Verified activation, global availability.
-          </p>
+          </m.p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto min-h-[400px]">
+        <m.div
+          variants={container}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto min-h-[400px]"
+        >
           {isLoading ? (
             <div className="col-span-1 md:col-span-2 lg:col-span-3 flex justify-center items-center">
               <Loader2 className="w-10 h-10 text-indigo-500 animate-spin" />
@@ -247,9 +285,10 @@ const Services: React.FC<ServicesProps> = ({ limit }) => {
               key={product.id}
               product={product}
               stockCount={stockCounts[product.id] ?? 0}
+              variants={item}
             />
           ))}
-        </div>
+        </m.div>
       </div>
     </section>
   );

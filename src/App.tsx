@@ -4,7 +4,8 @@ import { Routes, Route, useLocation, Navigate, Link } from 'react-router-dom';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { collection, getDocs, query, orderBy, limit as fsLimit } from 'firebase/firestore';
 import { auth, db } from './firebase';
-// ReactGA is deferred — loaded after first user interaction to avoid blocking paint
+import { LazyMotion } from 'framer-motion';
+import ReactGA from 'react-ga4';
 
 // Static Imports — only what's needed above the fold
 import Header from '../components/Header';
@@ -147,28 +148,12 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Defer GA: load after first interaction OR after 3s — never blocks paint
-    const initGA = () => {
-      import('react-ga4').then(({ default: ReactGA }) => {
-        ReactGA.initialize('G-186HM7Y7F7');
-      });
-      cleanup();
-    };
-    const timer = setTimeout(initGA, 3000);
-    const events = ['click', 'scroll', 'keydown', 'touchstart'] as const;
-    events.forEach(e => window.addEventListener(e, initGA, { once: true, passive: true }));
-    const cleanup = () => {
-      clearTimeout(timer);
-      events.forEach(e => window.removeEventListener(e, initGA));
-    };
-    return cleanup;
+    ReactGA.initialize("G-186HM7Y7F7");
   }, []);
 
-  // Track page views — only when GA is already loaded
+  // Track page views with GA4
   useEffect(() => {
-    import('react-ga4').then(({ default: ReactGA }) => {
-      ReactGA.send({ hitType: 'pageview', page: location.pathname + location.search });
-    }).catch(() => {});
+    ReactGA.send({ hitType: "pageview", page: location.pathname + location.search });
   }, [location]);
 
   // Dynamic SEO Updates based on Path
@@ -373,6 +358,7 @@ const App: React.FC = () => {
       <CartProvider>
       <div className="min-h-screen selection:bg-indigo-500 selection:text-white bg-[#050505]">
         <ScrollToTop />
+        <LazyMotion features={() => import('framer-motion').then(res => res.domAnimation)}>
           {!isAdminRoute ? <Header /> : null}
           {/* CartDrawer lazy — not needed until user clicks cart */}
           {!isAdminRoute ? (
@@ -417,6 +403,7 @@ const App: React.FC = () => {
             <Footer />
           </React.Suspense>
         ) : null}
+      </LazyMotion>
       </div>
     </CartProvider>
     </LocalizationProvider>
