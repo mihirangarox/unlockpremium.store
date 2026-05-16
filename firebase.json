@@ -13,16 +13,17 @@
       "**/node_modules/**"
     ],
     "redirects": [
-      {
-        "source": "/about",
-        "destination": "/",
-        "type": 301
-      },
-      {
-        "source": "/about/**",
-        "destination": "/",
-        "type": 301
-      }
+      { "source": "/about",      "destination": "/", "type": 301 },
+      { "source": "/about/**",   "destination": "/", "type": 301 },
+      { "source": "/contact",    "destination": "/contact-support", "type": 301 },
+      { "source": "/contact/",   "destination": "/contact-support", "type": 301 },
+      { "source": "/search",     "destination": "/", "type": 301 },
+      { "source": "/search/**",  "destination": "/", "type": 301 },
+      { "source": "/feed",       "destination": "/", "type": 301 },
+      { "source": "/feed/**",    "destination": "/", "type": 301 },
+      { "source": "/wp-admin",   "destination": "/", "type": 301 },
+      { "source": "/wp-admin/**","destination": "/", "type": 301 },
+      { "source": "/wp-login.php","destination": "/","type": 301 }
     ],
     "rewrites": [
       {

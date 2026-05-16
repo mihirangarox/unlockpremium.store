@@ -1,3 +1,16 @@
 User-agent: *
 Allow: /
-Sitemap: https://unlockpremium.store/sitemap.xml
+
+# Block old WordPress URL patterns (no longer valid on this site)
+Disallow: /search/
+Disallow: /feed/
+Disallow: /wp-admin/
+Disallow: /wp-login.php
+Disallow: /*?s=
+Disallow: /*?p=
+Disallow: /*?page_id=
+
+# Block query string spam patterns
+Disallow: /*?*search_term*
+
+Sitemap: https://www.unlockpremium.store/sitemap.xml
