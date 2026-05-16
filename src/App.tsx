@@ -219,7 +219,11 @@ const App: React.FC = () => {
     // Special handling for dynamic service routes
     let title = seoData.default.title;
     let desc = seoData.default.desc;
-    let canonical: string | null = null;
+    
+    // Default canonical URL to current path
+    const baseUrl = "https://www.unlockpremium.store";
+    const canonicalPath = path === '/' ? '' : path.replace(/\/$/, '');
+    let canonical: string | null = `${baseUrl}${canonicalPath}`;
 
     if (path.startsWith('/services/')) {
       const serviceId = path.split('/services/')[1];
@@ -231,7 +235,9 @@ const App: React.FC = () => {
       if (pageData) {
         title = pageData.title;
         desc = pageData.desc;
-        canonical = pageData.canonical || null;
+        if (pageData.canonical) {
+          canonical = pageData.canonical;
+        }
       }
     }
 
