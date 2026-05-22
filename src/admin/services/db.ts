@@ -699,6 +699,59 @@ export const getAvailableCodesCount = async (productId?: string): Promise<number
 };
 
 /**
+ * On-Demand fulfillment: bypasses pre-existing inventory.
+ * Consumes USDT from the FIFO ledger using the provided cost,
+ * creates a live_stock document inline as Reserved, and returns
+ * the DigitalCode object. The writeBatch makes the ledger deduction
+ * and stock creation atomic so accounting is never desynced.
+ */
+export const createOnDemandCode = async (
+  link: string,
+  usdtCost: number,
+  productId: string,
+  productName: string,
+  duration: string,
+  requestId: string,
+  subscriptionId?: string
+): Promise<DigitalCode> => {
+  // 1. Consume USDT from FIFO ledger — this writes Outbound records atomically
+  const allocations = await consumeUSDT(usdtCost, `On-demand purchase: ${productName} (${duration}) for request ${requestId}`);
+
+  // 2. Calculate the GBP cost using the blended rate across FIFO batches
+  const gbpPurchaseCost = allocations.reduce((sum, a) => sum + (a.amount * a.rate), 0);
+
+  // 3. Create the live_stock document inline
+  const codeId = `od_${Date.now()}`;
+  const now = new Date().toISOString();
+
+  const newCode: DigitalCode = {
+    id: codeId,
+    code: link,
+    productId,
+    productName,
+    duration,
+    status: 'Reserved',
+    assignedToRequestId: requestId,
+    assignedToSubscriptionId: subscriptionId || null,
+    assignedAt: now,
+    createdAt: now,
+    gbpPurchaseCost,
+    costBasisUSDT: usdtCost,
+    isPriority: false,
+    isOnDemand: true,
+  } as any;
+
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'live_stock', codeId), newCode);
+  await batch.commit();
+
+  // 4. Invalidate live stock cache
+  liveStockCache = null;
+
+  return newCode;
+};
+
+/**
  * Claims an available digital code for a specific request.
  * Returns the code string if successful, or null if no codes available.
  */

@@ -49,6 +49,11 @@ export function RequestDetail() {
   const [isConfirming, setIsConfirming] = useState(false);
   const [isReverting, setIsReverting] = useState(false);
 
+  // On-Demand fulfillment state
+  const [isOnDemand, setIsOnDemand] = useState(false);
+  const [onDemandLink, setOnDemandLink] = useState("");
+  const [onDemandUsdtCost, setOnDemandUsdtCost] = useState("");
+
   // Edit Client Information state
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [editedFullName, setEditedFullName] = useState("");
@@ -183,6 +188,18 @@ export function RequestDetail() {
       return;
     }
 
+    // On-Demand validation: both fields required if toggle is on
+    if (isOnDemand) {
+      if (!onDemandLink.trim()) {
+        showToast("On-Demand mode: please enter the activation link.", "error");
+        return;
+      }
+      if (!onDemandUsdtCost || parseFloat(onDemandUsdtCost) <= 0) {
+        showToast("On-Demand mode: please enter a valid USDT cost.", "error");
+        return;
+      }
+    }
+
     setIsProcessing(true);
     try {
       const now = new Date().toISOString();
@@ -241,15 +258,31 @@ export function RequestDetail() {
         updatedAt: now
       };
 
-      // 3. Claim Digital Activation Code
+      // 3. Claim Digital Activation Code — On-Demand or FIFO inventory
       const targetProduct = products.find(p => p.subscriptionType === (subscriptionType || request.subscriptionType));
 
-      const claimedCodeObj = await db.claimCodeForRequest(
-        targetProduct?.id || (subscriptionType as string) || (request.subscriptionType as string) || "",
-        (subscriptionPeriod as string) || request.subscriptionPeriod || "",
-        request.id,
-        subscription.id
-      );
+      let claimedCodeObj;
+
+      if (isOnDemand && onDemandLink.trim() && parseFloat(onDemandUsdtCost) > 0) {
+        // ── On-Demand path: consume USDT ledger + create inline stock record ──
+        claimedCodeObj = await db.createOnDemandCode(
+          onDemandLink.trim(),
+          parseFloat(onDemandUsdtCost),
+          targetProduct?.id || request.subscriptionType || "",
+          targetProduct?.name || request.subscriptionType || "",
+          (subscriptionPeriod as string) || request.subscriptionPeriod || "",
+          request.id,
+          subscription.id
+        );
+      } else {
+        // ── Standard path: pull from pre-existing Available stock (FIFO) ──
+        claimedCodeObj = await db.claimCodeForRequest(
+          targetProduct?.id || (subscriptionType as string) || (request.subscriptionType as string) || "",
+          (subscriptionPeriod as string) || request.subscriptionPeriod || "",
+          request.id,
+          subscription.id
+        );
+      }
 
       const activationCode = claimedCodeObj?.code || null;
       const linkCost = Number(claimedCodeObj?.gbpPurchaseCost || 0);
@@ -941,6 +974,68 @@ Thank you for your business!`;
                   <p className="text-[9px] text-slate-500 italic">
                     Note: The activation code will be injected automatically upon approval.
                   </p>
+
+                  {/* ── On-Demand Fulfillment Toggle ─────────────────────── */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <label className="flex items-center gap-3 cursor-pointer select-none group">
+                      <div
+                        onClick={() => setIsOnDemand(v => !v)}
+                        className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${
+                          isOnDemand ? 'bg-amber-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                          isOnDemand ? 'left-4' : 'left-0.5'
+                        }`} />
+                      </div>
+                      <span className="text-xs font-bold text-slate-600 group-hover:text-slate-800 transition-colors">
+                        Purchase On-Demand
+                        <span className="ml-1.5 text-[10px] font-medium text-slate-400 normal-case">
+                          (bypass stock inventory)
+                        </span>
+                      </span>
+                    </label>
+
+                    {isOnDemand && (
+                      <div className="mt-3 space-y-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="flex items-start gap-2 mb-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                          <p className="text-[11px] text-amber-700 font-medium">
+                            USDT will be deducted from your FIFO ledger immediately on approval. Ensure sufficient balance.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            Activation Link / Code *
+                          </label>
+                          <input
+                            type="text"
+                            value={onDemandLink}
+                            onChange={e => setOnDemandLink(e.target.value)}
+                            className="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-amber-400 placeholder:text-slate-400"
+                            placeholder="https://linkedin.com/premium/... or activation code"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            USDT Cost (amount spent) *
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-bold">₮</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={onDemandUsdtCost}
+                              onChange={e => setOnDemandUsdtCost(e.target.value)}
+                              className="w-full pl-7 pr-4 bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-inner-spin-button]:appearance-none"
+                              placeholder="e.g. 12.50"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
