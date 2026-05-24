@@ -124,6 +124,7 @@ import { AdminRoutes } from './admin/AdminRoutes';
 import { CartProvider } from './context/CartContext';
 import { LocalizationProvider } from './context/LocalizationContext';
 const ServiceLandingPage = React.lazy(() => import('../components/ServiceLandingPage'));
+const BulkOrderForm = React.lazy(() => import('../components/BulkOrderForm'));
 
 // Helper to scroll to top on route change
 const ScrollToTop = () => {
@@ -209,6 +210,10 @@ const App: React.FC = () => {
       '/refund-activation-policy': {
         title: "Refund & Activation Policy | UnlockPremium",
         desc: "Understand our refund and activation policies for all LinkedIn Premium digital products."
+      },
+      '/bulk-order': {
+        title: "Bulk LinkedIn Sales Navigator Licenses — Team Deals | UnlockPremium",
+        desc: "Order multiple LinkedIn Sales Navigator licenses for your entire sales team. Custom pricing, staggered activations, and a dedicated account manager."
       },
       '/admin-login': {
         title: "Admin Portal | UnlockPremium",
@@ -389,6 +394,7 @@ const App: React.FC = () => {
               <Route path="/refund-activation-policy" element={<RefundPage />} />
               <Route path="/services/:serviceId" element={<ServiceLandingPage />} />
               <Route path="/products/:serviceId" element={<ServiceLandingPage />} />
+              <Route path="/bulk-order" element={<BulkOrderForm />} />
               <Route 
                 path={`${ADMIN_PATH}/*`} 
                 element={

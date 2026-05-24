@@ -34,7 +34,9 @@ import type {
   DigitalCode,
   USDTTransaction,
   AppSettings,
-  MessageTemplate
+  MessageTemplate,
+  BulkOrder,
+  BulkOrderSeat,
 } from "../types/index";
 
 // ─── Products ───────────────────────────────────────────────────────────────
@@ -1086,4 +1088,129 @@ export const getStockCountForProduct = async (productId: string): Promise<number
   if (inventorySnap.exists()) return inventorySnap.data().stockCount ?? 0;
   // Fallback: count directly from live_stock
   return getAvailableCodesCount(productId);
+};
+
+// ─── B2B Bulk Orders ─────────────────────────────────────────────────────────
+
+/**
+ * Creates a BulkOrder and all its BulkOrderSeat documents in a single
+ * atomic Firestore batch write. This guarantees that either all records
+ * are created or none are — preventing orphaned seats.
+ *
+ * @param order  - The parent BulkOrder object (without seats)
+ * @param seats  - Array of BulkOrderSeat objects belonging to this order
+ */
+export const createBulkOrder = async (
+  order: BulkOrder,
+  seats: BulkOrderSeat[]
+): Promise<void> => {
+  const batch = writeBatch(db);
+
+  // 1. Write the parent order document
+  batch.set(doc(db, "bulk_orders", order.id), order);
+
+  // 2. Write every seat as a separate document
+  seats.forEach((seat) => {
+    batch.set(doc(db, "bulk_order_seats", seat.id), seat);
+  });
+
+  await batch.commit();
+};
+
+/**
+ * Fetches all BulkOrder documents, newest first.
+ */
+export const getBulkOrders = async (): Promise<BulkOrder[]> => {
+  const snap = await getDocs(
+    query(collection(db, "bulk_orders"), orderBy("createdAt", "desc"))
+  );
+  return snap.docs.map((d) => d.data() as BulkOrder);
+};
+
+/**
+ * Fetches a single BulkOrder by ID.
+ */
+export const getBulkOrder = async (id: string): Promise<BulkOrder | undefined> => {
+  const snap = await getDoc(doc(db, "bulk_orders", id));
+  return snap.exists() ? (snap.data() as BulkOrder) : undefined;
+};
+
+/**
+ * Fetches all seats belonging to a given BulkOrder.
+ */
+export const getBulkOrderSeats = async (bulkOrderId: string): Promise<BulkOrderSeat[]> => {
+  const snap = await getDocs(
+    query(
+      collection(db, "bulk_order_seats"),
+      where("bulkOrderId", "==", bulkOrderId)
+    )
+  );
+  return snap.docs.map((d) => d.data() as BulkOrderSeat);
+};
+
+/**
+ * Partially updates a BulkOrderSeat (e.g., when admin assigns a code or sets dates).
+ * Also recalculates the `activatedLicenses` count on the parent BulkOrder.
+ */
+export const updateBulkOrderSeat = async (
+  seatId: string,
+  updates: Partial<BulkOrderSeat>
+): Promise<void> => {
+  const now = new Date().toISOString();
+  await setDoc(
+    doc(db, "bulk_order_seats", seatId),
+    { ...updates, updatedAt: now },
+    { merge: true }
+  );
+
+  // Re-sync the activatedLicenses counter on the parent order
+  const seatSnap = await getDoc(doc(db, "bulk_order_seats", seatId));
+  if (!seatSnap.exists()) return;
+  const seat = seatSnap.data() as BulkOrderSeat;
+
+  const allSeats = await getBulkOrderSeats(seat.bulkOrderId);
+  const activatedCount = allSeats.filter((s) => s.status === "Active").length;
+
+  // Determine overall order status
+  const total = allSeats.length;
+  let orderStatus: BulkOrder["status"] = "Pending";
+  if (activatedCount === total) orderStatus = "Active";
+  else if (activatedCount > 0) orderStatus = "Partially Active";
+
+  await setDoc(
+    doc(db, "bulk_orders", seat.bulkOrderId),
+    { activatedLicenses: activatedCount, status: orderStatus, updatedAt: now },
+    { merge: true }
+  );
+};
+
+/**
+ * Saves (creates or fully replaces) a BulkOrder document.
+ * Use this for admin edits to the top-level order fields.
+ */
+export const saveBulkOrder = async (order: BulkOrder): Promise<void> => {
+  await setDoc(doc(db, "bulk_orders", order.id), {
+    ...order,
+    updatedAt: new Date().toISOString(),
+  });
+};
+
+/**
+ * Deletes a BulkOrder and all its seats in a single atomic batch.
+ * Safe to call even if some seats have already been activated — the
+ * corresponding Subscription documents are left intact.
+ */
+export const deleteBulkOrder = async (orderId: string): Promise<void> => {
+  const batch = writeBatch(db);
+
+  // Delete parent order
+  batch.delete(doc(db, "bulk_orders", orderId));
+
+  // Delete all seats
+  const seatsSnap = await getDocs(
+    query(collection(db, "bulk_order_seats"), where("bulkOrderId", "==", orderId))
+  );
+  seatsSnap.docs.forEach((d) => batch.delete(d.ref));
+
+  await batch.commit();
 };

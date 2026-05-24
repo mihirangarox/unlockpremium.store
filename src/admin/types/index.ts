@@ -5,6 +5,94 @@ export type RequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Archived' | '
 export type PlanDuration = '1M' | '2M' | '3M' | '4M' | '6M' | '9M' | '12M';
 export type AutoSendMode = 'ON' | 'OFF' | 'Manual Approval';
 
+// ─── B2B Bulk Order Types ─────────────────────────────────────────────────────
+
+export type BulkOrderStatus = 'Pending' | 'Active' | 'Partially Active' | 'Completed' | 'Cancelled';
+
+/**
+ * Top-level B2B order document. Represents a Manager purchasing multiple licenses.
+ * Stored in the `bulk_orders` collection.
+ */
+export interface BulkOrder {
+  id: string;
+
+  // Manager identity (linked to an existing Customer record)
+  managerId: string;         // → customers.id
+  managerName: string;       // Denormalized for quick display
+  managerEmail: string;      // Denormalized for quick display
+  managerWhatsapp?: string;  // For delivery communications
+
+  // Product details
+  productId: string;
+  productName: string;
+  planDuration: PlanDuration;
+
+  // Seat counts
+  totalLicenses: number;
+  activatedLicenses: number; // Incremented as each seat goes Active
+
+  // Pricing — per-license defaults (can be overridden per seat)
+  salePrice: number;         // Price per license charged to the Manager (GBP)
+  costPrice: number;         // Our cost per license from supplier (GBP)
+
+  // Aggregate financials (kept denormalized for fast reporting)
+  totalRevenue: number;      // salePrice × totalLicenses
+  totalCost: number;         // costPrice × totalLicenses
+  totalProfit: number;       // totalRevenue − totalCost
+
+  // Payment
+  paymentStatus: 'Paid' | 'Pending' | 'Partial';
+  currency?: string;
+
+  // Status
+  status: BulkOrderStatus;
+
+  notes?: string;
+  internalNotes?: string;    // Admin-only
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One seat (rep license) under a BulkOrder.
+ * Stored in the `bulk_order_seats` collection.
+ * Each seat maps 1-to-1 to a Subscription once activated.
+ */
+export interface BulkOrderSeat {
+  id: string;
+  bulkOrderId: string;       // → bulk_orders.id
+  managerId: string;         // → customers.id (the Manager) — denormalized for queries
+
+  // Rep identity (no Customer record required until activation)
+  repName?: string;
+  repEmail: string;          // The LinkedIn account email for this seat
+  repLinkedinUrl?: string;
+
+  // Per-seat pricing overrides (falls back to BulkOrder defaults if absent)
+  salePrice?: number;
+  costPrice?: number;
+
+  // Fulfillment links — set when the admin activates this seat
+  subscriptionId?: string;   // → subscriptions.id
+  codeId?: string;           // → live_stock.id
+  activationCode?: string;   // The actual LinkedIn referral link string
+
+  // Dates — each seat has its own staggered renewal schedule
+  startDate?: string;        // ISO
+  renewalDate?: string;      // ISO
+
+  status: 'Pending' | 'Active' | 'Expired' | 'Cancelled';
+
+  deliveredAt?: string;      // ISO — set when link is sent to rep
+  notes?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Customer ─────────────────────────────────────────────────────────────────
+
 export interface CustomerNote {
   id: string;
   date: string;
@@ -28,6 +116,8 @@ export interface Customer {
     days: number[];
     channel: 'WhatsApp' | 'Email' | 'SMS';
   };
+  /** Differentiates individual buyers from B2B managers */
+  accountType?: 'Individual' | 'Manager' | 'Rep';
   status: CustomerStatus;
   createdAt: string;
   updatedAt: string;
@@ -94,6 +184,18 @@ export interface Subscription {
   deliveredAt?: string; // New: For activation confirmation
   createdAt: string;
   updatedAt: string;
+
+  // ── B2B fields — only present on bulk-order seats ────────────────────────
+  /** Links this subscription to a parent BulkOrder document. */
+  bulkOrderId?: string;      // → bulk_orders.id
+  /** Links this subscription to a specific seat in the BulkOrder. */
+  bulkOrderSeatId?: string;  // → bulk_order_seats.id
+  /** True when this license was provisioned as part of a bulk order. */
+  isB2BLicense?: boolean;
+  /** Per-seat sale price — may differ from the BulkOrder default. */
+  salePrice?: number;
+  /** Per-seat cost price — for margin tracking in renewal_history. */
+  costPrice?: number;
 }
 
 export interface Reminder {
@@ -125,6 +227,12 @@ export interface RenewalHistory {
   paymentMethod: string;
   notes: string;
   createdAt: string;
+
+  // ── B2B fields — only present on bulk-order seats ────────────────────────
+  /** Links this ledger entry to the parent BulkOrder. */
+  bulkOrderId?: string;
+  /** Links this ledger entry to the specific seat. */
+  bulkOrderSeatId?: string;
 }
 
 export interface IntakeRequest {
