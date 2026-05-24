@@ -22,6 +22,7 @@ import { ToastProvider } from './components/ui/Toast';
 import { ProductList } from './pages/Products/ProductList';
 import { ProductForm } from './pages/Products/ProductForm';
 import { VendorManager } from './pages/Vendors/VendorManager';
+import { B2BManageOrders } from './pages/B2B/B2BManageOrders';
 
 interface AdminRoutesProps {
   onLogout: () => void;
@@ -51,6 +52,7 @@ export const AdminRoutes: React.FC<AdminRoutesProps> = ({ onLogout }) => {
           <Route path="inventory" element={<ManageStock />} />
           <Route path="live-stock" element={<ManageStock />} />
           <Route path="vendors" element={<VendorManager />} />
+          <Route path="bulk-orders" element={<B2BManageOrders />} />
           <Route path="settings" element={<SettingsPage />} />
           
           {/* Legacy integrated features */}

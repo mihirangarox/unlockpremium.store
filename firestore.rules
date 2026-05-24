@@ -11,6 +11,8 @@ service cloud.firestore {
     match /customers/{doc} { allow read, write: if true; }
     match /subscriptions/{doc} { allow read, write: if true; }
     match /requests/{doc} { allow read, write: if true; }
+    match /bulk_orders/{doc} { allow read, write: if true; }
+    match /bulk_order_seats/{doc} { allow read, write: if true; }
     match /reminders/{doc} { allow read, write: if true; }
     match /renewal_history/{doc} { allow read, write: if true; }
     match /activity_logs/{doc} { allow read, write: if true; }

@@ -27,8 +27,9 @@ import {
   Shield,
 } from 'lucide-react';
 import Button from './Button';
-import { createBulkOrder } from '../src/admin/services/db';
-import type { BulkOrder, BulkOrderSeat, PlanDuration } from '../src/admin/types/index';
+import { createBulkOrder, getProduct } from '../src/admin/services/db';
+import type { BulkOrder, BulkOrderSeat, PlanDuration, Product } from '../src/admin/types/index';
+import { useLocalization } from '../src/context/LocalizationContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -44,21 +45,26 @@ interface ManagerForm {
   email: string;
   whatsapp: string;
   companyName: string;
-  planDuration: PlanDuration;
   notes: string;
 }
 
-const PLAN_OPTIONS: { value: PlanDuration; label: string }[] = [
-  { value: '1M', label: '1 Month' },
-  { value: '3M', label: '3 Months' },
-  { value: '6M', label: '6 Months' },
-  { value: '9M', label: '9 Months' },
-  { value: '12M', label: '12 Months' },
-];
+/**
+ * Locked to Sales Navigator — the only product eligible for B2B bulk orders.
+ * Duration is locked to 1 Month, the only public tier currently offered.
+ */
+const PRODUCT_ID = 'prod_1774301122791';
+const PRODUCT_NAME = 'Linkedin Sales Navigator Advance';
+const LOCKED_DURATION: PlanDuration = '1M';
 
-/** Locked to Sales Navigator — the only product eligible for B2B bulk orders. */
-const PRODUCT_ID = 'sales-navigator';
-const PRODUCT_NAME = 'LinkedIn Sales Navigator';
+/**
+ * Firestore rejects `undefined` values in document writes.
+ * This helper strips any key whose value is `undefined` before we call
+ * writeBatch.set(), preventing the "Unsupported field value: undefined" error.
+ */
+const stripUndefined = <T extends Record<string, unknown>>(obj: T): T =>
+  Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined)
+  ) as T;
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -95,7 +101,6 @@ const BulkOrderForm: React.FC = () => {
     email: '',
     whatsapp: '',
     companyName: '',
-    planDuration: '1M',
     notes: '',
   });
 
@@ -103,6 +108,30 @@ const BulkOrderForm: React.FC = () => {
   const [reps, setReps] = useState<RepRow[]>([
     { uid: `rep_${Date.now()}`, name: '', email: '', linkedinUrl: '' },
   ]);
+
+  // ── Product Pricing ───────────────────────────────────────────────────────
+  const [productInfo, setProductInfo] = useState<Product | null>(null);
+  const { formatCurrency, userCurrency } = useLocalization();
+
+  React.useEffect(() => {
+    const fetchProduct = async () => {
+      const p = await getProduct(PRODUCT_ID);
+      if (p) setProductInfo(p);
+    };
+    fetchProduct();
+  }, []);
+
+  const getTierPrice = (): number => {
+    if (!productInfo || !productInfo.pricing) return 0;
+    const tier = productInfo.pricing.find(p => p.durationMonths === 1);
+    if (!tier) return 0;
+    if (userCurrency === 'GBP') return tier.priceGBP;
+    if (userCurrency === 'EUR') return tier.priceEUR;
+    return tier.priceUSD;
+  };
+
+  const unitPrice = getTierPrice();
+  const estimatedTotal = unitPrice * reps.length;
 
   // ── Validation helpers ────────────────────────────────────────────────────
   const [step1Errors, setStep1Errors] = useState<Partial<ManagerForm>>({});
@@ -158,7 +187,7 @@ const BulkOrderForm: React.FC = () => {
       const now = new Date().toISOString();
 
       // Build the parent BulkOrder document
-      const bulkOrder: BulkOrder = {
+      const bulkOrderData = stripUndefined({
         id: orderId,
         managerId: `mgr_${Date.now()}`, // Placeholder — admin links to Customer record later
         managerName: manager.fullName.trim(),
@@ -167,7 +196,7 @@ const BulkOrderForm: React.FC = () => {
         // Locked to Sales Navigator — this form is exclusively for B2B Sales Navigator bulk orders
         productId: PRODUCT_ID,
         productName: PRODUCT_NAME,
-        planDuration: manager.planDuration,
+        planDuration: LOCKED_DURATION,
         totalLicenses: reps.length,
         activatedLicenses: 0,
         salePrice: 0, // Admin sets price after reviewing
@@ -175,27 +204,29 @@ const BulkOrderForm: React.FC = () => {
         totalRevenue: 0,
         totalCost: 0,
         totalProfit: 0,
-        paymentStatus: 'Pending',
-        status: 'Pending',
+        paymentStatus: 'Pending' as const,
+        status: 'Pending' as const,
         notes: manager.notes.trim() || undefined,
         createdAt: now,
         updatedAt: now,
-      };
+      }) as BulkOrder;
 
-      // Build one BulkOrderSeat per rep
-      const seats: BulkOrderSeat[] = reps.map((rep, i) => ({
-        id: `seat_${orderId}_${i}`,
-        bulkOrderId: orderId,
-        managerId: bulkOrder.managerId,
-        repName: rep.name.trim() || undefined,
-        repEmail: rep.email.trim(),
-        repLinkedinUrl: rep.linkedinUrl.trim() || undefined,
-        status: 'Pending',
-        createdAt: now,
-        updatedAt: now,
-      }));
+      // Build one BulkOrderSeat per rep — also strip optional undefined fields
+      const seats: BulkOrderSeat[] = reps.map((rep, i) =>
+        stripUndefined({
+          id: `seat_${orderId}_${i}`,
+          bulkOrderId: orderId,
+          managerId: bulkOrderData.managerId,
+          repName: rep.name.trim() || undefined,
+          repEmail: rep.email.trim(),
+          repLinkedinUrl: rep.linkedinUrl.trim() || undefined,
+          status: 'Pending' as const,
+          createdAt: now,
+          updatedAt: now,
+        }) as BulkOrderSeat
+      );
 
-      await createBulkOrder(bulkOrder, seats);
+      await createBulkOrder(bulkOrderData, seats);
 
       setIsSuccess(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -444,26 +475,12 @@ const BulkOrderForm: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Plan duration */}
+                  {/* Plan duration — locked to 1 Month */}
                   <div className="md:col-span-2">
-                    <InputLabel htmlFor={`${formId}-plan`}>Plan Duration *</InputLabel>
-                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                      {PLAN_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          onClick={() =>
-                            setManager((p) => ({ ...p, planDuration: opt.value }))
-                          }
-                          className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 border ${
-                            manager.planDuration === opt.value
-                              ? 'bg-indigo-500 border-indigo-400 text-white shadow-lg shadow-indigo-500/20'
-                              : 'bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10 hover:text-white'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
+                    <InputLabel htmlFor={`${formId}-plan`}>Plan Duration</InputLabel>
+                    <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-indigo-500/10 border border-indigo-500/25">
+                      <div className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
+                      <span className="text-white font-bold text-sm">1 Month</span>
                     </div>
                   </div>
 
@@ -672,8 +689,10 @@ const BulkOrderForm: React.FC = () => {
                     { label: 'Email', value: manager.email },
                     { label: 'WhatsApp', value: manager.whatsapp },
                     { label: 'Company', value: manager.companyName || '—' },
-                    { label: 'Plan', value: manager.planDuration },
+                    { label: 'Plan', value: `${LOCKED_DURATION} (Sales Navigator)` },
                     { label: 'Licenses', value: String(reps.length) },
+                    { label: 'Est. Unit Price', value: unitPrice > 0 ? formatCurrency(unitPrice) : 'TBD' },
+                    { label: 'Est. Total Price', value: estimatedTotal > 0 ? formatCurrency(estimatedTotal) : 'TBD' },
                   ].map(({ label, value }) => (
                     <div key={label}>
                       <p className="text-neutral-600 text-xs mb-0.5">{label}</p>

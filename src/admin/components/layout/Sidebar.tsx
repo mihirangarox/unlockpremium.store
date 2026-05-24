@@ -6,7 +6,7 @@ import {
   ChevronRight, LogOut, Moon, Sun, Monitor,
   Box, CreditCard, HelpCircle, FileText, Zap,
   BellRing, History, PieChart, ChevronLeft, Inbox, Wallet,
-  Shield, User
+  Shield, User, Building2
 } from "lucide-react";
 import { cn } from "../../utils/cn";
 import { collection, query, where, getCountFromServer } from "firebase/firestore";
@@ -60,6 +60,7 @@ export function Sidebar({ isCollapsed, setIsCollapsed, mobileOpen, onLogout }: S
       label: "Sales Pipeline",
       items: [
         { name: "Incoming Requests", href: "/unlock-world-26/requests", icon: Inbox, badge: pendingCount },
+        { name: "B2B Bulk Orders", href: "/unlock-world-26/bulk-orders", icon: Building2 },
       ],
     },
     {
