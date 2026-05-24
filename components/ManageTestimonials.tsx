@@ -81,17 +81,31 @@ export default function ManageTestimonials() {
   };
 
   const filtered = list.filter(t=>!search||(t.user+t.content).toLowerCase().includes(search.toLowerCase()));
-  const stats = { total:list.filter(t=>!t.screenshotUrl||t.content).length, wa:list.filter(t=>t.screenshotUrl).length, featured:list.filter(t=>t.featured).length, avg:list.length?+(list.reduce((s,t)=>s+t.rating,0)/list.length).toFixed(1):0 };
+  const drafts = list.filter(t => t.visible === false);
+  const stats = { total:list.filter(t=>!t.screenshotUrl||t.content).length, wa:list.filter(t=>t.screenshotUrl).length, featured:list.filter(t=>t.featured).length, avg:list.length?+(list.reduce((s,t)=>s+t.rating,0)/list.length).toFixed(1):0, pending: drafts.length };
   const TABS: {id:Tab;label:string}[] = [{id:'add',label:editId?'✏️ Edit':'📋 Add Review'},{id:'upload',label:'📱 WhatsApp'},{id:'manage',label:`📊 Manage (${list.length})`},{id:'preview',label:'👁️ Preview'}];
 
   return (
     <div className="space-y-6">
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard label="Total Reviews" value={stats.total} color="text-indigo-600"/>
         <StatCard label="WhatsApp Uploads" value={stats.wa} color="text-green-600"/>
         <StatCard label="Featured" value={stats.featured} color="text-yellow-500"/>
         <StatCard label="Avg Rating" value={`${stats.avg} ★`} color="text-emerald-600"/>
+        {/* Pending Approval — pulsing orange when n8n drafts are waiting */}
+        <div className={`relative bg-white border rounded-2xl p-5 shadow-sm transition-colors ${stats.pending > 0 ? 'border-orange-300 bg-orange-50/40' : 'border-slate-200'}`}>
+          {stats.pending > 0 && (
+            <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"/>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"/>
+            </span>
+          )}
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Pending Approval</p>
+          <p className={`text-3xl font-black ${stats.pending > 0 ? 'text-orange-500' : 'text-slate-300'}`}>
+            {stats.pending === 0 ? '—' : stats.pending}
+          </p>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -252,6 +266,52 @@ export default function ManageTestimonials() {
 
       {/* ── MANAGE TABLE ── */}
       {tab==='manage' && (
+        <div className="space-y-4">
+
+        {/* ── DRAFT QUEUE (n8n inbox) ── */}
+        {drafts.length > 0 && (
+          <div className="border border-orange-200 rounded-2xl overflow-hidden shadow-sm">
+            <div className="flex items-center gap-3 px-5 py-3.5 bg-orange-50 border-b border-orange-200">
+              <span className="flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-orange-400 opacity-75"/>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500"/>
+              </span>
+              <p className="text-sm font-black text-orange-800">🔔 Action Required — Reddit Draft Queue</p>
+              <span className="ml-auto text-xs font-bold text-orange-600 bg-orange-100 border border-orange-200 rounded-full px-2.5 py-0.5">{drafts.length} awaiting review</span>
+            </div>
+            <div className="divide-y divide-orange-100">
+              {drafts.map(t => (
+                <div key={t.id} className="flex items-start gap-4 px-5 py-4 bg-white hover:bg-orange-50/40 transition-colors">
+                  {/* Avatar */}
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center font-black text-white text-sm flex-shrink-0">
+                    {(t.user || '?').charAt(0).toUpperCase()}
+                  </div>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="text-sm font-bold text-slate-800">{t.user}</p>
+                      <span className="text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-200 rounded-full px-2 py-0.5">DRAFT</span>
+                      <span className="text-[10px] text-slate-400">{t.createdAt ? new Date(t.createdAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : ''}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 italic line-clamp-2">"{t.content}"</p>
+                  </div>
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => { startEdit(t); }}
+                      className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-sm shadow-orange-500/20">
+                      ✏️ Review &amp; Approve
+                    </button>
+                    <button onClick={() => del(t.id)} className="p-2 text-red-400 hover:bg-red-50 rounded-xl transition" title="Delete">
+                      🗑
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="flex items-center justify-between p-4 border-b border-slate-100 gap-3">
             <div className="relative flex-1 max-w-xs">
@@ -272,14 +332,17 @@ export default function ManageTestimonials() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filtered.map(t=>(
-                  <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={t.id} className={`transition-colors ${t.visible===false ? 'bg-orange-50/50 hover:bg-orange-50' : 'hover:bg-slate-50'}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${t.avatarColor==='purple'?'from-violet-500 to-purple-600':t.avatarColor==='green'?'from-green-500 to-emerald-600':t.avatarColor==='orange'?'from-orange-500 to-amber-600':t.avatarColor==='teal'?'from-cyan-500 to-teal-600':t.avatarColor==='pink'?'from-pink-500 to-rose-600':'from-indigo-500 to-blue-600'} flex items-center justify-center font-black text-white text-xs flex-shrink-0`}>
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${t.visible===false ? 'from-orange-400 to-rose-500' : t.avatarColor==='purple'?'from-violet-500 to-purple-600':t.avatarColor==='green'?'from-green-500 to-emerald-600':t.avatarColor==='orange'?'from-orange-500 to-amber-600':t.avatarColor==='teal'?'from-cyan-500 to-teal-600':t.avatarColor==='pink'?'from-pink-500 to-rose-600':'from-indigo-500 to-blue-600'} flex items-center justify-center font-black text-white text-xs flex-shrink-0`}>
                           {t.user.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <p className="text-xs font-bold text-slate-800">{t.user}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold text-slate-800">{t.user}</p>
+                            {t.visible===false && <span className="text-[9px] font-bold text-orange-600 bg-orange-100 rounded-full px-1.5 py-0.5">DRAFT</span>}
+                          </div>
                           <p className="text-[10px] text-slate-400">{t.flag} {t.region}</p>
                         </div>
                       </div>
@@ -296,7 +359,7 @@ export default function ManageTestimonials() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        <button onClick={()=>startEdit(t)} className="p-1.5 text-indigo-500 hover:bg-indigo-50 rounded-lg transition"><Edit2 size={13}/></button>
+                        <button onClick={()=>startEdit(t)} className={`p-1.5 rounded-lg transition ${t.visible===false ? 'text-orange-500 hover:bg-orange-50' : 'text-indigo-500 hover:bg-indigo-50'}`}><Edit2 size={13}/></button>
                         <button onClick={()=>toggle(t,'featured')} className={`p-1.5 rounded-lg transition ${t.featured?'text-yellow-500 bg-yellow-50':'text-slate-400 hover:text-yellow-500 hover:bg-yellow-50'}`}><Pin size={13}/></button>
                         <button onClick={()=>del(t.id)} className="p-1.5 text-red-400 hover:bg-red-50 rounded-lg transition"><Trash2 size={13}/></button>
                       </div>
@@ -306,6 +369,7 @@ export default function ManageTestimonials() {
               </tbody>
             </table>
           )}
+        </div>
         </div>
       )}
 
