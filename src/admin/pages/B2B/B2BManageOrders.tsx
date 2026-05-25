@@ -106,9 +106,10 @@ const OrderStatusBadge: React.FC<{ status: BulkOrder['status'] }> = ({ status })
 
 const SeatBadge: React.FC<{ status: BulkOrderSeat['status'] }> = ({ status }) => {
   const map: Record<BulkOrderSeat['status'], string> = {
-    Pending: 'bg-amber-50 text-amber-700 border-amber-200',
-    Active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    Expired: 'bg-red-50 text-red-700 border-red-200',
+    Pending:   'bg-amber-50 text-amber-700 border-amber-200',
+    Active:    'bg-emerald-50 text-emerald-700 border-emerald-200',
+    Paused:    'bg-indigo-50 text-indigo-600 border-indigo-200',
+    Expired:   'bg-red-50 text-red-700 border-red-200',
     Cancelled: 'bg-slate-100 text-slate-600 border-slate-200',
   };
   return (
@@ -693,6 +694,7 @@ const OrderDetailView: React.FC<{
   const [editedSeatEmail, setEditedSeatEmail] = useState('');
   const [editedSeatStartDate, setEditedSeatStartDate] = useState('');
   const [editedSeatRenewalDate, setEditedSeatRenewalDate] = useState('');
+  const [editedSeatStatus, setEditedSeatStatus] = useState<BulkOrderSeat['status']>('Active');
 
   const todayISO = new Date().toISOString().split('T')[0];
   const defaultRenewalISO = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
@@ -715,6 +717,7 @@ const OrderDetailView: React.FC<{
     setEditedSeatRenewalDate(
       seat.renewalDate ? new Date(seat.renewalDate).toISOString().split('T')[0] : defaultRenewalISO
     );
+    setEditedSeatStatus(seat.status);
   };
 
   const handleSaveSeatEdit = async (seatId: string) => {
@@ -724,6 +727,7 @@ const OrderDetailView: React.FC<{
       await db.updateBulkOrderSeat(seatId, {
         repName: editedSeatName,
         repEmail: editedSeatEmail,
+        status: editedSeatStatus,
         ...(startISO ? { startDate: startISO } : {}),
         ...(renewalISO ? { renewalDate: renewalISO } : {}),
       });
@@ -1418,6 +1422,28 @@ const OrderDetailView: React.FC<{
                                   placeholder="Rep Email"
                                   className="w-full px-2 py-1 text-xs font-mono bg-white border border-slate-200 rounded text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
+                                {/* Status selector */}
+                                <div>
+                                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {(['Active', 'Paused', 'Pending', 'Cancelled'] as BulkOrderSeat['status'][]).map(s => (
+                                      <button
+                                        key={s}
+                                        onClick={() => setEditedSeatStatus(s)}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-black border uppercase transition-all ${
+                                          editedSeatStatus === s
+                                            ? s === 'Active'    ? 'bg-emerald-500 text-white border-emerald-500'
+                                            : s === 'Paused'   ? 'bg-indigo-500 text-white border-indigo-500'
+                                            : s === 'Pending'  ? 'bg-amber-500 text-white border-amber-500'
+                                            :                    'bg-slate-500 text-white border-slate-500'
+                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                        }`}
+                                      >
+                                        {s}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                                 {/* Date range pickers */}
                                 <div className="pt-1.5 border-t border-slate-100 space-y-1">
                                   <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subscription Period</div>

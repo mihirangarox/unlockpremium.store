@@ -86,7 +86,7 @@ export interface BulkOrderSeat {
   startDate?: string;        // ISO
   renewalDate?: string;      // ISO
 
-  status: 'Pending' | 'Active' | 'Expired' | 'Cancelled';
+  status: 'Pending' | 'Active' | 'Paused' | 'Expired' | 'Cancelled';
 
   deliveredAt?: string;      // ISO — set when link is sent to rep
   notes?: string;
