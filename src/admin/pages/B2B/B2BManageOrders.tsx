@@ -177,6 +177,7 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
 }) => {
   const [salePrice, setSalePrice] = useState('');
   const [costPrice, setCostPrice] = useState('');
+  const [isOnDemand, setIsOnDemand] = useState(true); // Default true for B2B
   const [error, setError] = useState('');
 
   // 0.78 is a rough GBP/USDT exchange rate for live preview estimation
@@ -249,6 +250,35 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
               Enter the prices you negotiated with this manager on WhatsApp.
               These are per-license amounts. The totals are calculated automatically.
             </p>
+          </div>
+
+          <div className="pt-3 border-t border-slate-100">
+            <label className="flex items-center gap-3 cursor-pointer select-none group">
+              <div
+                onClick={() => setIsOnDemand(v => !v)}
+                className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${
+                  isOnDemand ? 'bg-amber-500' : 'bg-slate-300'
+                }`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${
+                  isOnDemand ? 'left-4' : 'left-0.5'
+                }`} />
+              </div>
+              <span className="text-xs font-bold text-slate-600 group-hover:text-slate-800 transition-colors">
+                Purchase On-Demand
+                <span className="ml-1.5 text-[10px] font-medium text-slate-400 normal-case">
+                  (bypass stock inventory)
+                </span>
+              </span>
+            </label>
+            {isOnDemand && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-[11px] text-amber-700 font-medium">
+                  USDT will be deducted from your FIFO ledger immediately on approval. Bulk placeholder links will be generated automatically.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Price inputs */}
@@ -394,6 +424,31 @@ const OrderDetailView: React.FC<{
     }, 1000);
     return () => clearTimeout(timer);
   }, [internalNotes, order]);
+
+  // Seat Inline Editing State
+  const [editingSeatId, setEditingSeatId] = useState<string | null>(null);
+  const [editedSeatName, setEditedSeatName] = useState('');
+  const [editedSeatEmail, setEditedSeatEmail] = useState('');
+
+  const startEditingSeat = (seat: BulkOrderSeat) => {
+    setEditingSeatId(seat.id);
+    setEditedSeatName(seat.repName || '');
+    setEditedSeatEmail(seat.repEmail || '');
+  };
+
+  const handleSaveSeatEdit = async (seatId: string) => {
+    try {
+      await db.updateBulkOrderSeat(seatId, {
+        repName: editedSeatName,
+        repEmail: editedSeatEmail
+      });
+      showToast("Seat updated successfully", "success");
+      setEditingSeatId(null);
+      loadSeats();
+    } catch {
+      showToast("Failed to update seat", "error");
+    }
+  };
 
   useEffect(() => {
     loadSeats();
@@ -650,7 +705,7 @@ const OrderDetailView: React.FC<{
                     type="text"
                     value={editedManagerName}
                     onChange={(e) => setEditedManagerName(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -660,7 +715,7 @@ const OrderDetailView: React.FC<{
                       type="email"
                       value={editedManagerEmail}
                       onChange={(e) => setEditedManagerEmail(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                   <div>
@@ -669,7 +724,7 @@ const OrderDetailView: React.FC<{
                       type="text"
                       value={editedManagerWhatsapp}
                       onChange={(e) => setEditedManagerWhatsapp(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
                 </div>
@@ -982,12 +1037,57 @@ const OrderDetailView: React.FC<{
                       </td>
                       <td className="px-5 py-3.5 text-sm text-slate-400 font-bold">{i + 1}</td>
                       <td className="px-5 py-3.5">
-                        <div className="text-sm font-bold text-slate-900">
-                          {seat.repName || seat.repEmail}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            {editingSeatId === seat.id ? (
+                              <div className="space-y-2">
+                                <input
+                                  type="text"
+                                  value={editedSeatName}
+                                  onChange={(e) => setEditedSeatName(e.target.value)}
+                                  placeholder="Rep Name"
+                                  className="w-full px-2 py-1 text-sm bg-white border border-slate-200 rounded text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                                <input
+                                  type="email"
+                                  value={editedSeatEmail}
+                                  onChange={(e) => setEditedSeatEmail(e.target.value)}
+                                  placeholder="Rep Email"
+                                  className="w-full px-2 py-1 text-xs font-mono bg-white border border-slate-200 rounded text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                                <div className="flex items-center gap-1 mt-1">
+                                  <button
+                                    onClick={() => handleSaveSeatEdit(seat.id)}
+                                    className="p-1 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                                  >
+                                    <Save className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEditingSeatId(null)}
+                                    className="p-1 rounded bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="group/edit">
+                                <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                  {seat.repName || seat.repEmail}
+                                  <button
+                                    onClick={() => startEditingSeat(seat)}
+                                    className="opacity-0 group-hover/edit:opacity-100 p-1 text-slate-400 hover:text-indigo-600 transition-opacity"
+                                  >
+                                    <Edit className="w-3 h-3" />
+                                  </button>
+                                </div>
+                                {seat.repName && (
+                                  <div className="text-xs text-slate-400 font-mono">{seat.repEmail}</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {seat.repName && (
-                          <div className="text-xs text-slate-400 font-mono">{seat.repEmail}</div>
-                        )}
                       </td>
                       <td className="px-5 py-3.5">
                         <SeatBadge status={seat.status} />
