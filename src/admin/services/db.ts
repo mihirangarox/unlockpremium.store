@@ -1210,16 +1210,16 @@ export const addSeatToBulkOrder = async (
     bulkOrderId,
     managerId: order.managerId,
     repEmail: seatData.repEmail,
-    repName: seatData.repName,
-    repLinkedinUrl: seatData.repLinkedinUrl,
+    ...(seatData.repName   ? { repName: seatData.repName }             : {}),
+    ...(seatData.repLinkedinUrl ? { repLinkedinUrl: seatData.repLinkedinUrl } : {}),
     salePrice: seatData.salePrice ?? order.salePrice,
-    usdtCost: seatData.usdtCost ?? order.usdtCost,
+    usdtCost:  seatData.usdtCost  ?? order.usdtCost,
     status: 'Pending',
     createdAt: now,
     updatedAt: now,
   };
 
-  // Write new seat document
+  // Write new seat document (no undefined values — Firestore will reject them)
   await setDoc(doc(db, 'bulk_order_seats', seatId), newSeat);
 
   // Recalculate parent order summary fields
