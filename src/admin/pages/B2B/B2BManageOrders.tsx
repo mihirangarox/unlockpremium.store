@@ -115,7 +115,8 @@ const PriceInput: React.FC<{
   value: string;
   onChange: (v: string) => void;
   id: string;
-}> = ({ label, hint, value, onChange, id }) => (
+  prefix?: string;
+}> = ({ label, hint, value, onChange, id, prefix = '£' }) => (
   <div>
     <label
       htmlFor={id}
@@ -125,7 +126,7 @@ const PriceInput: React.FC<{
     </label>
     <div className="relative">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
-        £
+        {prefix}
       </span>
       <input
         id={id}
@@ -134,7 +135,7 @@ const PriceInput: React.FC<{
         step="0.01"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full pl-7 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className={`w-full ${prefix.length > 1 ? 'pl-12' : 'pl-7'} pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500`}
         placeholder="0.00"
       />
     </div>
@@ -167,7 +168,10 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
   const [costPrice, setCostPrice] = useState('');
   const [error, setError] = useState('');
 
-  const profit = parseFloat(salePrice || '0') - parseFloat(costPrice || '0');
+  // 0.78 is a rough GBP/USDT exchange rate for live preview estimation
+  const EST_USDT_TO_GBP = 0.78;
+  const estimatedGbpCost = parseFloat(costPrice || '0') * EST_USDT_TO_GBP;
+  const profit = parseFloat(salePrice || '0') - estimatedGbpCost;
   const totalRevenue = parseFloat(salePrice || '0') * seats;
   const totalProfit = profit * seats;
   const margin =
@@ -251,6 +255,7 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
               hint="What you pay the supplier (USDT)"
               value={costPrice}
               onChange={setCostPrice}
+              prefix="USDT"
             />
           </div>
 
@@ -259,8 +264,8 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: 'Revenue', value: fmt(totalRevenue), color: 'text-slate-900' },
-                { label: 'Profit', value: fmt(totalProfit), color: totalProfit >= 0 ? 'text-emerald-700' : 'text-red-600' },
-                { label: 'Margin', value: `${margin}%`, color: 'text-indigo-700' },
+                { label: 'Est. Profit', value: fmt(totalProfit), color: totalProfit >= 0 ? 'text-emerald-700' : 'text-red-600' },
+                { label: 'Est. Margin', value: `${margin}%`, color: 'text-indigo-700' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
