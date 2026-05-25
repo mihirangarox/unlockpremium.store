@@ -678,24 +678,47 @@ const OrderDetailView: React.FC<{
   const [editingSeatId, setEditingSeatId] = useState<string | null>(null);
   const [editedSeatName, setEditedSeatName] = useState('');
   const [editedSeatEmail, setEditedSeatEmail] = useState('');
+  const [editedSeatStartDate, setEditedSeatStartDate] = useState('');
+  const [editedSeatRenewalDate, setEditedSeatRenewalDate] = useState('');
+
+  const todayISO = new Date().toISOString().split('T')[0];
+  const defaultRenewalISO = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  // Compute duration in days between the two selected dates
+  const editDurationDays = (() => {
+    if (!editedSeatStartDate || !editedSeatRenewalDate) return null;
+    const diff = new Date(editedSeatRenewalDate).getTime() - new Date(editedSeatStartDate).getTime();
+    return Math.round(diff / (1000 * 60 * 60 * 24));
+  })();
 
   const startEditingSeat = (seat: BulkOrderSeat) => {
     setEditingSeatId(seat.id);
     setEditedSeatName(seat.repName || '');
     setEditedSeatEmail(seat.repEmail || '');
+    // Default to existing dates or today / +30d
+    setEditedSeatStartDate(
+      seat.startDate ? new Date(seat.startDate).toISOString().split('T')[0] : todayISO
+    );
+    setEditedSeatRenewalDate(
+      seat.renewalDate ? new Date(seat.renewalDate).toISOString().split('T')[0] : defaultRenewalISO
+    );
   };
 
   const handleSaveSeatEdit = async (seatId: string) => {
     try {
+      const startISO = editedSeatStartDate ? new Date(editedSeatStartDate).toISOString() : undefined;
+      const renewalISO = editedSeatRenewalDate ? new Date(editedSeatRenewalDate).toISOString() : undefined;
       await db.updateBulkOrderSeat(seatId, {
         repName: editedSeatName,
-        repEmail: editedSeatEmail
+        repEmail: editedSeatEmail,
+        ...(startISO ? { startDate: startISO } : {}),
+        ...(renewalISO ? { renewalDate: renewalISO } : {}),
       });
-      showToast("Seat updated successfully", "success");
+      showToast('Seat updated successfully', 'success');
       setEditingSeatId(null);
       loadSeats();
     } catch {
-      showToast("Failed to update seat", "error");
+      showToast('Failed to update seat', 'error');
     }
   };
 
@@ -1370,7 +1393,8 @@ const OrderDetailView: React.FC<{
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1">
                             {editingSeatId === seat.id ? (
-                              <div className="space-y-2">
+                              <div className="space-y-1.5 min-w-[220px]">
+                                {/* Rep name + email */}
                                 <input
                                   type="text"
                                   value={editedSeatName}
@@ -1385,18 +1409,61 @@ const OrderDetailView: React.FC<{
                                   placeholder="Rep Email"
                                   className="w-full px-2 py-1 text-xs font-mono bg-white border border-slate-200 rounded text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                 />
-                                <div className="flex items-center gap-1 mt-1">
+                                {/* Date range pickers */}
+                                <div className="pt-1.5 border-t border-slate-100 space-y-1">
+                                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Subscription Period</div>
+                                  <div className="grid grid-cols-2 gap-1.5">
+                                    <div>
+                                      <div className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Start</div>
+                                      <input
+                                        type="date"
+                                        value={editedSeatStartDate}
+                                        onChange={(e) => {
+                                          setEditedSeatStartDate(e.target.value);
+                                          // Auto-advance renewal to keep 30d if not manually changed yet
+                                          if (e.target.value) {
+                                            const auto = new Date(e.target.value);
+                                            auto.setDate(auto.getDate() + 30);
+                                            setEditedSeatRenewalDate(auto.toISOString().split('T')[0]);
+                                          }
+                                        }}
+                                        className="w-full px-2 py-1 text-xs bg-white border border-indigo-200 rounded text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      />
+                                    </div>
+                                    <div>
+                                      <div className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">Renewal</div>
+                                      <input
+                                        type="date"
+                                        value={editedSeatRenewalDate}
+                                        min={editedSeatStartDate}
+                                        onChange={(e) => setEditedSeatRenewalDate(e.target.value)}
+                                        className="w-full px-2 py-1 text-xs bg-white border border-indigo-200 rounded text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                      />
+                                    </div>
+                                  </div>
+                                  {editDurationDays !== null && (
+                                    <div className={`text-[10px] font-bold mt-0.5 ${
+                                      editDurationDays >= 30 ? 'text-emerald-600' :
+                                      editDurationDays >= 7  ? 'text-amber-600'   : 'text-red-500'
+                                    }`}>
+                                      {editDurationDays}d period
+                                      {editDurationDays === 30 && ' (standard)'}
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Save / Cancel */}
+                                <div className="flex items-center gap-1 pt-1">
                                   <button
                                     onClick={() => handleSaveSeatEdit(seat.id)}
-                                    className="p-1 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                                    className="flex items-center gap-1 px-2 py-1 rounded bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
                                   >
-                                    <Save className="w-3 h-3" />
+                                    <Save className="w-3 h-3" /> Save
                                   </button>
                                   <button
                                     onClick={() => setEditingSeatId(null)}
-                                    className="p-1 rounded bg-slate-100 text-slate-500 hover:bg-slate-200"
+                                    className="px-2 py-1 rounded bg-slate-100 text-slate-500 text-xs hover:bg-slate-200"
                                   >
-                                    <X className="w-3 h-3" />
+                                    Cancel
                                   </button>
                                 </div>
                               </div>
