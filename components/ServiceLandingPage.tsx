@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { m } from 'framer-motion';
-import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Package, Info } from 'lucide-react';
+import { Check, ArrowRight, Zap, Shield, Star, MessageCircle, Loader2, Package, Info, Users2 } from 'lucide-react';
 import Button from './Button';
 import { getProducts, getAvailableLiveStock } from '../src/admin/services/db';
 import { useCart } from '../src/context/CartContext';
@@ -146,6 +146,11 @@ const ServiceLandingPage: React.FC = () => {
               <Button variant="outline" size="lg" as={Link} to="/how-it-works">
                 How It Works
               </Button>
+              {/* B2B upsell — inline in hero CTA so managers see it immediately */}
+              <Button variant="outline" size="lg" as={Link} to="/bulk-order" className="border-indigo-500/40 text-indigo-300 hover:border-indigo-400 hover:text-white">
+                <Users2 className="w-4 h-4 mr-2" />
+                Buy for a Team
+              </Button>
             </div>
 
             <div className="grid grid-cols-2 gap-6 pt-12 border-t border-white/5">
@@ -256,6 +261,17 @@ const ServiceLandingPage: React.FC = () => {
                 >
                   {selectedTier?.isDisabled ? 'Unavailable' : (isOutOfStock && !acceptsPreOrders ? 'Out of Stock' : 'Add to Cart')}
                 </Button>
+
+                {/* B2B entry point inside the pricing box — catches managers at point of purchase */}
+                <Link
+                  to="/bulk-order"
+                  className="mt-3 flex items-center justify-center gap-2 w-full py-3 rounded-2xl border border-indigo-500/30 bg-indigo-500/5 text-indigo-300 text-sm font-bold hover:bg-indigo-500/10 hover:border-indigo-500/50 hover:text-white transition-all group"
+                >
+                  <Users2 className="w-4 h-4 shrink-0" />
+                  Buy for a Team (Bulk Pricing)
+                  <ArrowRight className="w-3.5 h-3.5 ml-auto opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all" />
+                </Link>
+                <p className="text-center text-[10px] text-neutral-600 mt-2">Volume discounts available for 3+ seats</p>
               </div>
             </div>
           </m.div>
