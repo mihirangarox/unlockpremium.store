@@ -163,7 +163,6 @@ const TRUST_PILLS = [
   { icon: ShieldCheck, label: 'Verified Activation' },
   { icon: Globe,       label: 'Global Warranty' },
   { icon: Star,        label: 'No Password Needed' },
-  { icon: Check,       label: 'Official LinkedIn Links' },
 ];
 
 /* ─── Products Page ─────────────────────────────────────────── */

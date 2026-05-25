@@ -74,17 +74,6 @@ const Header: React.FC = () => {
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all group-hover:w-full"></span>
             </Link>
           ))}
-          {/* B2B Teams — high-margin segment gets dedicated visibility */}
-          <Link
-            to="/bulk-order"
-            className="flex items-center gap-1.5 hover:text-white transition-colors relative group py-2"
-          >
-            B2B Teams
-            <span className="px-1.5 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/30 text-[9px] font-black uppercase tracking-wider text-indigo-400 group-hover:bg-indigo-500/30 transition-colors">
-              New
-            </span>
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-indigo-500 transition-all group-hover:w-full"></span>
-          </Link>
         </nav>
 
         {/* Desktop Utility Actions */}
@@ -158,17 +147,6 @@ const Header: React.FC = () => {
                 {link.label}
               </Link>
             ))}
-            {/* B2B Teams mobile link */}
-            <Link
-              to="/bulk-order"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="text-left hover:text-white transition-colors py-2 border-b border-white/5 flex items-center justify-between"
-            >
-              <span>B2B Teams</span>
-              <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 border border-indigo-500/30 text-[9px] font-black uppercase tracking-wider text-indigo-400">
-                New
-              </span>
-            </Link>
             
             <div className="flex items-center justify-between py-2 border-b border-white/5">
               <span className="text-left text-neutral-400">Currency</span>
