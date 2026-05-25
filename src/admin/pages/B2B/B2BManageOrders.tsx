@@ -32,9 +32,16 @@ import {
   Zap,
   XCircle,
   Trash2,
+  FileText,
+  MessageSquare,
+  Copy,
+  ExternalLink,
+  Edit,
+  Save,
 } from 'lucide-react';
 import * as db from '../../services/db';
 import { useToast } from '../../components/ui/Toast';
+import { generateInvoicePDF } from '../../utils/invoiceGenerator';
 import type { BulkOrder, BulkOrderSeat } from '../../types/index';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
@@ -361,9 +368,112 @@ const OrderDetailView: React.FC<{
     }
   }, [order.id]);
 
+  // New Parity States
+  const [isEditingClient, setIsEditingClient] = useState(false);
+  const [editedManagerName, setEditedManagerName] = useState('');
+  const [editedManagerEmail, setEditedManagerEmail] = useState('');
+  const [editedManagerWhatsapp, setEditedManagerWhatsapp] = useState('');
+  
+  const [internalNotes, setInternalNotes] = useState(order.internalNotes || '');
+  const [saveNoteStatus, setSaveNoteStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  // Debounced Internal Notes save
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (internalNotes !== (order.internalNotes || '')) {
+        setSaveNoteStatus('saving');
+        try {
+          await db.saveBulkOrder({ ...order, internalNotes });
+          setSaveNoteStatus('saved');
+          setTimeout(() => setSaveNoteStatus('idle'), 2000);
+          onOrderUpdated();
+        } catch {
+          setSaveNoteStatus('idle');
+        }
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [internalNotes, order]);
+
   useEffect(() => {
     loadSeats();
   }, [loadSeats]);
+
+  const startEditingClient = () => {
+    setEditedManagerName(order.managerName);
+    setEditedManagerEmail(order.managerEmail);
+    setEditedManagerWhatsapp(order.managerWhatsapp || '');
+    setIsEditingClient(true);
+  };
+
+  const handleSaveClient = async () => {
+    setIsSaving(true);
+    try {
+      await db.saveBulkOrder({
+        ...order,
+        managerName: editedManagerName,
+        managerEmail: editedManagerEmail,
+        managerWhatsapp: editedManagerWhatsapp,
+      });
+      setIsEditingClient(false);
+      showToast("Client information updated", "success");
+      onOrderUpdated();
+    } catch {
+      showToast("Failed to update client information", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGenerateInvoice = () => {
+    generateInvoicePDF({
+      customerName: order.managerName,
+      subscriptionType: order.productName || "Sales Navigator",
+      planDuration: order.planDuration || "",
+      startDate: order.startDate ? fmtDate(order.startDate) : "TBD",
+      renewalDate: order.renewalDate ? fmtDate(order.renewalDate) : "TBD",
+      amount: fmt(order.totalRevenue || 0),
+      status: order.paymentStatus,
+      email: order.managerEmail,
+      whatsapp: order.managerWhatsapp || ""
+    });
+    showToast("Professional PDF Invoice generated!", "success");
+  };
+
+  const handleWhatsAppLink = () => {
+    if (!order.managerWhatsapp) {
+      showToast("No WhatsApp number provided for this order.", "error");
+      return;
+    }
+    const text = `*INVOICE*\n-----------------------------\n*Customer:* ${order.managerName}\n*Subscription:* ${order.totalLicenses}x ${order.productName}\n*Total Amount:* ${fmt(order.totalRevenue)}\n*Status:* ${order.paymentStatus}\n\nThank you for your business!`;
+    const cleanNumber = order.managerWhatsapp.replace(/[^0-9]/g, '');
+    const url = `https://wa.me/${cleanNumber}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handlePaymentStatusChange = async (newStatus: BulkOrder['paymentStatus']) => {
+    try {
+      if (newStatus === 'Paid' && order.paymentStatus !== 'Paid') {
+        await handleMarkPaid();
+      } else {
+        await db.saveBulkOrder({ ...order, paymentStatus: newStatus });
+        showToast("Payment status updated", "success");
+        onOrderUpdated();
+      }
+    } catch {
+      showToast("Failed to update payment status", "error");
+    }
+  };
+
+  const handleDateChange = async (field: 'startDate' | 'renewalDate', val: string) => {
+    try {
+      await db.saveBulkOrder({ ...order, [field]: val || undefined });
+      showToast("Date updated", "success");
+      onOrderUpdated();
+    } catch {
+      showToast("Failed to update date", "error");
+    }
+  };
 
   const filteredSeats = seats.filter(
     (s) =>
@@ -491,6 +601,24 @@ const OrderDetailView: React.FC<{
         <div className="flex items-center gap-2 shrink-0">
           <OrderStatusBadge status={order.status} />
           <PayBadge status={order.paymentStatus} />
+          
+          <div className="w-px h-8 bg-slate-200 mx-2" />
+          
+          <button
+            onClick={handleGenerateInvoice}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 font-bold hover:bg-indigo-50 hover:border-indigo-200 transition-all shadow-sm"
+          >
+            <FileText className="w-4 h-4" />
+            <span className="hidden sm:inline">Download PDF Invoice</span>
+          </button>
+          
+          <button
+            onClick={handleWhatsAppLink}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500 text-white font-bold hover:bg-emerald-600 transition-all shadow-sm shadow-emerald-500/20"
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span className="hidden sm:inline">WhatsApp Link</span>
+          </button>
         </div>
       </div>
 
@@ -500,25 +628,86 @@ const OrderDetailView: React.FC<{
         {/* Left Side: Client & Order Data */}
         <div className="space-y-6">
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
-              <User className="w-4 h-4" /> Client Information
-            </h3>
-            <div className="space-y-6">
-              <div>
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Manager Name</label>
-                <div className="text-lg font-bold text-slate-900">{order.managerName}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</label>
-                  <div className="font-medium text-slate-700">{order.managerEmail}</div>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Order ID</label>
-                  <div className="font-mono text-xs text-slate-700 mt-0.5">{order.id}</div>
-                </div>
-              </div>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <User className="w-4 h-4" /> Client Information
+              </h3>
+              {!isEditingClient && (
+                <button
+                  onClick={startEditingClient}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                >
+                  <Edit className="w-3 h-3" /> Edit Information
+                </button>
+              )}
             </div>
+
+            {isEditingClient ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Manager Name</label>
+                  <input
+                    type="text"
+                    value={editedManagerName}
+                    onChange={(e) => setEditedManagerName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={editedManagerEmail}
+                      onChange={(e) => setEditedManagerEmail(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">WhatsApp</label>
+                    <input
+                      type="text"
+                      value={editedManagerWhatsapp}
+                      onChange={(e) => setEditedManagerWhatsapp(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => setIsEditingClient(false)}
+                    className="flex-1 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveClient}
+                    disabled={isSaving}
+                    className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Manager Name</label>
+                  <div className="text-lg font-bold text-slate-900">{order.managerName}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</label>
+                    <div className="font-medium text-slate-700 break-all">{order.managerEmail}</div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">WhatsApp</label>
+                    <div className="font-medium text-slate-700">{order.managerWhatsapp || '—'}</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
@@ -550,6 +739,14 @@ const OrderDetailView: React.FC<{
                   <div className="text-lg font-black text-indigo-600">{order.totalRevenue > 0 ? `${((order.totalProfit / order.totalRevenue) * 100).toFixed(1)}%` : 'TBD'}</div>
                 </div>
               </div>
+              {order.notes && (
+                <div className="mt-6 pt-6 border-t border-slate-100">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Customer Notes</label>
+                  <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600 italic border border-slate-100">
+                    "{order.notes}"
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -568,11 +765,52 @@ const OrderDetailView: React.FC<{
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">USDT Cost / seat</label>
-                <div className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900">
-                  {order.usdtCost > 0 ? `${order.usdtCost} USDT` : 'Pending'}
-                </div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Payment Status *</label>
+                <select
+                  value={order.paymentStatus}
+                  onChange={(e) => handlePaymentStatusChange(e.target.value as BulkOrder['paymentStatus'])}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Partial">Partial</option>
+                  <option value="Paid">Paid</option>
+                </select>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Activation Date *</label>
+                <input
+                  type="date"
+                  value={order.startDate ? order.startDate.split('T')[0] : ''}
+                  onChange={(e) => handleDateChange('startDate', e.target.value ? new Date(e.target.value).toISOString() : '')}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Renewal Date *</label>
+                <input
+                  type="date"
+                  value={order.renewalDate ? order.renewalDate.split('T')[0] : ''}
+                  onChange={(e) => handleDateChange('renewalDate', e.target.value ? new Date(e.target.value).toISOString() : '')}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100">
+              <label className="flex items-center justify-between text-sm font-bold text-slate-700 mb-2">
+                Internal Admin Notes
+                {saveNoteStatus === 'saving' && <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />}
+                {saveNoteStatus === 'saved' && <span className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Saved</span>}
+              </label>
+              <textarea
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                placeholder="Private notes about pricing, negotiations, or client preferences..."
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[100px] resize-none"
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
@@ -611,11 +849,48 @@ const OrderDetailView: React.FC<{
                 </button>
               )}
               {order.status === 'Completed' && order.paymentStatus === 'Paid' && (
-                <div className="bg-emerald-50 border-2 border-emerald-100 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <CheckCircle2 className="w-6 h-6 text-emerald-500 mb-2" />
-                  <span className="font-bold text-emerald-800">Order Completed & Paid</span>
-                  <span className="text-xs text-emerald-600 mt-1">All seats active and payment reconciled.</span>
-                </div>
+                <>
+                  {/* Order Delivered Block */}
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                      <CheckCircle2 className="w-5 h-5" />
+                      Order Delivered
+                    </div>
+                    <div className="text-sm text-emerald-700 ml-7">
+                      Successfully delivered {order.totalLicenses} seats. Profit recorded in financial records.
+                    </div>
+                  </div>
+
+                  {/* Delivered Codes Block */}
+                  <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 flex flex-col mt-4 relative group">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <Zap className="w-3 h-3" /> Delivered Codes ({order.totalLicenses})
+                      </h4>
+                      <button
+                        onClick={() => {
+                          const links = seats.filter(s => s.activationCode).map(s => s.activationCode).join('\n');
+                          navigator.clipboard.writeText(links);
+                          showToast("Copied all activation links!", "success");
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        title="Copy All Links"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 font-mono text-[10px] text-slate-600 break-all max-h-32 overflow-y-auto whitespace-pre-wrap">
+                      {seats.filter(s => s.activationCode).map((s, i) => `${i + 1}. ${s.activationCode}`).join('\n\n') || "No activation links generated yet."}
+                    </div>
+                    <button
+                      onClick={handleWhatsAppLink}
+                      className="mt-4 w-full flex justify-center items-center gap-2 py-2.5 bg-white border border-slate-200 text-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-50 transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Re-open WhatsApp
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>

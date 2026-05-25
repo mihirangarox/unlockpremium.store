@@ -50,6 +50,10 @@ export interface BulkOrder {
   notes?: string;
   internalNotes?: string;    // Admin-only
 
+  // Shared dates for the bulk order
+  startDate?: string;
+  renewalDate?: string;
+
   createdAt: string;
   updatedAt: string;
 }
