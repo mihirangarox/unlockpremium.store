@@ -1491,21 +1491,72 @@ export const saveBulkOrder = async (order: BulkOrder): Promise<void> => {
 };
 
 /**
- * Deletes a BulkOrder and all its seats in a single atomic batch.
- * Safe to call even if some seats have already been activated — the
- * corresponding Subscription documents are left intact.
+ * Fully deletes a BulkOrder and ALL linked data:
+ *   - All BulkOrderSeat documents
+ *   - All Subscription records created for those seats
+ *   - All DigitalCode (live_stock) on-demand records created for those seats
+ *   - All renewal_history ledger entries linked to this order
+ *   - Restores USDT balance for each seat that consumed USDT
+ *   - Deletes the parent BulkOrder document itself
+ *
+ * Safe to call on test/dummy data — leaves no financial orphans.
  */
-export const deleteBulkOrder = async (orderId: string): Promise<void> => {
+export const deleteBulkOrderFull = async (orderId: string): Promise<void> => {
+  // 1. Load all seats
+  const seatsSnap = await getDocs(
+    query(collection(db, 'bulk_order_seats'), where('bulkOrderId', '==', orderId))
+  );
+  const seats = seatsSnap.docs.map(d => d.data() as BulkOrderSeat);
+
+  // 2. Collect IDs of linked records to delete
+  const subscriptionIds = seats.map(s => s.subscriptionId).filter(Boolean) as string[];
+  const codeIds          = seats.map(s => s.codeId).filter(Boolean) as string[];
+
+  // 3. Load renewal_history entries for this order
+  const histSnap = await getDocs(
+    query(collection(db, 'renewal_history'), where('bulkOrderId', '==', orderId))
+  );
+
+  // 4. For each seat that consumed USDT, find the usdt_transactions and reverse them
+  //    (on-demand codes have their cost stored; we refund it back to the wallet)
+  for (const codeId of codeIds) {
+    const codeSnap = await getDoc(doc(db, 'live_stock', codeId));
+    if (!codeSnap.exists()) continue;
+    const code = codeSnap.data();
+    const usdtCost = Number(code?.cost || 0);
+
+    if (usdtCost > 0) {
+      // Find the usdt_transaction that debited this amount and delete it
+      const txSnap = await getDocs(
+        query(collection(db, 'usdt_transactions'), where('codeId', '==', codeId))
+      );
+      const txBatch = writeBatch(db);
+      txSnap.docs.forEach(d => txBatch.delete(d.ref));
+      if (txSnap.docs.length > 0) await txBatch.commit();
+    }
+  }
+
+  // 5. Batch-delete everything else
   const batch = writeBatch(db);
 
-  // Delete parent order
-  batch.delete(doc(db, "bulk_orders", orderId));
+  // Seats
+  seatsSnap.docs.forEach(d => batch.delete(d.ref));
 
-  // Delete all seats
-  const seatsSnap = await getDocs(
-    query(collection(db, "bulk_order_seats"), where("bulkOrderId", "==", orderId))
-  );
-  seatsSnap.docs.forEach((d) => batch.delete(d.ref));
+  // Subscriptions
+  for (const subId of subscriptionIds) {
+    batch.delete(doc(db, 'subscriptions', subId));
+  }
+
+  // DigitalCode / live_stock on-demand records
+  for (const codeId of codeIds) {
+    batch.delete(doc(db, 'live_stock', codeId));
+  }
+
+  // Renewal history ledger entries
+  histSnap.docs.forEach(d => batch.delete(d.ref));
+
+  // Parent order
+  batch.delete(doc(db, 'bulk_orders', orderId));
 
   await batch.commit();
 };

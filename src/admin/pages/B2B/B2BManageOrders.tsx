@@ -662,6 +662,7 @@ const OrderDetailView: React.FC<{
   }, [order.id]);
 
   // New Parity States
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isEditingClient, setIsEditingClient] = useState(false);
   const [editedManagerName, setEditedManagerName] = useState('');
   const [editedManagerEmail, setEditedManagerEmail] = useState('');
@@ -988,6 +989,26 @@ const OrderDetailView: React.FC<{
     }
   };
 
+  // ── Delete entire order (cascade) ──────────────────────────────────────────
+  const handleDeleteOrder = async () => {
+    const confirmed = window.confirm(
+      `⚠️ DELETE "${order.managerName}"?\n\nThis will permanently remove:\n• The B2B order and all ${seats.length} seats\n• All linked subscriptions and stock records\n• All renewal history ledger entries\n• Any USDT transactions for this order\n\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
+    setIsDeleting(true);
+    try {
+      await db.deleteBulkOrderFull(order.id);
+      showToast('Order and all linked records deleted', 'success');
+      onBack();
+    } catch (err) {
+      showToast(
+        `Delete failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        'error'
+      );
+      setIsDeleting(false);
+    }
+  };
+
   const pendingCount = seats.filter((s) => s.status === 'Pending').length;
   const activeCount = seats.filter((s) => s.status === 'Active').length;
 
@@ -1031,6 +1052,18 @@ const OrderDetailView: React.FC<{
           >
             <MessageSquare className="w-4 h-4" />
             <span className="hidden sm:inline">WhatsApp Link</span>
+          </button>
+
+          {/* Delete order — removes all linked records */}
+          <button
+            onClick={handleDeleteOrder}
+            disabled={isDeleting}
+            title="Delete this order and all linked data"
+            className="p-2 rounded-xl border border-red-200 bg-white text-red-400 hover:bg-red-50 hover:text-red-600 hover:border-red-300 transition-all shadow-sm disabled:opacity-50"
+          >
+            {isDeleting
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <Trash2 className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -1788,7 +1821,7 @@ export function B2BManageOrders() {
     setIsProcessingBulk(true);
     try {
       if (action === 'Delete') {
-        await Promise.all(selectedIds.map(id => db.deleteBulkOrder(id)));
+        await Promise.all(selectedIds.map(id => db.deleteBulkOrderFull(id)));
         showToast(`Deleted ${selectedIds.length} orders`, 'success');
       } else if (action === 'Cancel') {
         await Promise.all(selectedIds.map(async (id) => {
