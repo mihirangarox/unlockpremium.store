@@ -28,6 +28,10 @@ import {
   CreditCard,
   Check,
   Info,
+  User,
+  Zap,
+  XCircle,
+  Trash2,
 } from 'lucide-react';
 import * as db from '../../services/db';
 import { useToast } from '../../components/ui/Toast';
@@ -490,92 +494,146 @@ const OrderDetailView: React.FC<{
         </div>
       </div>
 
-      {/* Order summary cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: 'Total Revenue',
-            value: order.totalRevenue > 0 ? fmt(order.totalRevenue) : 'TBD',
-            sub: `${order.totalLicenses} × ${order.salePrice > 0 ? fmt(order.salePrice) : '?'}`,
-            icon: TrendingUp,
-            color: 'bg-emerald-50 border-emerald-100 text-emerald-700',
-          },
-          {
-            label: 'Total Cost',
-            value: order.totalCost > 0 ? fmt(order.totalCost) : 'TBD',
-            sub: `${order.totalLicenses} × ${order.usdtCost > 0 ? order.usdtCost + ' USDT' : '?'}`,
-            icon: CreditCard,
-            color: 'bg-slate-50 border-slate-100 text-slate-700',
-          },
-          {
-            label: 'Total Profit',
-            value: order.totalProfit > 0 ? fmt(order.totalProfit) : 'TBD',
-            sub:
-              order.totalRevenue > 0
-                ? `${((order.totalProfit / order.totalRevenue) * 100).toFixed(1)}% margin`
-                : 'Pending pricing',
-            icon: DollarSign,
-            color: 'bg-indigo-50 border-indigo-100 text-indigo-700',
-          },
-          {
-            label: 'Seats',
-            value: `${activeCount}/${order.totalLicenses}`,
-            sub: `${pendingCount} pending activation`,
-            icon: Users,
-            color: 'bg-amber-50 border-amber-100 text-amber-700',
-          },
-        ].map(({ label, value, sub, icon: Icon, color }) => (
-          <div
-            key={label}
-            className={`rounded-2xl p-5 border flex flex-col gap-2 ${color.split(' ')[0]} ${color.split(' ')[1]}`}
-          >
-            <Icon className={`w-5 h-5 ${color.split(' ')[2]}`} />
-            <div>
-              <div className="text-xs font-black uppercase tracking-widest text-current opacity-60 mb-0.5">
-                {label}
+      {/* 2-Column Grid Layout matching RequestDetails */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Left Side: Client & Order Data */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
+              <User className="w-4 h-4" /> Client Information
+            </h3>
+            <div className="space-y-6">
+              <div>
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Manager Name</label>
+                <div className="text-lg font-bold text-slate-900">{order.managerName}</div>
               </div>
-              <div className="text-xl font-black text-slate-900">{value}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{sub}</div>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Email</label>
+                  <div className="font-medium text-slate-700">{order.managerEmail}</div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Order ID</label>
+                  <div className="font-mono text-xs text-slate-700 mt-0.5">{order.id}</div>
+                </div>
+              </div>
             </div>
           </div>
-        ))}
+
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
+              <CreditCard className="w-4 h-4" /> Subscription Request
+            </h3>
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Product</label>
+                  <div className="font-bold text-indigo-600">{order.productName || 'Sales Navigator'}</div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Licenses</label>
+                  <div className="font-medium text-slate-700">{order.totalLicenses} seats</div>
+                </div>
+              </div>
+              <div className="pt-4 border-t border-slate-100 grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Total Revenue</label>
+                  <div className="text-lg font-black text-emerald-600">{order.totalRevenue > 0 ? fmt(order.totalRevenue) : 'TBD'}</div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">USDT Cost</label>
+                  <div className="text-lg font-black text-slate-900">{order.totalCost > 0 ? `${order.totalCost} USDT` : 'TBD'}</div>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Margin</label>
+                  <div className="text-lg font-black text-indigo-600">{order.totalRevenue > 0 ? `${((order.totalProfit / order.totalRevenue) * 100).toFixed(1)}%` : 'TBD'}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side: Admin Processing Workflow */}
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 flex flex-col h-full">
+          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-6">
+            <Zap className="w-4 h-4" /> Processing Workflow
+          </h3>
+          <div className="space-y-6 flex-1">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Sale Price (£) / seat</label>
+                <div className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900">
+                  {order.salePrice > 0 ? fmt(order.salePrice) : 'Pending'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">USDT Cost / seat</label>
+                <div className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-900">
+                  {order.usdtCost > 0 ? `${order.usdtCost} USDT` : 'Pending'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Seats Active</label>
+                <div className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-emerald-700">
+                  {activeCount} / {order.totalLicenses}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Seats Pending</label>
+                <div className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-amber-600">
+                  {pendingCount}
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons inside Workflow */}
+            <div className="pt-6 border-t border-slate-100 flex flex-col gap-3 mt-auto">
+              {pendingCount > 0 && (
+                <button
+                  onClick={() => setApprovalModal({ isOpen: true, mode: 'approve-order' })}
+                  className="w-full flex justify-center items-center gap-2 px-4 py-3.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  Approve & Set Pricing ({pendingCount} pending)
+                </button>
+              )}
+              {order.paymentStatus !== 'Paid' && (
+                <button
+                  onClick={handleMarkPaid}
+                  className="w-full flex justify-center items-center gap-2 px-4 py-3.5 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                >
+                  <CreditCard className="w-5 h-5" />
+                  Mark Order as Paid
+                </button>
+              )}
+              {order.status === 'Completed' && order.paymentStatus === 'Paid' && (
+                <div className="bg-emerald-50 border-2 border-emerald-100 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                  <CheckCircle2 className="w-6 h-6 text-emerald-500 mb-2" />
+                  <span className="font-bold text-emerald-800">Order Completed & Paid</span>
+                  <span className="text-xs text-emerald-600 mt-1">All seats active and payment reconciled.</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Action bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
-        {/* Search */}
-        <div className="relative flex-1 min-w-[200px]">
+      {/* Action bar for Search */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search by rep email or name…"
+            placeholder="Search seats by rep email or name…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
-
-        {/* Approve all pending */}
-        {pendingCount > 0 && (
-          <button
-            onClick={() => setApprovalModal({ isOpen: true, mode: 'approve-order' })}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            Approve & Set Pricing ({pendingCount})
-          </button>
-        )}
-
-        {/* Mark paid */}
-        {order.paymentStatus !== 'Paid' && (
-          <button
-            onClick={handleMarkPaid}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
-          >
-            <CreditCard className="w-4 h-4" />
-            Mark as Paid
-          </button>
-        )}
       </div>
 
       {/* Seats table */}
