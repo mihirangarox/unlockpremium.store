@@ -1214,3 +1214,102 @@ export const deleteBulkOrder = async (orderId: string): Promise<void> => {
 
   await batch.commit();
 };
+
+/**
+ * Marks a BulkOrder as Paid, consumes USDT for all pending seats,
+ * creates Subscriptions and DigitalCode stock records for the CRM.
+ */
+export const markBulkOrderPaid = async (orderId: string): Promise<void> => {
+  const order = await getBulkOrder(orderId);
+  if (!order) throw new Error("Order not found");
+
+  const seats = await getBulkOrderSeats(orderId);
+  // Find seats that have pricing set but are still pending
+  const pendingSeats = seats.filter(s => s.status === 'Pending' && s.usdtCost != null);
+
+  if (pendingSeats.length === 0) {
+    await saveBulkOrder({ ...order, paymentStatus: 'Paid', status: 'Active', updatedAt: new Date().toISOString() });
+    return;
+  }
+
+  // Ensure Customer exists for the Manager
+  let customerId = order.managerId;
+  const existingCustomer = await getCustomer(customerId);
+  if (!existingCustomer) {
+    customerId = `cu_${Date.now()}`;
+    await saveCustomer({
+      id: customerId,
+      fullName: order.managerName,
+      email: order.managerEmail,
+      whatsappNumber: order.managerWhatsapp || "",
+      linkedinUrl: "",
+      country: "Unknown",
+      leadSource: "B2B",
+      notes: "Auto-created from B2B Bulk Order",
+      accountType: 'Manager',
+      status: 'Active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+  } else {
+    // Make sure they are marked as a Manager
+    await saveCustomer({ ...existingCustomer, accountType: 'Manager', updatedAt: new Date().toISOString() });
+  }
+
+  const now = new Date().toISOString();
+
+  // Process seats sequentially to avoid race conditions with USDT ledger
+  for (const seat of pendingSeats) {
+    const usdtCost = seat.usdtCost || order.usdtCost || 0;
+    const subId = `su_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const renewalDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // Consume USDT and create DigitalCode (live_stock)
+    // createOnDemandCode automatically calls consumeUSDT internally
+    const claimedCodeObj = await createOnDemandCode(
+      "[B2B_PENDING_LINK]", 
+      usdtCost,
+      order.productId,
+      order.productName,
+      order.planDuration,
+      order.id, // using bulkOrderId as requestId
+      subId
+    );
+
+    // Create Subscription
+    const subscription: Subscription = {
+      id: subId,
+      customerId,
+      subscriptionType: order.productName as any,
+      planDuration: order.planDuration as any,
+      price: seat.salePrice || order.salePrice || 0,
+      startDate: now,
+      renewalDate: renewalDate,
+      paymentStatus: 'Paid',
+      status: 'Active', // Bulk orders get activated right away for CRM
+      autoRenew: true,
+      activationCode: claimedCodeObj.code,
+      createdAt: now,
+      updatedAt: now
+    };
+    await saveSubscription(subscription);
+
+    // Update Seat
+    await updateBulkOrderSeat(seat.id, {
+      status: 'Active',
+      startDate: now,
+      renewalDate,
+      subscriptionId: subId,
+      codeId: claimedCodeObj.id,
+      activationCode: claimedCodeObj.code
+    });
+  }
+
+  // Update order parent
+  await saveBulkOrder({ 
+    ...order, 
+    paymentStatus: 'Paid', 
+    status: 'Active', 
+    updatedAt: new Date().toISOString() 
+  });
+};

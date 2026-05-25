@@ -33,7 +33,7 @@ export interface BulkOrder {
 
   // Pricing — per-license defaults (can be overridden per seat)
   salePrice: number;         // Price per license charged to the Manager (GBP)
-  costPrice: number;         // Our cost per license from supplier (GBP)
+  usdtCost: number;          // Our cost per license from supplier (USDT)
 
   // Aggregate financials (kept denormalized for fast reporting)
   totalRevenue: number;      // salePrice × totalLicenses
@@ -71,7 +71,7 @@ export interface BulkOrderSeat {
 
   // Per-seat pricing overrides (falls back to BulkOrder defaults if absent)
   salePrice?: number;
-  costPrice?: number;
+  usdtCost?: number;
 
   // Fulfillment links — set when the admin activates this seat
   subscriptionId?: string;   // → subscriptions.id

@@ -200,7 +200,7 @@ const BulkOrderForm: React.FC = () => {
         totalLicenses: reps.length,
         activatedLicenses: 0,
         salePrice: 0, // Admin sets price after reviewing
-        costPrice: 0,
+        usdtCost: 0,
         totalRevenue: 0,
         totalCost: 0,
         totalProfit: 0,

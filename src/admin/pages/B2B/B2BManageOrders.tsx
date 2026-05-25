@@ -246,9 +246,9 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
               onChange={setSalePrice}
             />
             <PriceInput
-              id="modal-cost-price"
-              label="Cost Price / seat"
-              hint="What you pay the supplier"
+              id="modal-usdt-cost"
+              label="USDT Cost / seat"
+              hint="What you pay the supplier (USDT)"
               value={costPrice}
               onChange={setCostPrice}
             />
@@ -373,15 +373,12 @@ const OrderDetailView: React.FC<{
   // ── Mark order as Paid ────────────────────────────────────────────────────
   const handleMarkPaid = async () => {
     try {
-      await db.saveBulkOrder({
-        ...order,
-        paymentStatus: 'Paid',
-        updatedAt: new Date().toISOString(),
-      });
-      showToast('Order marked as Paid', 'success');
+      await db.markBulkOrderPaid(order.id);
+      showToast('Order marked as Paid & Seats Activated!', 'success');
+      await loadSeats();
       onOrderUpdated();
-    } catch {
-      showToast('Failed to update payment status', 'error');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update payment status', 'error');
     }
   };
 
@@ -390,19 +387,16 @@ const OrderDetailView: React.FC<{
     setIsSaving(true);
     try {
       const now = new Date().toISOString();
-      const renewalDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-      // Update each pending seat with price + activation dates
+      // Update each pending seat with price, keeping status 'Pending' until paid
       await Promise.all(
         seats
           .filter((s) => s.status === 'Pending')
           .map((s) =>
             db.updateBulkOrderSeat(s.id, {
               salePrice,
-              costPrice,
-              status: 'Active',
-              startDate: now,
-              renewalDate,
+              usdtCost: costPrice,
+              // status remains 'Pending'
             })
           )
       );
@@ -411,15 +405,15 @@ const OrderDetailView: React.FC<{
       await db.saveBulkOrder({
         ...order,
         salePrice,
-        costPrice,
+        usdtCost: costPrice,
         totalRevenue: salePrice * order.totalLicenses,
         totalCost: costPrice * order.totalLicenses,
         totalProfit: (salePrice - costPrice) * order.totalLicenses,
-        status: 'Active',
+        // Status remains unchanged until Paid
         updatedAt: now,
       });
 
-      showToast('Order approved and all seats activated!', 'success');
+      showToast('Prices approved. Waiting for payment.', 'success');
       setApprovalModal({ isOpen: false, mode: 'approve-order' });
       await loadSeats();
       onOrderUpdated();
@@ -441,7 +435,7 @@ const OrderDetailView: React.FC<{
         selectedSeatIds.map((id) =>
           db.updateBulkOrderSeat(id, {
             salePrice,
-            costPrice,
+            usdtCost: costPrice,
             status: 'Active',
             renewalDate: newRenewalDate,
           })
@@ -504,7 +498,7 @@ const OrderDetailView: React.FC<{
           {
             label: 'Total Cost',
             value: order.totalCost > 0 ? fmt(order.totalCost) : 'TBD',
-            sub: `${order.totalLicenses} × ${order.costPrice > 0 ? fmt(order.costPrice) : '?'}`,
+            sub: `${order.totalLicenses} × ${order.usdtCost > 0 ? order.usdtCost + ' USDT' : '?'}`,
             icon: CreditCard,
             color: 'bg-slate-50 border-slate-100 text-slate-700',
           },
@@ -626,8 +620,8 @@ const OrderDetailView: React.FC<{
                   const isUrgent = days !== null && days <= 5 && days >= 0;
                   const isOverdue = days !== null && days < 0;
                   const profit =
-                    seat.salePrice != null && seat.costPrice != null
-                      ? seat.salePrice - seat.costPrice
+                    seat.salePrice != null && seat.usdtCost != null
+                      ? seat.salePrice - seat.usdtCost // Note: local profit calculation may be inaccurate until backend writes real GBP cost
                       : null;
 
                   return (
@@ -694,7 +688,7 @@ const OrderDetailView: React.FC<{
                         {seat.salePrice != null ? fmt(seat.salePrice) : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-5 py-3.5 text-sm font-bold text-slate-700">
-                        {seat.costPrice != null ? fmt(seat.costPrice) : <span className="text-slate-300">—</span>}
+                        {seat.usdtCost != null ? seat.usdtCost + ' USDT' : <span className="text-slate-300">—</span>}
                       </td>
                       <td className="px-5 py-3.5 text-sm font-bold">
                         {profit != null ? (
@@ -781,8 +775,12 @@ export function B2BManageOrders() {
   const [orders, setOrders] = useState<BulkOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sortBy, setSortBy] = useState('Newest');
   const [selectedOrder, setSelectedOrder] = useState<BulkOrder | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isProcessingBulk, setIsProcessingBulk] = useState(false);
 
   const loadOrders = useCallback(async () => {
     setIsLoading(true);
@@ -800,12 +798,31 @@ export function B2BManageOrders() {
     loadOrders();
   }, [loadOrders]);
 
-  const filtered = orders.filter(
+  let filtered = orders.filter(
     (o) =>
       o.managerName.toLowerCase().includes(search.toLowerCase()) ||
       o.managerEmail.toLowerCase().includes(search.toLowerCase()) ||
       o.id.toLowerCase().includes(search.toLowerCase())
   );
+
+  if (statusFilter !== 'All') {
+    filtered = filtered.filter((o) => o.status === statusFilter);
+  }
+
+  filtered.sort((a, b) => {
+    switch (sortBy) {
+      case 'Newest':
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case 'Oldest':
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      case 'High Revenue':
+        return (b.totalRevenue || 0) - (a.totalRevenue || 0);
+      case 'Low Revenue':
+        return (a.totalRevenue || 0) - (b.totalRevenue || 0);
+      default:
+        return 0;
+    }
+  });
 
   const handleTogglePaid = async (order: BulkOrder, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -826,6 +843,39 @@ export function B2BManageOrders() {
       showToast('Failed to update payment status', 'error');
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(filtered.map(o => o.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleBulkAction = async (action: 'Delete' | 'Cancel') => {
+    if (!window.confirm(`Are you sure you want to ${action.toLowerCase()} ${selectedIds.length} orders?`)) return;
+    setIsProcessingBulk(true);
+    try {
+      if (action === 'Delete') {
+        await Promise.all(selectedIds.map(id => db.deleteBulkOrder(id)));
+        showToast(`Deleted ${selectedIds.length} orders`, 'success');
+      } else if (action === 'Cancel') {
+        await Promise.all(selectedIds.map(async (id) => {
+          const order = orders.find(o => o.id === id);
+          if (order) {
+            await db.saveBulkOrder({ ...order, status: 'Cancelled', updatedAt: new Date().toISOString() });
+          }
+        }));
+        showToast(`Cancelled ${selectedIds.length} orders`, 'success');
+      }
+      setSelectedIds([]);
+      loadOrders();
+    } catch {
+      showToast(`Failed to ${action.toLowerCase()} orders`, 'error');
+    } finally {
+      setIsProcessingBulk(false);
     }
   };
 
@@ -889,19 +939,85 @@ export function B2BManageOrders() {
         </div>
       )}
 
-      {/* Search */}
+      {/* Filters & Search */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by manager name, email, or order ID…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by manager name, email, or order ID…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+          
+          <div className="flex gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              <option value="All">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Partially Active">Partially Active</option>
+              <option value="Active">Active</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+            >
+              <option value="Newest">Newest First</option>
+              <option value="Oldest">Oldest First</option>
+              <option value="High Revenue">Highest Revenue</option>
+              <option value="Low Revenue">Lowest Revenue</option>
+            </select>
+          </div>
         </div>
       </div>
+
+      {/* Floating Bulk Toolbar */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white rounded-2xl p-4 flex items-center gap-6 shadow-2xl border border-white/10 min-w-[300px]"
+          >
+            <div className="flex items-center gap-3 pr-6 border-r border-white/10">
+              <div className="w-8 h-8 bg-indigo-500 rounded-full flex items-center justify-center font-black text-sm">
+                {selectedIds.length}
+              </div>
+              <span className="font-bold text-sm tracking-tight text-slate-300">Orders Selected</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => handleBulkAction('Cancel')}
+                disabled={isProcessingBulk}
+                className="px-4 py-2 text-sm font-bold bg-white/5 hover:bg-white/10 rounded-xl transition flex items-center gap-2"
+              >
+                <XCircle className="w-4 h-4 text-amber-400" />
+                Cancel Orders
+              </button>
+              <button 
+                onClick={() => handleBulkAction('Delete')}
+                disabled={isProcessingBulk}
+                className="px-4 py-2 text-sm font-bold bg-rose-600 hover:bg-rose-700 rounded-xl transition flex items-center gap-2 shadow-lg shadow-rose-900/20"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Forever
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Orders table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -909,6 +1025,14 @@ export function B2BManageOrders() {
           <table className="w-full text-left border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
               <tr>
+                <th className="px-6 py-4 w-12 bg-slate-50">
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.length === filtered.length && filtered.length > 0}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                  />
+                </th>
                 <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Date</th>
                 <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider">Manager</th>
                 <th className="px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-wider text-center">Seats</th>
@@ -953,6 +1077,17 @@ export function B2BManageOrders() {
                       onClick={() => setSelectedOrder(order)}
                       className="cursor-pointer hover:bg-slate-50/80 transition-colors group"
                     >
+                      <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(order.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedIds([...selectedIds, order.id]);
+                            else setSelectedIds(selectedIds.filter(id => id !== order.id));
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
                           <Calendar className="w-3.5 h-3.5 text-slate-400" />
