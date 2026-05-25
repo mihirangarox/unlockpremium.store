@@ -407,6 +407,8 @@ interface ApprovalModalProps {
   seats: number;
   isOpen: boolean;
   isSaving: boolean;
+  defaultSalePrice?: number;
+  defaultUsdtCost?: number;
   onClose: () => void;
   onConfirm: (salePrice: number, costPrice: number) => Promise<void>;
 }
@@ -417,13 +419,24 @@ const ApprovalModal: React.FC<ApprovalModalProps> = ({
   seats,
   isOpen,
   isSaving,
+  defaultSalePrice,
+  defaultUsdtCost,
   onClose,
   onConfirm,
 }) => {
-  const [salePrice, setSalePrice] = useState('');
-  const [costPrice, setCostPrice] = useState('');
+  const [salePrice, setSalePrice] = useState(defaultSalePrice?.toFixed(2) ?? '');
+  const [costPrice, setCostPrice] = useState(defaultUsdtCost?.toFixed(2) ?? '');
   const [isOnDemand, setIsOnDemand] = useState(true); // Default true for B2B
   const [error, setError] = useState('');
+
+  // Re-populate if defaults change (modal re-opened in different mode)
+  useEffect(() => {
+    if (isOpen) {
+      setSalePrice(defaultSalePrice?.toFixed(2) ?? '');
+      setCostPrice(defaultUsdtCost?.toFixed(2) ?? '');
+      setError('');
+    }
+  }, [isOpen, defaultSalePrice, defaultUsdtCost]);
 
   // 0.78 is a rough GBP/USDT exchange rate for live preview estimation
   const EST_USDT_TO_GBP = 0.78;
@@ -944,32 +957,28 @@ const OrderDetailView: React.FC<{
   };
 
   // ── Bulk renew selected seats ─────────────────────────────────────────────
-  const handleBulkRenew = async (salePrice: number, costPrice: number) => {
+  // Defaults the modal to the order's current per-seat average, but the admin
+  // MUST confirm (and can change) the prices before submitting — this is
+  // intentional so fluctuating USDT costs are always captured fresh.
+  const handleBulkRenew = async (newSalePrice: number, newUsdtCost: number) => {
     if (selectedSeatIds.length === 0) return;
     setIsSaving(true);
     try {
-      const newRenewalDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      await Promise.all(
-        selectedSeatIds.map((id) =>
-          db.updateBulkOrderSeat(id, {
-            salePrice,
-            usdtCost: costPrice,
-            status: 'Active',
-            renewalDate: newRenewalDate,
-          })
-        )
-      );
+      await db.renewBulkOrderSeats(order.id, selectedSeatIds, newSalePrice, newUsdtCost);
 
       showToast(
-        `${selectedSeatIds.length} seat${selectedSeatIds.length > 1 ? 's' : ''} renewed successfully`,
+        `${selectedSeatIds.length} seat${selectedSeatIds.length > 1 ? 's' : ''} renewed & ledger updated!`,
         'success'
       );
       setApprovalModal({ isOpen: false, mode: 'renew-seats' });
       setSelectedSeatIds([]);
       await loadSeats();
-    } catch {
-      showToast('Renewal failed. Please try again.', 'error');
+      onOrderUpdated(); // refresh header MRR
+    } catch (err) {
+      showToast(
+        `Renewal failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        'error'
+      );
     } finally {
       setIsSaving(false);
     }
@@ -1619,15 +1628,25 @@ const OrderDetailView: React.FC<{
           title={
             approvalModal.mode === 'approve-order'
               ? 'Set Pricing & Approve Order'
-              : `Renew ${selectedSeatIds.length} Seat${selectedSeatIds.length > 1 ? 's' : ''}`
+              : `Renew ${selectedSeatIds.length} Seat${selectedSeatIds.length > 1 ? 's' : ''} — New Pricing`
           }
           description={
             approvalModal.mode === 'approve-order'
               ? 'Enter the negotiated prices for this batch. All pending seats will be activated.'
-              : 'Enter the renewal pricing for the selected seats. Renewal date will be set to +30 days from today.'
+              : `Enter this month's prices for the ${selectedSeatIds.length} selected seat${selectedSeatIds.length > 1 ? 's' : ''}. These are locked into the ledger — they will NOT overwrite historical records.`
           }
           seats={
             approvalModal.mode === 'approve-order' ? pendingCount : selectedSeatIds.length
+          }
+          defaultSalePrice={
+            approvalModal.mode === 'renew-seats'
+              ? (order.totalRevenue && order.totalLicenses ? order.totalRevenue / order.totalLicenses : order.salePrice)
+              : undefined
+          }
+          defaultUsdtCost={
+            approvalModal.mode === 'renew-seats'
+              ? order.usdtCost
+              : undefined
           }
           isSaving={isSaving}
           onClose={() => setApprovalModal((p) => ({ ...p, isOpen: false }))}

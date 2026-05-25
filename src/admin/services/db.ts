@@ -1377,6 +1377,109 @@ export const activateSingleSeat = async (
 };
 
 /**
+ * Atomically renews a batch of BulkOrderSeats with new pricing.
+ *
+ * For each seatId this does THREE things in a single Firestore batch:
+ *  1. Updates the seat: new salePrice, usdtCost, renewalDate (+30 days from today),
+ *     and sets status to 'Active' (in case the seat was Pending-payment).
+ *  2. Writes a renewal_history ledger entry so historical profit for this seat
+ *     is preserved even when prices change next month.
+ *  3. After the batch commits, recalculates totalRevenue / totalCost / totalProfit
+ *     on the parent BulkOrder from the live seat collection so the header MRR
+ *     always reflects the correct current pricing.
+ *
+ * @param bulkOrderId   Parent order ID
+ * @param seatIds       Array of BulkOrderSeat IDs to renew
+ * @param newSalePrice  New agreed sale price per seat (£)
+ * @param newUsdtCost   New USDT cost per seat
+ */
+export const renewBulkOrderSeats = async (
+  bulkOrderId: string,
+  seatIds: string[],
+  newSalePrice: number,
+  newUsdtCost: number
+): Promise<void> => {
+  if (seatIds.length === 0) throw new Error('No seats selected for renewal');
+
+  const order = await getBulkOrder(bulkOrderId);
+  if (!order) throw new Error(`BulkOrder ${bulkOrderId} not found`);
+
+  const now = new Date().toISOString();
+  const newRenewalDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const EST_USDT_TO_GBP = 0.78;
+  const gbpCostPerSeat = newUsdtCost * EST_USDT_TO_GBP;
+  const profitPerSeat = newSalePrice - gbpCostPerSeat;
+
+  // Fetch all seat documents up-front (we need customerId + subscriptionId for the ledger)
+  const seatSnaps = await Promise.all(
+    seatIds.map(id => getDoc(doc(db, 'bulk_order_seats', id)))
+  );
+
+  const batch = writeBatch(db);
+
+  for (const snap of seatSnaps) {
+    if (!snap.exists()) continue;
+    const seat = snap.data() as BulkOrderSeat;
+
+    // 1️⃣  Update the seat
+    batch.update(doc(db, 'bulk_order_seats', seat.id), {
+      salePrice: newSalePrice,
+      usdtCost: newUsdtCost,
+      renewalDate: newRenewalDate,
+      status: 'Active',
+      updatedAt: now,
+    });
+
+    // 2️⃣  Write a ledger entry to renewal_history
+    const historyId = `rh_b2b_${seat.id}_${Date.now()}`;
+    const historyEntry: RenewalHistory = {
+      id: historyId,
+      customerId: order.managerId,
+      subscriptionId: seat.subscriptionId || seat.id, // fallback to seatId if no sub yet
+      bulkOrderId,
+      bulkOrderSeatId: seat.id,
+      oldPlan: order.planDuration as any,
+      newPlan: order.planDuration as any,
+      amount: newSalePrice,
+      cost: gbpCostPerSeat,
+      profit: profitPerSeat,
+      renewedOn: now,
+      paymentMethod: 'USDT',
+      notes: `B2B Renewal — ${order.managerName} / ${seat.repEmail || seat.repName || seat.id} — ${order.productName} @ £${newSalePrice} / ${newUsdtCost} USDT`,
+      createdAt: now,
+      ...(seat.activationCode ? { activationCode: seat.activationCode } : {}),
+      ...(seat.codeId         ? { codeId: seat.codeId }                 : {}),
+    };
+    batch.set(doc(db, 'renewal_history', historyId), historyEntry);
+  }
+
+  // Commit seats + ledger atomically
+  await batch.commit();
+
+  // 3️⃣  Recalculate parent order totals from the full live seat collection
+  const allSeats = await getBulkOrderSeats(bulkOrderId);
+  const activatedCount = allSeats.filter(s => s.status === 'Active').length;
+  const totalSeats = allSeats.length;
+
+  const totalRevenue = allSeats.reduce((sum, s) => sum + (s.salePrice ?? 0), 0);
+  const totalCost    = allSeats.reduce((sum, s) => sum + ((s.usdtCost ?? 0) * EST_USDT_TO_GBP), 0);
+  const totalProfit  = totalRevenue - totalCost;
+
+  let orderStatus: BulkOrder['status'] = 'Pending';
+  if (activatedCount === totalSeats && totalSeats > 0) orderStatus = 'Active';
+  else if (activatedCount > 0) orderStatus = 'Partially Active';
+
+  await setDoc(doc(db, 'bulk_orders', bulkOrderId), {
+    totalRevenue,
+    totalCost,
+    totalProfit,
+    activatedLicenses: activatedCount,
+    status: orderStatus,
+    updatedAt: now,
+  }, { merge: true });
+};
+
+/**
  * Saves (creates or fully replaces) a BulkOrder document.
  * Use this for admin edits to the top-level order fields.
  */
