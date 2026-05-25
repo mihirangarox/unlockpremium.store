@@ -164,7 +164,7 @@ interface AddSeatModalProps {
   defaultSalePrice?: number;
   defaultUsdtCost?: number;
   onClose: () => void;
-  onConfirm: (repName: string, repEmail: string, salePrice: number, usdtCost: number) => Promise<void>;
+  onConfirm: (repName: string, repEmail: string, salePrice: number, usdtCost: number, startDate: string, renewalDate: string) => Promise<void>;
 }
 
 const AddSeatModal: React.FC<AddSeatModalProps> = ({
@@ -179,6 +179,10 @@ const AddSeatModal: React.FC<AddSeatModalProps> = ({
   const [repEmail, setRepEmail] = useState('');
   const [salePrice, setSalePrice] = useState(defaultSalePrice?.toString() ?? '');
   const [usdtCost, setUsdtCost] = useState(defaultUsdtCost?.toString() ?? '');
+  const today = new Date().toISOString().split('T')[0];
+  const thirtyDaysOut = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const [startDate, setStartDate] = useState(today);
+  const [renewalDate, setRenewalDate] = useState(thirtyDaysOut);
   const [error, setError] = useState('');
 
   // Reset form when opened
@@ -188,6 +192,8 @@ const AddSeatModal: React.FC<AddSeatModalProps> = ({
       setRepEmail('');
       setSalePrice(defaultSalePrice?.toString() ?? '');
       setUsdtCost(defaultUsdtCost?.toString() ?? '');
+      setStartDate(today);
+      setRenewalDate(thirtyDaysOut);
       setError('');
     }
   }, [isOpen, defaultSalePrice, defaultUsdtCost]);
@@ -214,7 +220,7 @@ const AddSeatModal: React.FC<AddSeatModalProps> = ({
       return;
     }
     setError('');
-    await onConfirm(repName.trim(), repEmail.trim(), sp, cp);
+    await onConfirm(repName.trim(), repEmail.trim(), sp, cp, startDate, renewalDate);
   };
 
   if (!isOpen) return null;
@@ -281,6 +287,28 @@ const AddSeatModal: React.FC<AddSeatModalProps> = ({
                 onChange={e => setRepEmail(e.target.value)}
                 placeholder="e.g. john@company.com"
                 className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Dates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Activation Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Renewal Date</label>
+              <input
+                type="date"
+                value={renewalDate}
+                onChange={e => setRenewalDate(e.target.value)}
+                className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
@@ -675,18 +703,76 @@ const OrderDetailView: React.FC<{
     loadSeats();
   }, [loadSeats]);
 
-  const handleAddSeat = async (repName: string, repEmail: string, salePrice: number, usdtCost: number) => {
+  const handleAddSeat = async (repName: string, repEmail: string, salePrice: number, usdtCost: number, startDate: string, renewalDate: string) => {
     setIsAddingSeat(true);
     try {
-      await db.addSeatToBulkOrder(order.id, { repName, repEmail, salePrice, usdtCost });
+      await db.addSeatToBulkOrder(order.id, {
+        repName,
+        repEmail,
+        salePrice,
+        usdtCost,
+        ...(startDate ? { startDate: new Date(startDate).toISOString() } : {}),
+        ...(renewalDate ? { renewalDate: new Date(renewalDate).toISOString() } : {}),
+      });
       showToast(`New seat for ${repEmail} added successfully!`, 'success');
       setAddSeatModal(false);
       loadSeats();
-      onOrderUpdated(); // refresh parent order totals in the list
+      onOrderUpdated();
     } catch (err) {
       showToast(`Failed to add seat: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
     } finally {
       setIsAddingSeat(false);
+    }
+  };
+
+  const handleDeleteSeat = async (seatId: string, repEmail: string) => {
+    if (!window.confirm(`Remove seat for "${repEmail}" from this order? This cannot be undone.`)) return;
+    try {
+      await db.deleteBulkOrderSeat(seatId);
+      showToast(`Seat removed.`, 'success');
+      loadSeats();
+      onOrderUpdated();
+    } catch (err) {
+      showToast(`Failed to remove seat: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+    }
+  };
+
+  const [activatingSeatId, setActivatingSeatId] = useState<string | null>(null);
+
+  const handleActivateSeat = async (seat: BulkOrderSeat) => {
+    setActivatingSeatId(seat.id);
+    try {
+      await db.activateSingleSeat(seat.id, seat.startDate, seat.renewalDate);
+      showToast(`Seat for ${seat.repEmail} activated!`, 'success');
+      loadSeats();
+      onOrderUpdated();
+    } catch (err) {
+      showToast(`Failed to activate: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+    } finally {
+      setActivatingSeatId(null);
+    }
+  };
+
+  const handleActivateSelected = async () => {
+    if (selectedSeatIds.length === 0) return;
+    const pendingSelected = seats.filter(s => selectedSeatIds.includes(s.id) && s.status === 'Pending');
+    if (pendingSelected.length === 0) {
+      showToast('No pending seats in selection to activate.', 'error');
+      return;
+    }
+    setIsSaving(true);
+    try {
+      for (const seat of pendingSelected) {
+        await db.activateSingleSeat(seat.id, seat.startDate, seat.renewalDate);
+      }
+      showToast(`${pendingSelected.length} seat(s) activated!`, 'success');
+      setSelectedSeatIds([]);
+      loadSeats();
+      onOrderUpdated();
+    } catch (err) {
+      showToast(`Activation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1381,6 +1467,35 @@ const OrderDetailView: React.FC<{
                           <span className="text-slate-300">—</span>
                         )}
                       </td>
+                      {/* Per-row actions */}
+                      <td className="px-3 py-3.5">
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {seat.status === 'Pending' && (
+                            <>
+                              <button
+                                onClick={() => handleActivateSeat(seat)}
+                                disabled={activatingSeatId === seat.id}
+                                title="Activate this seat now"
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold hover:bg-emerald-100 disabled:opacity-50 transition-colors"
+                              >
+                                {activatingSeatId === seat.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="w-3 h-3" />
+                                )}
+                                Activate
+                              </button>
+                              <button
+                                onClick={() => handleDeleteSeat(seat.id, seat.repEmail)}
+                                title="Remove this seat"
+                                className="p-1.5 rounded-lg bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 transition-colors"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </motion.tr>
                   );
                 })
@@ -1405,6 +1520,14 @@ const OrderDetailView: React.FC<{
               </div>
               <span className="text-sm font-bold text-slate-300">Seats selected</span>
             </div>
+            <button
+              onClick={handleActivateSelected}
+              disabled={isSaving}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors shadow-lg shadow-emerald-900/20 disabled:opacity-50"
+            >
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Activate Selected
+            </button>
             <button
               onClick={() => setApprovalModal({ isOpen: true, mode: 'renew-seats' })}
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold transition-colors shadow-lg shadow-indigo-900/30"

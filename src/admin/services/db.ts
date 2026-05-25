@@ -1250,6 +1250,133 @@ export const addSeatToBulkOrder = async (
 };
 
 /**
+ * Deletes a single BulkOrderSeat and recalculates the parent BulkOrder
+ * summary fields (totalLicenses, totalRevenue, totalCost, totalProfit).
+ * Only call this on Pending seats — active seats should be cancelled, not deleted.
+ */
+export const deleteBulkOrderSeat = async (seatId: string): Promise<void> => {
+  const seatSnap = await getDoc(doc(db, 'bulk_order_seats', seatId));
+  if (!seatSnap.exists()) throw new Error('Seat not found');
+  const seat = seatSnap.data() as BulkOrderSeat;
+
+  await deleteDoc(doc(db, 'bulk_order_seats', seatId));
+
+  // Recalculate parent order after deletion
+  const remainingSeats = await getBulkOrderSeats(seat.bulkOrderId);
+  const activatedCount = remainingSeats.filter(s => s.status === 'Active').length;
+  const totalSeats = remainingSeats.length;
+
+  const totalRevenue = remainingSeats.reduce((sum, s) => sum + (s.salePrice ?? 0), 0);
+  const EST_USDT_TO_GBP = 0.78;
+  const totalCost = remainingSeats.reduce((sum, s) => sum + ((s.usdtCost ?? 0) * EST_USDT_TO_GBP), 0);
+  const totalProfit = totalRevenue - totalCost;
+
+  let orderStatus: BulkOrder['status'] = 'Pending';
+  if (totalSeats === 0) orderStatus = 'Pending';
+  else if (activatedCount === totalSeats) orderStatus = 'Active';
+  else if (activatedCount > 0) orderStatus = 'Partially Active';
+
+  await setDoc(doc(db, 'bulk_orders', seat.bulkOrderId), {
+    totalLicenses: totalSeats,
+    activatedLicenses: activatedCount,
+    totalRevenue,
+    totalCost,
+    totalProfit,
+    status: orderStatus,
+    updatedAt: new Date().toISOString(),
+  }, { merge: true });
+};
+
+/**
+ * Activates a single Pending BulkOrderSeat immediately.
+ * Mirrors markBulkOrderPaid but for one specific seat only.
+ * Used for selective / staggered activation workflows.
+ *
+ * @param seatId     - The BulkOrderSeat to activate
+ * @param startDate  - ISO date string for the activation date (defaults to today)
+ * @param renewalDate - ISO date string for the renewal date (defaults to +30 days)
+ */
+export const activateSingleSeat = async (
+  seatId: string,
+  startDate?: string,
+  renewalDate?: string
+): Promise<void> => {
+  const seatSnap = await getDoc(doc(db, 'bulk_order_seats', seatId));
+  if (!seatSnap.exists()) throw new Error('Seat not found');
+  const seat = seatSnap.data() as BulkOrderSeat;
+
+  const order = await getBulkOrder(seat.bulkOrderId);
+  if (!order) throw new Error('Parent order not found');
+
+  const now = new Date().toISOString();
+  const activationDate = startDate || now;
+  const expiryDate = renewalDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const usdtCost = seat.usdtCost || order.usdtCost || 0;
+  const subId = `su_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+
+  // Ensure customer record exists
+  let customerId = order.managerId;
+  const existingCustomer = await getCustomer(customerId);
+  if (!existingCustomer) {
+    customerId = `cu_${Date.now()}`;
+    await saveCustomer({
+      id: customerId,
+      fullName: order.managerName,
+      email: order.managerEmail,
+      whatsappNumber: order.managerWhatsapp || '',
+      linkedinUrl: '',
+      country: 'Unknown',
+      leadSource: 'B2B',
+      notes: 'Auto-created from B2B Bulk Order',
+      accountType: 'Manager',
+      status: 'Active',
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  // Consume USDT and create DigitalCode record
+  const claimedCodeObj = await createOnDemandCode(
+    '[B2B_PENDING_LINK]',
+    usdtCost,
+    order.productId,
+    order.productName,
+    order.planDuration,
+    seat.id,
+    subId
+  );
+
+  // Create Subscription for this seat
+  const subscription: Subscription = {
+    id: subId,
+    customerId,
+    subscriptionType: order.productName as any,
+    planDuration: order.planDuration as any,
+    price: seat.salePrice || order.salePrice || 0,
+    startDate: activationDate,
+    renewalDate: expiryDate,
+    paymentStatus: 'Paid',
+    status: 'Active',
+    autoRenew: true,
+    activationCode: claimedCodeObj.code,
+    createdAt: now,
+    updatedAt: now
+  };
+  await saveSubscription(subscription);
+
+  // Activate the seat
+  await updateBulkOrderSeat(seat.id, {
+    status: 'Active',
+    startDate: activationDate,
+    renewalDate: expiryDate,
+    subscriptionId: subId,
+    codeId: claimedCodeObj.id,
+    activationCode: claimedCodeObj.code
+  });
+};
+
+/**
  * Saves (creates or fully replaces) a BulkOrder document.
  * Use this for admin edits to the top-level order fields.
  */
