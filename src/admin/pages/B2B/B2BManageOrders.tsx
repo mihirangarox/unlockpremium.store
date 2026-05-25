@@ -38,6 +38,8 @@ import {
   ExternalLink,
   Edit,
   Save,
+  Plus,
+  UserPlus,
 } from 'lucide-react';
 import * as db from '../../services/db';
 import { useToast } from '../../components/ui/Toast';
@@ -153,6 +155,221 @@ const PriceInput: React.FC<{
     <p className="text-[11px] text-slate-400 mt-1">{hint}</p>
   </div>
 );
+
+// ─── Add Seat Modal ───────────────────────────────────────────────────────────
+
+interface AddSeatModalProps {
+  isOpen: boolean;
+  isSaving: boolean;
+  defaultSalePrice?: number;
+  defaultUsdtCost?: number;
+  onClose: () => void;
+  onConfirm: (repName: string, repEmail: string, salePrice: number, usdtCost: number) => Promise<void>;
+}
+
+const AddSeatModal: React.FC<AddSeatModalProps> = ({
+  isOpen,
+  isSaving,
+  defaultSalePrice,
+  defaultUsdtCost,
+  onClose,
+  onConfirm,
+}) => {
+  const [repName, setRepName] = useState('');
+  const [repEmail, setRepEmail] = useState('');
+  const [salePrice, setSalePrice] = useState(defaultSalePrice?.toString() ?? '');
+  const [usdtCost, setUsdtCost] = useState(defaultUsdtCost?.toString() ?? '');
+  const [error, setError] = useState('');
+
+  // Reset form when opened
+  useEffect(() => {
+    if (isOpen) {
+      setRepName('');
+      setRepEmail('');
+      setSalePrice(defaultSalePrice?.toString() ?? '');
+      setUsdtCost(defaultUsdtCost?.toString() ?? '');
+      setError('');
+    }
+  }, [isOpen, defaultSalePrice, defaultUsdtCost]);
+
+  const EST_USDT_TO_GBP = 0.78;
+  const salePriceNum = parseFloat(salePrice || '0');
+  const usdtCostNum = parseFloat(usdtCost || '0');
+  const gbpCost = usdtCostNum * EST_USDT_TO_GBP;
+  const profit = salePriceNum - gbpCost;
+
+  const handleSubmit = async () => {
+    if (!repEmail.trim() || !repEmail.includes('@')) {
+      setError('Please enter a valid rep email address.');
+      return;
+    }
+    const sp = parseFloat(salePrice);
+    const cp = parseFloat(usdtCost);
+    if (isNaN(sp) || sp <= 0) {
+      setError('Please enter a valid sale price (must be > 0).');
+      return;
+    }
+    if (isNaN(cp) || cp < 0) {
+      setError('Please enter a valid USDT cost (0 or more).');
+      return;
+    }
+    setError('');
+    await onConfirm(repName.trim(), repEmail.trim(), sp, cp);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 16 }}
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md border border-slate-100"
+      >
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                <UserPlus className="w-5 h-5 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Add New Seat</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Inject a rep mid-cycle with Pending status</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700 leading-relaxed">
+              This seat will be added as <strong>Pending</strong>. Collect payment from the Manager before activating it.
+            </p>
+          </div>
+
+          {/* Rep fields */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Rep Name <span className="font-normal text-slate-400 normal-case">(optional)</span></label>
+              <input
+                type="text"
+                value={repName}
+                onChange={e => setRepName(e.target.value)}
+                placeholder="e.g. John Smith"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Rep LinkedIn Email *</label>
+              <input
+                type="email"
+                value={repEmail}
+                onChange={e => setRepEmail(e.target.value)}
+                placeholder="e.g. john@company.com"
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Pricing */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Sale Price (£) *</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">£</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={salePrice}
+                  onChange={e => setSalePrice(e.target.value)}
+                  className="w-full pl-7 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">USDT Cost *</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={usdtCost}
+                  onChange={e => setUsdtCost(e.target.value)}
+                  className="w-full pl-3 pr-14 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0.00"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">USDT</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Live profit preview */}
+          {salePriceNum > 0 && (
+            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Revenue</div>
+                <div className="text-sm font-black text-emerald-600">{new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(salePriceNum)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">GBP Cost</div>
+                <div className="text-sm font-black text-slate-700">{new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(gbpCost)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Profit</div>
+                <div className={`text-sm font-black ${profit >= 0 ? 'text-indigo-600' : 'text-red-600'}`}>{new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(profit)}</div>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+              <p className="text-xs text-red-700 font-medium">{error}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 pb-6 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSaving}
+            className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isSaving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <UserPlus className="w-4 h-4" />
+            )}
+            Add Seat
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
 
 // ─── Approval / Price Modal ───────────────────────────────────────────────────
 
@@ -380,6 +597,10 @@ const OrderDetailView: React.FC<{
   }>({ isOpen: false, mode: 'approve-order' });
   const [isSaving, setIsSaving] = useState(false);
 
+  // Add Seat Modal
+  const [addSeatModal, setAddSeatModal] = useState(false);
+  const [isAddingSeat, setIsAddingSeat] = useState(false);
+
   const loadSeats = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -453,6 +674,21 @@ const OrderDetailView: React.FC<{
   useEffect(() => {
     loadSeats();
   }, [loadSeats]);
+
+  const handleAddSeat = async (repName: string, repEmail: string, salePrice: number, usdtCost: number) => {
+    setIsAddingSeat(true);
+    try {
+      await db.addSeatToBulkOrder(order.id, { repName, repEmail, salePrice, usdtCost });
+      showToast(`New seat for ${repEmail} added successfully!`, 'success');
+      setAddSeatModal(false);
+      loadSeats();
+      onOrderUpdated(); // refresh parent order totals in the list
+    } catch (err) {
+      showToast(`Failed to add seat: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+    } finally {
+      setIsAddingSeat(false);
+    }
+  };
 
   const startEditingClient = () => {
     setEditedManagerName(order.managerName);
@@ -952,7 +1188,7 @@ const OrderDetailView: React.FC<{
         </div>
       </div>
 
-      {/* Action bar for Search */}
+      {/* Action bar for Search + Add Seat */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -964,6 +1200,14 @@ const OrderDetailView: React.FC<{
             className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
+
+        <button
+          onClick={() => setAddSeatModal(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 shrink-0"
+        >
+          <Plus className="w-4 h-4" />
+          Add New Seat
+        </button>
       </div>
 
       {/* Seats table */}
@@ -1200,6 +1444,18 @@ const OrderDetailView: React.FC<{
           onConfirm={
             approvalModal.mode === 'approve-order' ? handleApproveOrder : handleBulkRenew
           }
+        />
+      </AnimatePresence>
+
+      {/* Add Seat modal */}
+      <AnimatePresence>
+        <AddSeatModal
+          isOpen={addSeatModal}
+          isSaving={isAddingSeat}
+          defaultSalePrice={order.salePrice}
+          defaultUsdtCost={order.usdtCost}
+          onClose={() => setAddSeatModal(false)}
+          onConfirm={handleAddSeat}
         />
       </AnimatePresence>
     </div>

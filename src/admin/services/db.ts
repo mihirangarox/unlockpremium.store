@@ -1185,6 +1185,71 @@ export const updateBulkOrderSeat = async (
 };
 
 /**
+ * Adds a single new BulkOrderSeat to an existing BulkOrder mid-cycle.
+ * Increments totalLicenses on the parent order and recalculates summary
+ * fields (totalRevenue, totalCost, totalProfit) based on the new per-seat
+ * pricing. The seat defaults to "Pending" so the admin can collect payment
+ * before activating it.
+ *
+ * @param bulkOrderId - The ID of the parent BulkOrder
+ * @param seatData    - Partial seat data (repEmail required; repName, salePrice,
+ *                      usdtCost optional but strongly recommended)
+ */
+export const addSeatToBulkOrder = async (
+  bulkOrderId: string,
+  seatData: Pick<BulkOrderSeat, 'repEmail'> & Partial<Omit<BulkOrderSeat, 'repEmail'>>
+): Promise<BulkOrderSeat> => {
+  const order = await getBulkOrder(bulkOrderId);
+  if (!order) throw new Error(`BulkOrder ${bulkOrderId} not found`);
+
+  const now = new Date().toISOString();
+  const seatId = `seat_${Date.now()}_${Math.floor(Math.random() * 9999)}`;
+
+  const newSeat: BulkOrderSeat = {
+    id: seatId,
+    bulkOrderId,
+    managerId: order.managerId,
+    repEmail: seatData.repEmail,
+    repName: seatData.repName,
+    repLinkedinUrl: seatData.repLinkedinUrl,
+    salePrice: seatData.salePrice ?? order.salePrice,
+    usdtCost: seatData.usdtCost ?? order.usdtCost,
+    status: 'Pending',
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  // Write new seat document
+  await setDoc(doc(db, 'bulk_order_seats', seatId), newSeat);
+
+  // Recalculate parent order summary fields
+  const allSeats = await getBulkOrderSeats(bulkOrderId);
+  const activatedCount = allSeats.filter(s => s.status === 'Active').length;
+  const totalSeats = allSeats.length; // already includes the new seat
+
+  const totalRevenue = allSeats.reduce((sum, s) => sum + (s.salePrice ?? 0), 0);
+  const EST_USDT_TO_GBP = 0.78; // rough exchange rate for ledger estimation
+  const totalCost = allSeats.reduce((sum, s) => sum + ((s.usdtCost ?? 0) * EST_USDT_TO_GBP), 0);
+  const totalProfit = totalRevenue - totalCost;
+
+  let orderStatus: BulkOrder['status'] = 'Pending';
+  if (activatedCount === totalSeats) orderStatus = 'Active';
+  else if (activatedCount > 0) orderStatus = 'Partially Active';
+
+  await setDoc(doc(db, 'bulk_orders', bulkOrderId), {
+    totalLicenses: totalSeats,
+    activatedLicenses: activatedCount,
+    totalRevenue,
+    totalCost,
+    totalProfit,
+    status: orderStatus,
+    updatedAt: now,
+  }, { merge: true });
+
+  return newSeat;
+};
+
+/**
  * Saves (creates or fully replaces) a BulkOrder document.
  * Use this for admin edits to the top-level order fields.
  */
