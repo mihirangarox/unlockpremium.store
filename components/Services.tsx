@@ -157,7 +157,18 @@ const ProductCard = ({ product, stockCount, variants }: { product: Product, stoc
             )}
           </Button>
         </div>
-      </div>
+        </div>
+
+      {/* B2B upsell — only shown for Sales Navigator (enterprise product) */}
+      {product.name?.toLowerCase().includes('sales navigator') && (
+        <Link
+          to="/bulk-order"
+          className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-neutral-500 hover:text-indigo-400 transition-colors group"
+        >
+          <span>Need multiple seats?</span>
+          <span className="text-indigo-400 group-hover:underline">View B2B Plans →</span>
+        </Link>
+      )}
     </m.div>
   );
 };
