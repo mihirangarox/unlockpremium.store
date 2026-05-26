@@ -4,16 +4,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Primary Meta -->
   <title>LinkedIn Premium at a Fraction of the Price | UnlockPremium</title>
   <meta name="description"
     content="Get LinkedIn Premium Career, Business &amp; Sales Navigator at up to 70% off retail price. Instant activation. Trusted by 500+ users. Unlock more for less." />
+  <meta name="theme-color" content="#050d1a" />
 
-  <!-- Canonical: Handled dynamically by React in App.tsx -->
-  
+  <!-- Canonical -->
+  <link rel="canonical" href="https://www.unlockpremium.store" />
+
   <!-- Open Graph (Facebook, WhatsApp, Discord, LinkedIn) -->
   <meta property="og:type"         content="website" />
-  <meta property="og:url"          content="https://www.unlockpremium.store" />
   <meta property="og:site_name"    content="UnlockPremium" />
+  <meta property="og:locale"       content="en_GB" />
+  <meta property="og:url"          content="https://www.unlockpremium.store" />
   <meta property="og:title"        content="LinkedIn Premium at a Fraction of the Price | UnlockPremium" />
   <meta property="og:description"  content="Get LinkedIn Premium Career, Business &amp; Sales Navigator at up to 70% off retail price. Instant activation. Trusted by 500+ users." />
   <meta property="og:image"        content="https://www.unlockpremium.store/og-image-v2.png" />
@@ -28,13 +33,30 @@
   <meta name="twitter:image"       content="https://www.unlockpremium.store/og-image-v2.png" />
   <meta name="twitter:image:alt"   content="LinkedIn Premium Career, Business &amp; Sales Navigator - Save up to 70%" />
 
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "LinkedIn Premium at a Fraction of the Price",
+    "description": "Get LinkedIn Premium Career, Business & Sales Navigator at up to 70% off retail price. Instant activation. Trusted by 500+ users.",
+    "url": "https://www.unlockpremium.store",
+    "inLanguage": "en-GB",
+    "publisher": {
+      "@type": "Organization",
+      "name": "UnlockPremium",
+      "url": "https://www.unlockpremium.store"
+    }
+  }
+  </script>
+
   <!-- Resource hints -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="dns-prefetch" href="https://firestore.googleapis.com">
   <link rel="dns-prefetch" href="https://unlockpremium-372c9.firebaseapp.com">
 
-  <!-- Only 3 weights (was 6). font-display=swap lets text render immediately -->
+  <!-- Font — 3 weights only, swap prevents render-blocking -->
   <link rel="preload" as="style"
     href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
