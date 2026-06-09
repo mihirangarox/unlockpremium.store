@@ -236,7 +236,7 @@ export function Dashboard() {
               <span className="text-xs text-slate-400 font-medium">{stats.dueToday} today, {stats.dueThisWeek} soon</span>
             )
           }
-          onClick={() => navigate('/reminders')}
+          onClick={() => navigate('/unlock-world-26/reminders')}
           icon={<AlertCircle className="h-6 w-6" />} 
           bgColor={pendingRemindersCount > 0 ? "bg-indigo-50" : "bg-amber-50"}
           color={pendingRemindersCount > 0 ? "text-indigo-600" : "text-amber-600"} 
