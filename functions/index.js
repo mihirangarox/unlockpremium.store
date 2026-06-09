@@ -508,13 +508,20 @@ async function postToDiscord(webhookUrl, embed) {
  * Returns null if not configured.
  */
 async function getCallMeBotConfig() {
-    const settingsDoc = await db.collection('system_settings').doc('main_config').get();
-    if (!settingsDoc.exists) return null;
-    const prefs = settingsDoc.data()?.notificationPreferences || {};
-    const phone = prefs.callMeBotPhone;
-    const apiKey = prefs.callMeBotApiKey;
-    if (!phone || !apiKey) return null;
-    return { phone, apiKey };
+    // Hardcoded fallback — always works even if Firestore config is missing
+    const FALLBACK = { phone: '447534317838', apiKey: '1997129' };
+    try {
+        const settingsDoc = await db.collection('system_settings').doc('main_config').get();
+        if (settingsDoc.exists) {
+            const prefs = settingsDoc.data()?.notificationPreferences || {};
+            const phone = prefs.callMeBotPhone;
+            const apiKey = prefs.callMeBotApiKey;
+            if (phone && apiKey) return { phone, apiKey };
+        }
+    } catch (err) {
+        console.warn('[WhatsApp] Could not read Firestore config, using fallback.');
+    }
+    return FALLBACK;
 }
 
 /**
