@@ -30,14 +30,18 @@ export function SettingsPage() {
     const loadSettings = async () => {
       const dbSettings = await db.getSystemSettings();
       if (dbSettings) {
-        setSettings(dbSettings);
-        // Also sync to local storage for quick access elsewhere
-        storage.saveSettings(dbSettings);
-        updateLocalization(dbSettings);
+        // Merge: local defaults (which include all new fields) as base,
+        // Firestore data on top — so new fields are never wiped by an old Firestore document
+        const merged = { ...storage.getSettings(), ...dbSettings };
+        setSettings(merged);
+        // Also sync merged result to local storage
+        storage.saveSettings(merged);
+        updateLocalization(merged);
       }
     };
     loadSettings();
   }, []);
+
 
   const handleSave = async () => {
     // 1. Save to Firestore (Master)
