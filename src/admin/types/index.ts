@@ -282,7 +282,7 @@ export interface ActivityLog {
 export interface MessageTemplate {
   id: string;
   name: string;
-  type: 'Activation' | 'Reminder';
+  type: 'Activation' | 'Reminder' | 'Post-Activation' | 'Win-Back' | 'Payment Follow-Up';
   productType: SubscriptionType | 'All';
   duration: PlanDuration | 'All';
   body: string;
@@ -301,7 +301,16 @@ export interface AppSettings {
   // Automation
   autoSendMode: AutoSendMode;
   reminderThresholds: number[];
+  /** @deprecated Use per-threshold templates (reminderTemplate7/3/1/0) instead */
   whatsappTemplate: string;
+  /** Per-threshold reminder message templates — no {payment_link} variable */
+  reminderTemplate7: string;  // 7 days before — friendly awareness nudge
+  reminderTemplate3: string;  // 3 days before — confirmation check-in
+  reminderTemplate1: string;  // 1 day before — action message
+  reminderTemplate0: string;  // On the day — final nudge
+  /** Optional extended thresholds for win-back flows */
+  reminderTemplate14?: string;
+  reminderTemplate30?: string;
   automationChannels: ('WhatsApp' | 'Email' | 'SMS')[];
   
   // Notifications

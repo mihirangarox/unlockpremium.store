@@ -192,9 +192,16 @@ export const saveReminder = async (reminder: Reminder): Promise<void> => {
   await setDoc(doc(db, "reminders", reminder.id), reminder);
 };
 
+export const updateReminderStatus = async (id: string, status: Reminder['status'], sentAt?: string): Promise<void> => {
+  const updates: Partial<Reminder> = { status };
+  if (sentAt) updates.sentAt = sentAt;
+  await setDoc(doc(db, "reminders", id), updates, { merge: true });
+};
+
 export const deleteReminder = async (id: string): Promise<void> => {
   await deleteDoc(doc(db, "reminders", id));
 };
+
 
 // ─── Renewal History ──────────────────────────────────────────────────────────
 

@@ -4,7 +4,8 @@ import {
   Database, Link2, CreditCard, Users, Zap, 
   AlertCircle, Trash2, Smartphone, 
   Mail, Settings as SettingsIcon, LayoutDashboard, ChevronRight,
-  Eye, EyeOff, Lock, CheckCircle2, XCircle, Activity, Edit
+  Eye, EyeOff, Lock, CheckCircle2, XCircle, Activity, Edit,
+  ClipboardList, Search, CheckCheck
 } from "lucide-react";
 import { auth } from "../../../firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
@@ -15,14 +16,14 @@ import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { useLocalization } from "../../../context/LocalizationContext";
 import { alertService } from "../../services/alertService";
 import { DEFAULT_ACTIVATION_TEMPLATES } from "../../services/defaultTemplates";
-import type { AppSettings, AutoSendMode, MessageTemplate } from "../../types/index";
+import type { AppSettings, AutoSendMode, MessageTemplate, Reminder, Customer } from "../../types/index";
 import { Plus } from "lucide-react";
 
 export function SettingsPage() {
   const { showToast } = useToast();
   const { updateSettings: updateLocalization } = useLocalization();
   const [settings, setSettings] = useState<AppSettings>(storage.getSettings());
-  const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Templates' | 'Notifications' | 'Integrations' | 'Security' | 'Data' | 'Billing' | 'Team'>('Overview');
+  const [activeTab, setActiveTab] = useState<'Overview' | 'General' | 'Automation' | 'Templates' | 'Notifications' | 'Integrations' | 'Security' | 'Data' | 'Billing' | 'Team' | 'Reminder Log'>('Overview');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -173,6 +174,8 @@ export function SettingsPage() {
           <SettingsTab icon={<Globe className="w-4 h-4" />} label="General" active={activeTab === 'General'} onClick={() => setActiveTab('General')} />
           <SettingsTab icon={<Zap className="w-4 h-4" />} label="Automation" active={activeTab === 'Automation'} onClick={() => setActiveTab('Automation')} />
           <SettingsTab icon={<MessageSquare className="w-4 h-4" />} label="Templates" active={activeTab === 'Templates'} onClick={() => setActiveTab('Templates')} />
+          <SettingsTab icon={<ClipboardList className="w-4 h-4" />} label="Reminder Log" active={activeTab === 'Reminder Log'} onClick={() => setActiveTab('Reminder Log')} />
+          <div className="h-px bg-slate-50 my-2 mx-4" />
           <SettingsTab icon={<Bell className="w-4 h-4" />} label="Notifications" active={activeTab === 'Notifications'} onClick={() => setActiveTab('Notifications')} />
           <SettingsTab icon={<Link2 className="w-4 h-4" />} label="Integrations" active={activeTab === 'Integrations'} onClick={() => setActiveTab('Integrations')} />
           <SettingsTab icon={<Shield className="w-4 h-4" />} label="Security" active={activeTab === 'Security'} onClick={() => setActiveTab('Security')} />
@@ -187,6 +190,7 @@ export function SettingsPage() {
           {activeTab === 'General' && <GeneralSettings settings={settings} setSettings={setSettings} />}
           {activeTab === 'Automation' && <AutomationSettings settings={settings} setSettings={setSettings} />}
           {activeTab === 'Templates' && <TemplateSettings />}
+          {activeTab === 'Reminder Log' && <ReminderLogTab />}
           {activeTab === 'Notifications' && <NotificationSettings settings={settings} setSettings={setSettings} />}
           {activeTab === 'Integrations' && <IntegrationSettings settings={settings} />}
           {activeTab === 'Security' && <SecuritySettings showToast={showToast} />}
@@ -375,9 +379,50 @@ function GeneralSettings({ settings, setSettings }: { settings: AppSettings, set
   );
 }
 
+const REMINDER_THRESHOLD_CONFIG = [
+  {
+    days: 7,
+    key: 'reminderTemplate7' as const,
+    label: '7 Days Before Renewal',
+    tone: 'Friendly awareness nudge — no action required, no payment mention',
+    color: 'emerald'
+  },
+  {
+    days: 3,
+    key: 'reminderTemplate3' as const,
+    label: '3 Days Before Renewal',
+    tone: 'Confirmation check-in — ask if they want to renew',
+    color: 'blue'
+  },
+  {
+    days: 1,
+    key: 'reminderTemplate1' as const,
+    label: '1 Day Before Renewal',
+    tone: 'Action message — remind them payment comes AFTER activation, not before',
+    color: 'amber'
+  },
+  {
+    days: 0,
+    key: 'reminderTemplate0' as const,
+    label: 'On the Day (Due Today)',
+    tone: 'Final nudge — short and direct, confirm seat coming',
+    color: 'rose'
+  },
+];
+
+const REMINDER_VARIABLES = ['customer_name', 'plan_name', 'days', 'renewal_date'];
+
 function AutomationSettings({ settings, setSettings }: { settings: AppSettings, setSettings: (s: AppSettings) => void }) {
+  const thresholdColorMap: Record<string, string> = {
+    emerald: 'bg-emerald-50 border-emerald-100 text-emerald-700',
+    blue: 'bg-blue-50 border-blue-100 text-blue-700',
+    amber: 'bg-amber-50 border-amber-100 text-amber-700',
+    rose: 'bg-rose-50 border-rose-100 text-rose-700',
+  };
+
   return (
     <div className="space-y-6">
+      {/* Mode + Thresholds + Channels */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8">
         <div className="flex items-center justify-between mb-8">
           <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Renewal Reminders</h3>
@@ -387,8 +432,8 @@ function AutomationSettings({ settings, setSettings }: { settings: AppSettings, 
                 key={mode}
                 onClick={() => setSettings({ ...settings, autoSendMode: mode })}
                 className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                  settings.autoSendMode === mode 
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                  settings.autoSendMode === mode
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
                     : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
@@ -398,67 +443,118 @@ function AutomationSettings({ settings, setSettings }: { settings: AppSettings, 
           </div>
         </div>
 
-        <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Thresholds</label>
-              <div className="space-y-2">
-                {[7, 3, 1, 0].map(days => (
-                  <label key={days} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 cursor-pointer transition-all">
-                    <input
-                      type="checkbox"
-                      checked={(settings.reminderThresholds || []).includes(days)}
-                      onChange={() => {
-                        const current = settings.reminderThresholds || [];
-                        const updated = current.includes(days)
-                          ? current.filter(t => t !== days)
-                          : [...current, days].sort((a, b) => b - a);
-                        setSettings({ ...settings, reminderThresholds: updated });
-                      }}
-                      className="w-4 h-4 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span className="text-sm font-medium text-slate-700">
-                      {days === 0 ? 'On the day of renewal (due today)' : `${days} days before renewal`}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-4">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Delivery Channels</label>
-              <div className="space-y-2">
-                {['WhatsApp', 'Email', 'SMS'].map(ch => (
-                  <label key={ch} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 cursor-pointer transition-all">
-                    <input type="checkbox" checked={settings.automationChannels.includes(ch as any)} className="w-4 h-4 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500" />
-                    <span className="text-sm font-medium text-slate-700">{ch}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Message Template</label>
-            <textarea 
-              value={settings.whatsappTemplate}
-              onChange={(e) => setSettings({ ...settings, whatsappTemplate: e.target.value })}
-              rows={4}
-              className="w-full px-6 py-4 bg-indigo-50/30 border-none rounded-3xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900 placeholder:text-slate-300 transition-all leading-relaxed"
-            />
-            <div className="flex flex-wrap gap-2">
-              {['customer_name', 'plan_name', 'days', 'renewal_date', 'price', 'payment_link'].map(tag => (
-                <span key={tag} className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100/50">
-                  {`{${tag}}`}
-                </span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Thresholds</label>
+            <div className="space-y-2">
+              {[7, 3, 1, 0].map(days => (
+                <label key={days} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 cursor-pointer transition-all">
+                  <input
+                    type="checkbox"
+                    checked={(settings.reminderThresholds || []).includes(days)}
+                    onChange={() => {
+                      const current = settings.reminderThresholds || [];
+                      const updated = current.includes(days)
+                        ? current.filter(t => t !== days)
+                        : [...current, days].sort((a, b) => b - a);
+                      setSettings({ ...settings, reminderThresholds: updated });
+                    }}
+                    className="w-4 h-4 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm font-medium text-slate-700">
+                    {days === 0 ? 'On the day of renewal (due today)' : `${days} days before renewal`}
+                  </span>
+                </label>
               ))}
             </div>
           </div>
-          
-          <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold text-sm hover:bg-slate-800 transition-all shadow-xl shadow-slate-100 flex items-center justify-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            Send Test Message
-          </button>
+          <div className="space-y-4">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Delivery Channels</label>
+            <div className="space-y-2">
+              {(['WhatsApp', 'Email', 'SMS'] as const).map(ch => (
+                <label key={ch} className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-transparent hover:border-indigo-100 cursor-pointer transition-all">
+                  <input
+                    type="checkbox"
+                    checked={settings.automationChannels.includes(ch)}
+                    onChange={() => {
+                      const channels = settings.automationChannels.includes(ch)
+                        ? settings.automationChannels.filter(c => c !== ch)
+                        : [...settings.automationChannels, ch];
+                      setSettings({ ...settings, automationChannels: channels });
+                    }}
+                    className="w-4 h-4 rounded-lg border-slate-200 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm font-medium text-slate-700">{ch}</span>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Per-Threshold Message Templates */}
+      <div className="space-y-4">
+        <div className="flex items-start gap-3 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl">
+          <Zap className="w-4 h-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-indigo-800">Activate-First Model</p>
+            <p className="text-[11px] text-indigo-600/80 mt-0.5 leading-relaxed">
+              Payment links are <strong>never</strong> included in reminder messages. They are sent manually via the <strong>Post-Activation</strong> template after the customer confirms their seat is live.
+            </p>
+          </div>
+        </div>
+
+        {REMINDER_THRESHOLD_CONFIG.map(({ days, key, label, tone, color }) => {
+          const isEnabled = (settings.reminderThresholds || []).includes(days);
+          return (
+            <div
+              key={days}
+              className={`bg-white rounded-3xl border shadow-sm overflow-hidden transition-all ${
+                isEnabled ? 'border-slate-100' : 'border-slate-50 opacity-60'
+              }`}
+            >
+              <div className={`px-6 py-4 flex items-center justify-between border-b border-slate-50`}>
+                <div className="flex items-center gap-3">
+                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${thresholdColorMap[color]}`}>
+                    {days === 0 ? 'Due Today' : `${days}d`}
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-slate-800">{label}</p>
+                    <p className="text-[10px] text-slate-400 font-medium mt-0.5">{tone}</p>
+                  </div>
+                </div>
+                {!isEnabled && (
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Disabled</span>
+                )}
+              </div>
+              <div className="p-6 space-y-3">
+                <textarea
+                  value={(settings as any)[key] || ''}
+                  onChange={(e) => setSettings({ ...settings, [key]: e.target.value })}
+                  rows={4}
+                  disabled={!isEnabled}
+                  placeholder={`Message template for ${label.toLowerCase()}...`}
+                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900 placeholder:text-slate-300 transition-all leading-relaxed resize-none disabled:cursor-not-allowed"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">Variables:</span>
+                  {REMINDER_VARIABLES.map(tag => (
+                    <span
+                      key={tag}
+                      className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100/50 cursor-pointer hover:bg-indigo-100 transition-colors"
+                      onClick={() => {
+                        const current = (settings as any)[key] || '';
+                        setSettings({ ...settings, [key]: current + `{${tag}}` });
+                      }}
+                    >
+                      {`{${tag}}`}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -850,6 +946,178 @@ function DataSettings({ onBackup, onReset, onExport }: { onBackup: () => void, o
   );
 }
 
+function ReminderLogTab() {
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>('All');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      const [rems, custs] = await Promise.all([db.getReminders(), db.getCustomers()]);
+      // Sort most recent first
+      setReminders(rems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      setCustomers(custs);
+      setLoading(false);
+    })();
+  }, []);
+
+  const customerMap = Object.fromEntries(customers.map(c => [c.id, c]));
+
+  const filtered = reminders.filter(r => {
+    const customer = customerMap[r.customerId];
+    const name = customer?.fullName?.toLowerCase() || '';
+    const matchSearch = !search || name.includes(search.toLowerCase());
+    const matchStatus = statusFilter === 'All' || r.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+
+  const handleMarkSent = async (id: string) => {
+    await db.updateReminderStatus(id, 'Sent', new Date().toISOString());
+    setReminders(prev => prev.map(r => r.id === id ? { ...r, status: 'Sent', sentAt: new Date().toISOString() } : r));
+  };
+
+  const statusBadge: Record<string, string> = {
+    'Pending': 'bg-amber-50 text-amber-700 border-amber-100',
+    'Sent': 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    'Failed': 'bg-rose-50 text-rose-700 border-rose-100',
+    'Skipped': 'bg-slate-100 text-slate-500 border-slate-200',
+    'Scheduled': 'bg-blue-50 text-blue-700 border-blue-100',
+    'Manual Approval': 'bg-violet-50 text-violet-700 border-violet-100',
+  };
+
+  const channelIcon: Record<string, string> = {
+    'WhatsApp': '💬',
+    'Email': '📧',
+    'SMS': '📱',
+  };
+
+  const thresholdLabel: Record<string, string> = {
+    '7-day': '7d',
+    '3-day': '3d',
+    '1-day': '1d',
+    'due-today': 'Today',
+    'expired-follow-up': 'Expired',
+    'manual': 'Manual',
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header + Filters */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Reminder History</h3>
+            <p className="text-xs text-slate-400 mt-1">All automated and manual reminders generated by the system</p>
+          </div>
+          <span className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-100">
+            {filtered.length} records
+          </span>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+            <input
+              type="text"
+              placeholder="Search by customer name..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 bg-slate-50 border-none rounded-2xl text-sm font-medium text-slate-900 placeholder:text-slate-300 focus:ring-4 focus:ring-indigo-500/10"
+            />
+          </div>
+          {/* Status Filter */}
+          <div className="flex gap-1.5 bg-slate-100 p-1 rounded-2xl flex-shrink-0">
+            {['All', 'Pending', 'Sent', 'Failed', 'Skipped'].map(status => (
+              <button
+                key={status}
+                onClick={() => setStatusFilter(status)}
+                className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${
+                  statusFilter === status
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {status}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center">
+            <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-slate-400 font-medium">Loading reminder history...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-12 text-center">
+            <ClipboardList className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+            <p className="text-sm text-slate-400 font-medium">No reminders found</p>
+            <p className="text-xs text-slate-300 mt-1">Reminders are generated automatically by the automation engine</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {filtered.map(r => {
+              const customer = customerMap[r.customerId];
+              const isMarkable = r.status === 'Pending' || r.status === 'Scheduled' || r.status === 'Manual Approval';
+              return (
+                <div key={r.id} className="px-6 py-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="w-9 h-9 rounded-2xl bg-indigo-50 flex items-center justify-center flex-shrink-0 text-base">
+                      {channelIcon[r.channel] || '📨'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {customer?.fullName || 'Unknown Customer'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg border ${statusBadge[r.status] || 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                          {r.status}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg">
+                          {thresholdLabel[r.reminderType] || r.reminderType}
+                        </span>
+                        <span className="text-[10px] text-slate-400">{r.channel}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 flex-shrink-0">
+                    <div className="text-right hidden sm:block">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Scheduled</p>
+                      <p className="text-xs font-medium text-slate-600 mt-0.5">
+                        {r.scheduledFor ? new Date(r.scheduledFor).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
+                      </p>
+                    </div>
+                    {isMarkable && (
+                      <button
+                        onClick={() => handleMarkSent(r.id)}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors border border-emerald-100"
+                      >
+                        <CheckCheck className="w-3 h-3" />
+                        Mark Sent
+                      </button>
+                    )}
+                    {r.status === 'Sent' && r.sentAt && (
+                      <p className="text-[10px] text-slate-400 text-right hidden md:block">
+                        Sent {new Date(r.sentAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BillingPlaceholder() {
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-8 space-y-8 animate-in zoom-in-95 duration-300">
@@ -1213,6 +1481,9 @@ function TemplateSettings() {
               <select value={editForm.type || "Activation"} onChange={e => setEditForm({...editForm, type: e.target.value as any})} className="w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm font-bold text-slate-900 focus:ring-4 focus:ring-indigo-500/10">
                 <option value="Activation">Activation</option>
                 <option value="Reminder">Reminder</option>
+                <option value="Post-Activation">Post-Activation</option>
+                <option value="Win-Back">Win-Back</option>
+                <option value="Payment Follow-Up">Payment Follow-Up</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -1228,12 +1499,30 @@ function TemplateSettings() {
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-400 uppercase">Message Body</label>
             <textarea value={editForm.body || ""} onChange={e => setEditForm({...editForm, body: e.target.value})} rows={10} className="w-full bg-slate-50 border-none rounded-2xl px-4 py-3 text-sm font-medium text-slate-900 focus:ring-4 focus:ring-indigo-500/10" />
-             <div className="flex flex-wrap gap-2 mt-2">
-              {['customer_name', 'plan_name', 'activation_link', 'duration', 'days', 'price'].map(tag => (
-                <span key={tag} className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100/50 cursor-pointer hover:bg-indigo-100" onClick={() => setEditForm({...editForm, body: (editForm.body || '') + `{${tag}}`})}>
-                  {`{${tag}}`}
-                </span>
-              ))}
+            {/* Dynamic variable tags per template type */}
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mr-1">Variables:</span>
+              {(() => {
+                const type = editForm.type || 'Activation';
+                const vars: Record<string, string[]> = {
+                  'Activation': ['customer_name', 'plan_name', 'activation_link', 'duration', 'days', 'price'],
+                  'Reminder': ['customer_name', 'plan_name', 'days', 'renewal_date'],
+                  'Post-Activation': ['customer_name', 'plan_name', 'activation_link', 'payment_link'],
+                  'Win-Back': ['customer_name', 'plan_name'],
+                  'Payment Follow-Up': ['customer_name', 'plan_name', 'payment_link'],
+                };
+                return (vars[type] || vars['Activation']).map(tag => (
+                  <span
+                    key={tag}
+                    className={`text-[10px] font-bold px-3 py-1.5 rounded-xl border cursor-pointer hover:opacity-80 transition-opacity ${
+                      tag === 'payment_link' ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-indigo-500 bg-indigo-50 border-indigo-100/50'
+                    }`}
+                    onClick={() => setEditForm({...editForm, body: (editForm.body || '') + `{${tag}}`})}
+                  >
+                    {`{${tag}}`}
+                  </span>
+                ));
+              })()}
             </div>
           </div>
         </div>
@@ -1265,22 +1554,31 @@ function TemplateSettings() {
           </div>
         </div>
         <div className="divide-y divide-slate-100">
-          {templates.map(t => (
-            <div key={t.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50">
-               <div>
+          {templates.map(t => {
+            const typeBadge: Record<string, string> = {
+              'Activation': 'bg-emerald-50 text-emerald-700',
+              'Reminder': 'bg-amber-50 text-amber-700',
+              'Post-Activation': 'bg-blue-50 text-blue-700',
+              'Win-Back': 'bg-orange-50 text-orange-700',
+              'Payment Follow-Up': 'bg-rose-50 text-rose-700',
+            };
+            return (
+              <div key={t.id} className="p-6 flex items-center justify-between hover:bg-slate-50/50">
+                <div>
                   <h4 className="font-bold text-slate-900">{t.name}</h4>
-                  <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase tracking-widest">
-                     <span className={`px-2 py-1 rounded-lg ${t.type === 'Activation' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>{t.type}</span>
-                     <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{t.productType}</span>
-                     <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{t.duration}</span>
+                  <div className="flex items-center gap-2 mt-2 text-[10px] font-black uppercase tracking-widest flex-wrap">
+                    <span className={`px-2 py-1 rounded-lg ${typeBadge[t.type] || 'bg-slate-100 text-slate-600'}`}>{t.type}</span>
+                    <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{t.productType}</span>
+                    <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded-lg">{t.duration}</span>
                   </div>
-               </div>
-               <div className="flex gap-2">
+                </div>
+                <div className="flex gap-2">
                   <button onClick={() => { setEditForm(t); setEditingId(t.id); }} className="p-2 hover:bg-indigo-50 text-indigo-600 rounded-xl"><Edit className="w-4 h-4" /></button>
                   <button onClick={() => handleDelete(t.id)} className="p-2 hover:bg-rose-50 text-rose-600 rounded-xl"><Trash2 className="w-4 h-4" /></button>
-               </div>
-            </div>
-          ))}
+                </div>
+              </div>
+            );
+          })}
           {templates.length === 0 && (
              <div className="p-12 text-center text-slate-400 font-medium">No templates created yet.</div>
           )}

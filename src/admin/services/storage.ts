@@ -20,7 +20,13 @@ const DEFAULT_SETTINGS: AppSettings = {
   dateFormat: 'DD/MM/YYYY',
   autoSendMode: 'Manual Approval',
   reminderThresholds: [7, 3, 1],
-  whatsappTemplate: "Hi {customer_name}, your {plan_name} subscription renews in {days} days on {renewal_date}. Price: £{price}. Pay here: {payment_link}",
+  // @deprecated — kept for backwards compat only, per-threshold templates take priority
+  whatsappTemplate: "Hi {customer_name}, your {plan_name} subscription renews in {days} days on {renewal_date}.",
+  // Per-threshold reminder templates — no {payment_link} (activate first, pay after model)
+  reminderTemplate7: "Hi {customer_name} 👋 Just a friendly heads-up — your *{plan_name}* plan renews in 7 days on {renewal_date}.\n\nNo action needed right now, just keeping you in the loop! 😊",
+  reminderTemplate3: "Hi {customer_name}, your *{plan_name}* is renewing in 3 days on {renewal_date}.\n\nWould you like to keep it active? Just reply here and we'll get everything sorted for you.",
+  reminderTemplate1: "Hi {customer_name} ⚡ Your *{plan_name}* renews tomorrow ({renewal_date}).\n\nOnce your seat is renewed and confirmed as live on your profile, we'll be in touch. Just a reminder — payment comes *after* activation is confirmed, not before. 😊",
+  reminderTemplate0: "Hi {customer_name}, your *{plan_name}* is renewing today 🎯\n\nWe'll be in touch shortly once your seat is confirmed and live. Sit tight!",
   automationChannels: ['WhatsApp'],
   notificationPreferences: {
     customerAlerts: true,
@@ -41,6 +47,7 @@ const DEFAULT_SETTINGS: AppSettings = {
     smtp: 'connected'
   }
 };
+
 
 export const storage = {
   // App Settings

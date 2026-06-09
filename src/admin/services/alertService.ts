@@ -504,45 +504,54 @@ export const alertService = {
 
   /**
    * Returns the plain-text reminder message body (without wa.me URL wrapper).
-   * Used by the automation engine to create Reminder previews from custom templates.
-   * Follows the same 4-step template matching as Activation messages:
-   *   1. Exact match (product + duration)
-   *   2. Any product for this duration
-   *   3. Any duration for this product
-   *   4. Universal fallback
+   * 
+   * Resolution order:
+   *   1. Per-threshold template from AppSettings (reminderTemplate7/3/1/0) — preferred
+   *   2. Custom 'Reminder' template from Templates tab (product+duration matching)
+   *   3. Deprecated global whatsappTemplate from AppSettings (legacy fallback)
+   * 
+   * NOTE: {payment_link} is intentionally EXCLUDED from reminder messages.
+   * UnlockPremium operates on an activate-first, pay-after model.
+   * Payment links are only sent manually after the customer confirms activation.
    */
   generateReminderMessage(customer: any, sub: any, daysLeft: number, price: string): string {
     const firstName = customer.fullName.split(' ')[0];
     const period = (sub.planDuration || `${sub.durationMonths}M`).toUpperCase();
     const planName = sub.subscriptionType || 'LinkedIn Premium';
+    const settings = storage.getSettings();
 
+    // 1. Per-threshold template (primary — from AppSettings Automation tab)
+    const thresholdKey = daysLeft === 0 ? 'reminderTemplate0'
+      : daysLeft === 1 ? 'reminderTemplate1'
+      : daysLeft === 3 ? 'reminderTemplate3'
+      : daysLeft === 7 ? 'reminderTemplate7'
+      : daysLeft === 14 ? 'reminderTemplate14'
+      : daysLeft === 30 ? 'reminderTemplate30'
+      : null;
+
+    const thresholdTemplate = thresholdKey ? (settings as any)[thresholdKey] : null;
+
+    // 2. Custom Reminder template from Templates tab (product+duration matching)
     const templates = storage.getMessageTemplates().filter(t => t.type === 'Reminder');
     let matchedTemplate = templates.find(t => t.productType === planName && t.duration === period);
+    if (!matchedTemplate) matchedTemplate = templates.find(t => t.productType === 'All' && t.duration === period);
+    if (!matchedTemplate) matchedTemplate = templates.find(t => t.productType === planName && t.duration === 'All');
+    if (!matchedTemplate) matchedTemplate = templates.find(t => t.productType === 'All' && t.duration === 'All');
 
-    if (!matchedTemplate) {
-      matchedTemplate = templates.find(t => t.productType === 'All' && t.duration === period);
-    }
-    if (!matchedTemplate) {
-      matchedTemplate = templates.find(t => t.productType === planName && t.duration === 'All');
-    }
-    if (!matchedTemplate) {
-      matchedTemplate = templates.find(t => t.productType === 'All' && t.duration === 'All');
-    }
-
-    // Fallback to legacy whatsappTemplate from AppSettings
-    const settings = storage.getSettings();
+    // 3. Deprecated global template (last resort)
     const legacyTemplate = settings.whatsappTemplate ||
-      `Hi {customer_name}, your {plan_name} plan is renewing {days}. Price: {price}. Would you like to keep it active?`;
+      `Hi {customer_name}, your {plan_name} plan is renewing {days}. Would you like to keep it active?`;
 
-    let message = matchedTemplate?.body || legacyTemplate;
+    // Pick: per-threshold first, then custom template tab, then legacy
+    let message = thresholdTemplate || matchedTemplate?.body || legacyTemplate;
 
     const daysStr = daysLeft === 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
 
+    // Substitute all safe reminder variables — {payment_link} deliberately excluded
     return message
       .replace(/{customer_name}/g, firstName)
       .replace(/{plan_name}/g, planName)
       .replace(/{days}/g, daysStr)
-      .replace(/{price}/g, price)
       .replace(/{renewal_date}/g, sub.renewalDate?.split('T')[0] || '');
   }
 };
