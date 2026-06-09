@@ -248,7 +248,7 @@ export function Dashboard() {
           <div className="p-6 border-b border-slate-50 flex justify-between items-center">
             <h3 className="text-lg font-bold text-slate-800">Upcoming Renewals</h3>
             <button 
-              onClick={() => navigate('/subscriptions')}
+              onClick={() => navigate('subscriptions')}
               className="text-sm text-indigo-600 font-bold hover:underline"
             >
               View All
