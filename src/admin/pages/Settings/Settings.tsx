@@ -551,6 +551,28 @@ function AutomationSettings({ settings, setSettings }: { settings: AppSettings, 
                     </span>
                   ))}
                 </div>
+                {isEnabled && (settings as any)[key] && (
+                  <button
+                    onClick={() => {
+                      const raw: string = (settings as any)[key] || '';
+                      const preview = raw
+                        .replace(/{customer_name}/g, 'Sarah')
+                        .replace(/{plan_name}/g, 'LinkedIn Sales Navigator')
+                        .replace(/{days}/g, String(days))
+                        .replace(/{renewal_date}/g, '15/06/2026');
+                      const phone = (settings.notificationPreferences?.adminWhatsAppNumber || '').replace(/[^0-9]/g, '');
+                      const waUrl = phone
+                        ? `https://wa.me/${phone}?text=${encodeURIComponent(preview)}`
+                        : `https://wa.me/?text=${encodeURIComponent(preview)}`;
+                      window.open(waUrl, '_blank');
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold border border-emerald-100 transition-colors w-fit"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Send Test Message
+                  </button>
+                )}
+
               </div>
             </div>
           );
