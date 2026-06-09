@@ -1451,13 +1451,21 @@ function TemplateSettings() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("Are you sure you want to delete this template?")) {
-      await db.deleteMessageTemplate(id);
+    if (!window.confirm("Delete this template? This cannot be undone.")) return;
+    // Optimistic UI — remove from state immediately so it disappears at once
+    setTemplates(prev => prev.filter(t => t.id !== id));
+    try {
+      // Delete from both stores
       storage.deleteMessageTemplate(id);
+      await db.deleteMessageTemplate(id);
       showToast("Template deleted", "success");
-      loadTemplates();
+    } catch (err) {
+      // Rollback on failure
+      showToast("Delete failed — please try again", "error");
+      loadTemplates(); // restore from Firestore
     }
   };
+
 
   if (editingId !== null) {
     return (
