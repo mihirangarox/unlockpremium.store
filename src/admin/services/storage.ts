@@ -36,6 +36,8 @@ const DEFAULT_SETTINGS: AppSettings = {
     channels: ['In-App', 'Email'],
     adminWhatsAppNumber: '',
     webhookUrl: '',
+    callMeBotPhone: '447534317838',
+    callMeBotApiKey: '1997129',
     lastSundayReportDate: '',
     lastDailyReportDate: '',
     lastMorningReportDate: ''

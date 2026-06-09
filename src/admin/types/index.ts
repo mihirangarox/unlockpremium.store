@@ -324,6 +324,8 @@ export interface AppSettings {
     channels: ('In-App' | 'Email' | 'WhatsApp')[];
     adminWhatsAppNumber?: string;
     webhookUrl?: string;
+    callMeBotPhone?: string;
+    callMeBotApiKey?: string;
     lastSundayReportDate?: string;
     lastDailyReportDate?: string;
     lastMorningReportDate?: string;

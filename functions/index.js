@@ -462,6 +462,16 @@ exports.onNewRequest = onDocumentCreated('requests/{requestId}', async (event) =
         }
         
         console.log(`[Trigger] Successfully notified Discord for ${requestId}`);
+
+        // Also send WhatsApp alert via CallMeBot
+        const waMessage =
+            `🚨 *New CRM Order*\n\n` +
+            `👤 ${request.fullName}\n` +
+            `🛒 ${request.subscriptionType || 'Service'} (${request.subscriptionPeriod || '1M'})\n` +
+            `💰 ${request.currency || 'GBP'} ${Number(request.amount || 0).toFixed(2)}\n\n` +
+            `Review: https://www.unlockpremium.store/unlock-world-26/requests/${requestId}`;
+        await sendWhatsApp(waMessage);
+
     } catch (error) {
         console.error("[Trigger] Notification error:", error);
     }
@@ -492,6 +502,44 @@ async function postToDiscord(webhookUrl, embed) {
         throw new Error(`Discord responded with status ${response.status}: ${await response.text()}`);
     }
 }
+
+/**
+ * Fetches CallMeBot credentials from Firestore system_settings.
+ * Returns null if not configured.
+ */
+async function getCallMeBotConfig() {
+    const settingsDoc = await db.collection('system_settings').doc('main_config').get();
+    if (!settingsDoc.exists) return null;
+    const prefs = settingsDoc.data()?.notificationPreferences || {};
+    const phone = prefs.callMeBotPhone;
+    const apiKey = prefs.callMeBotApiKey;
+    if (!phone || !apiKey) return null;
+    return { phone, apiKey };
+}
+
+/**
+ * Sends a WhatsApp message via CallMeBot API.
+ * Silently logs and returns if credentials not configured.
+ */
+async function sendWhatsApp(message) {
+    try {
+        const config = await getCallMeBotConfig();
+        if (!config) {
+            console.log('[WhatsApp] CallMeBot not configured. Skipping.');
+            return;
+        }
+        const url = `https://api.callmebot.com/whatsapp.php?phone=${config.phone}&text=${encodeURIComponent(message)}&apikey=${config.apiKey}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+            console.warn(`[WhatsApp] CallMeBot responded with status ${response.status}`);
+        } else {
+            console.log('[WhatsApp] Message sent successfully.');
+        }
+    } catch (err) {
+        console.error('[WhatsApp] Failed to send:', err);
+    }
+}
+
 
 /** Returns today's date string in YYYY-MM-DD format (UTC). */
 function todayStr() {
@@ -586,6 +634,17 @@ exports.morningActionCentre = onSchedule(
             );
 
             console.log('[Morning Report] Sent successfully.');
+
+            // Also send WhatsApp briefing via CallMeBot
+            const waMsg =
+                `🌅 *Morning Briefing — ${today}*\n\n` +
+                `📋 Pending leads: ${pendingCount}\n` +
+                `🔄 Renewals today: ${renewalsToday}\n` +
+                `📦 Stock: ${stockCount} codes\n` +
+                `💷 Cash today: £${todayRevenue.toFixed(2)}\n\n` +
+                `unlockpremium.store/unlock-world-26`;
+            await sendWhatsApp(waMsg);
+
         } catch (err) {
             console.error('[Morning Report] Error:', err);
         }
@@ -665,6 +724,17 @@ exports.dailyPulseReport = onSchedule(
             );
 
             console.log('[Daily Pulse] Sent successfully.');
+
+            // Also send WhatsApp close via CallMeBot
+            const waMsg =
+                `📊 *Daily Close — ${today}*\n\n` +
+                `💰 Revenue: £${revenue.toFixed(2)}\n` +
+                `🔗 Costs: £${costs.toFixed(2)}\n` +
+                `💎 Profit: £${profit.toFixed(2)}\n` +
+                `📦 Orders: ${orders}\n` +
+                `✅ Margin: ${margin}%`;
+            await sendWhatsApp(waMsg);
+
         } catch (err) {
             console.error('[Daily Pulse] Error:', err);
         }
@@ -783,6 +853,17 @@ exports.weeklyProfitCompass = onSchedule(
 
 
             console.log('[Weekly Report] Sent successfully.');
+
+            // Also send WhatsApp weekly summary via CallMeBot
+            const waMsg =
+                `📅 *Weekly Summary — ending ${weekEnd}*\n\n` +
+                `💰 Revenue: £${revenue.toFixed(2)}\n` +
+                `💎 Net Profit: £${profit.toFixed(2)}\n` +
+                `📦 Orders: ${totalOrders}\n` +
+                `🏆 Top: ${topSeller}\n` +
+                `🥇 Best profit: ${mostProfitable}`;
+            await sendWhatsApp(waMsg);
+
         } catch (err) {
             console.error('[Weekly Report] Error:', err);
         }
@@ -909,6 +990,15 @@ exports.winBackCheck = onSchedule(
 
             await postToDiscord(webhookUrl, embed);
             console.log('[Win-Back] Discord alert sent.');
+
+            // Also send WhatsApp alert via CallMeBot
+            const waMsg =
+                `♻️ *Win-Back Queue — ${today}*\n\n` +
+                `${queued.length} customer${queued.length === 1 ? '' : 's'} queued:\n` +
+                queued.map(c => `• ${c.name} — expired ${c.expiredDaysAgo}d ago`).join('\n') +
+                `\n\nReview: https://www.unlockpremium.store/unlock-world-26/reminders`;
+            await sendWhatsApp(waMsg);
+
 
         } catch (err) {
             console.error('[Win-Back] Error:', err);

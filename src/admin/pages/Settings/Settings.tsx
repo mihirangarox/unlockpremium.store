@@ -604,7 +604,7 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
     setSettings({ ...settings, notificationPreferences: prefs });
   };
 
-  const updateAdminPref = (key: 'adminWhatsAppNumber' | 'webhookUrl', value: string) => {
+  const updateAdminPref = (key: 'adminWhatsAppNumber' | 'webhookUrl' | 'callMeBotPhone' | 'callMeBotApiKey', value: string) => {
     const prefs = { ...settings.notificationPreferences };
     (prefs[key] as any) = value;
     setSettings({ ...settings, notificationPreferences: prefs });
@@ -768,12 +768,32 @@ function NotificationSettings({ settings, setSettings }: { settings: AppSettings
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Webhook URL (Optional)</label>
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Webhook URL (Discord)</label>
             <input 
               type="url" 
-              placeholder="https://hooks.zapier.com/..."
+              placeholder="https://discord.com/api/webhooks/..."
               value={settings.notificationPreferences.webhookUrl || ''}
               onChange={(e) => updateAdminPref('webhookUrl', e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900" 
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CallMeBot — WhatsApp Phone</label>
+            <input 
+              type="text" 
+              placeholder="447534317838"
+              value={settings.notificationPreferences.callMeBotPhone || ''}
+              onChange={(e) => updateAdminPref('callMeBotPhone', e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900" 
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">CallMeBot — API Key</label>
+            <input 
+              type="password"
+              placeholder="Your CallMeBot API key"
+              value={settings.notificationPreferences.callMeBotApiKey || ''}
+              onChange={(e) => updateAdminPref('callMeBotApiKey', e.target.value)}
               className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-4 focus:ring-indigo-500/10 text-sm font-medium text-slate-900" 
             />
           </div>
