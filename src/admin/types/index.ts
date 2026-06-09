@@ -200,13 +200,15 @@ export interface Subscription {
   salePrice?: number;
   /** Per-seat cost price — for margin tracking in renewal_history. */
   costPrice?: number;
+  /** ISO date stamp set when a win-back reminder is queued. Prevents re-queueing. */
+  winBackQueuedAt?: string;
 }
 
 export interface Reminder {
   id: string;
   customerId: string;
   subscriptionId: string;
-  reminderType: '7-day' | '3-day' | '1-day' | 'due-today' | 'expired-follow-up' | 'manual';
+  reminderType: '7-day' | '3-day' | '1-day' | 'due-today' | 'expired-follow-up' | 'win-back' | 'manual';
   channel: 'WhatsApp' | 'Email' | 'SMS';
   scheduledFor: string;
   sentAt?: string;

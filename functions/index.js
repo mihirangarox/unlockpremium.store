@@ -781,9 +781,137 @@ exports.weeklyProfitCompass = onSchedule(
                 { merge: true }
             );
 
+
             console.log('[Weekly Report] Sent successfully.');
         } catch (err) {
             console.error('[Weekly Report] Error:', err);
+        }
+    }
+);
+
+// ─── SCHEDULED: WIN-BACK CHECK (9:00 AM UTC daily) ───────────────────────────
+
+/**
+ * Fires every morning at 09:00 UTC.
+ * Finds all Expired subscriptions where:
+ *   - renewalDate was 30+ days ago
+ *   - winBackQueuedAt field does not exist or is null (never been queued)
+ *
+ * For each qualifying customer:
+ *   1. Creates a Reminder doc (status: Manual Approval, reminderType: win-back)
+ *   2. Stamps subscription.winBackQueuedAt = today (prevents re-queuing)
+ *
+ * Posts a Discord summary if any customers were queued.
+ * Sends nothing if zero customers qualify.
+ */
+exports.winBackCheck = onSchedule(
+    { schedule: '0 9 * * *', timeZone: 'UTC', region: 'us-central1' },
+    async () => {
+        console.log('[Win-Back] Starting daily check...');
+        try {
+            const today = todayStr();
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - 30);
+            const cutoffStr = cutoffDate.toISOString().split('T')[0]; // YYYY-MM-DD
+
+            // 1. Fetch all Expired subscriptions
+            const subsSnap = await db.collection('subscriptions')
+                .where('status', '==', 'Expired')
+                .get();
+
+            // 2. Filter: renewalDate 30+ days ago AND not already queued
+            const qualifying = subsSnap.docs.filter(doc => {
+                const data = doc.data();
+                if (data.winBackQueuedAt) return false; // already queued — skip
+                if (!data.renewalDate) return false;
+                const renewalDay = data.renewalDate.split('T')[0];
+                return renewalDay <= cutoffStr;
+            });
+
+            console.log(`[Win-Back] Found ${qualifying.length} qualifying subscription(s).`);
+
+            if (qualifying.length === 0) {
+                console.log('[Win-Back] No customers qualify today. Skipping Discord alert.');
+                return;
+            }
+
+            // 3. Fetch customer names for the qualifying subscriptions
+            const customerIds = [...new Set(qualifying.map(d => d.data().customerId))];
+            const customerDocs = await Promise.all(
+                customerIds.map(id => db.collection('customers').doc(id).get())
+            );
+            const customerMap = {};
+            customerDocs.forEach(doc => {
+                if (doc.exists) customerMap[doc.id] = doc.data();
+            });
+
+            // 4. For each qualifying subscription: create Reminder + stamp subscription
+            const batch = db.batch();
+            const queued = [];
+
+            for (const subDoc of qualifying) {
+                const sub = subDoc.data();
+                const customer = customerMap[sub.customerId];
+                const customerName = customer?.fullName || 'Unknown';
+
+                // Calculate days since expiry
+                const renewalDay = sub.renewalDate.split('T')[0];
+                const expiredDaysAgo = Math.floor(
+                    (new Date(today) - new Date(renewalDay)) / (1000 * 60 * 60 * 24)
+                );
+
+                // Build the reminder document
+                const reminderId = `winback_${subDoc.id}_${today.replace(/-/g, '')}`;
+                const messagePreview = `Hi ${customerName}, we noticed your LinkedIn Premium plan expired ${expiredDaysAgo} days ago. We'd love to get you back — let us know if you'd like to renew and we can sort it right away.`;
+
+                const reminderRef = db.collection('reminders').doc(reminderId);
+                batch.set(reminderRef, {
+                    id: reminderId,
+                    customerId: sub.customerId,
+                    subscriptionId: subDoc.id,
+                    reminderType: 'win-back',
+                    channel: 'WhatsApp',
+                    scheduledFor: new Date().toISOString(),
+                    status: 'Manual Approval',
+                    messagePreview,
+                    createdAt: new Date().toISOString()
+                });
+
+                // Stamp the subscription so it's never queued again
+                const subRef = db.collection('subscriptions').doc(subDoc.id);
+                batch.update(subRef, { winBackQueuedAt: today });
+
+                queued.push({ name: customerName, expiredDaysAgo });
+            }
+
+            await batch.commit();
+            console.log(`[Win-Back] Created ${queued.length} reminder(s) and stamped subscriptions.`);
+
+            // 5. Post Discord summary
+            const webhookUrl = await getWebhookUrl();
+            if (!webhookUrl) {
+                console.log('[Win-Back] No webhook URL. Skipping Discord alert.');
+                return;
+            }
+
+            const adminUrl = 'https://www.unlockpremium.store/unlock-world-26/reminders';
+            const customerLines = queued
+                .map(c => `• ${c.name} — expired ${c.expiredDaysAgo} days ago`)
+                .join('\n');
+
+            const embed = {
+                title: `♻️ Win-Back Queue — ${today}`,
+                color: 0xf97316, // orange
+                description: `**${queued.length}** customer${queued.length === 1 ? '' : 's'} queued for win-back today:\n\n${customerLines}\n\n[Review in Reminder Centre](${adminUrl})`,
+                footer: { text: 'CRMSync Automation • Pending Manual Approval before sending' },
+                timestamp: new Date().toISOString()
+            };
+
+            await postToDiscord(webhookUrl, embed);
+            console.log('[Win-Back] Discord alert sent.');
+
+        } catch (err) {
+            console.error('[Win-Back] Error:', err);
         }
     }
 );
